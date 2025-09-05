@@ -1,0 +1,2 @@
+# digby
+Rust KV Store
