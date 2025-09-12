@@ -6,6 +6,16 @@ use std::io::Write;
 use std::io::Cursor;
 use byteorder::{LittleEndian, WriteBytesExt};
 use byteorder::ReadBytesExt;
+use digby::Db;
+
+
+#[test]
+fn test_digby_db() {
+    let mut db = Db::new("/tmp/test_db.db");
+    assert!(db.init().is_ok());
+    db.close().expect("Should be able to close DB");
+    let _ = std::fs::remove_file("/tmp/test_db.db");
+}
 
 #[test]
 fn test_write_file() {
