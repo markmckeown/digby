@@ -54,14 +54,14 @@ mod tests {
     fn test_page_cache_read_write() {
         let path = "/tmp/test_page_cache.db";
         let page_size: u64 = 4096;
-        let mut file = OpenOptions::new() 
+        let file = OpenOptions::new() 
             .read(true)
             .write(true)
             .create(true)
             .open(path)
             .expect("Should be able to create/open file");      
 
-        let cache = PageCache::new(file, page_size);
+        let _cache = PageCache::new(file, page_size);
 
     }
     
