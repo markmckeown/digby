@@ -2,11 +2,11 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 use std::convert::TryFrom;
 
-// Checksum(u32) | Page No (u32)| Type(u8) | Reserved(3 bytes) | Data(4084 bytes)
-pub struct Page {
-    bytes: Vec<u8>
-}
+use crate::page;
 
+
+
+#[derive(PartialEq, Eq)]
 pub enum PageType {
     Header = 1,
     Data = 2,
@@ -24,9 +24,80 @@ impl TryFrom<u8> for PageType {
     }
 }
 
-impl Page {
-    
+trait PageTrait {
+    fn get_bytes(&self) -> &[u8];
+    fn get_page_number(&mut self) -> u32;
+}
 
+
+pub struct HeadPage {
+    page: Page
+}
+
+impl PageTrait for HeadPage {
+    fn get_bytes(&self) -> &[u8] {
+        self.page.get_bytes()
+    }
+
+    fn get_page_number(&mut self) -> u32 {
+        self.page.get_page_number()
+    }
+}
+
+impl HeadPage {
+    pub fn new(page_size: u64) -> Self {
+        let mut head_page = HeadPage {
+            page: Page::new(page_size),
+        };
+        head_page.page.set_type(PageType::Header);
+        head_page.page.set_page_number(0);
+        head_page
+    }
+
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+        let mut page = Page::from_bytes(bytes);
+        if page.get_type() != page::PageType::Header {
+            panic!("Invalid page type for HeadPage");
+        }
+        if page.get_page_number() != 0 {
+            panic!("Invalid page number for HeadPage");
+        }
+        HeadPage { page }
+    }
+
+    pub fn from_page(mut page: Page) -> Self {
+        if page.get_type() != page::PageType::Header {
+            panic!("Invalid page type for HeadPage");
+        }
+        if page.get_page_number() != 0 {
+            panic!("Invalid page number for HeadPage");
+        }
+        HeadPage { page }
+    }
+}
+
+
+
+
+// Checksum(u32) | Page No (u32)| Type(u8) | Reserved(3 bytes) | Data(4084 bytes)
+pub struct Page {
+    bytes: Vec<u8>
+}
+
+impl PageTrait for Page {
+    fn get_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    fn get_page_number(&mut self) -> u32 {
+        let mut cursor = Cursor::new(&mut self.bytes[..]);
+        cursor.set_position(4);
+        cursor.read_u32::<LittleEndian>().unwrap()
+    }
+}
+
+
+impl Page {
     pub fn new(page_size: u64) -> Self {
         Page {
             bytes: vec![0u8; page_size as usize],
@@ -39,20 +110,12 @@ impl Page {
         }
     }
 
-    pub fn get_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
 
     pub fn get_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes
     }
 
-    pub fn get_page_number(&mut self) -> u32 {
-        let mut cursor = Cursor::new(&mut self.bytes[..]);
-        cursor.set_position(4);
-        cursor.read_u32::<LittleEndian>().unwrap()
-    }
-
+    
     pub fn set_page_number(&mut self, page_number: u32) {
         let mut cursor = Cursor::new(&mut self.bytes[..]);
         cursor.set_position(4);
