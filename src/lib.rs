@@ -9,3 +9,6 @@ pub use head_page::HeadPage;
 pub mod data_page;
 pub use data_page::DataPage;
 pub mod file_layer;
+pub use file_layer::FileLayer;
+pub mod block_layer;
+pub use block_layer::BlockLayer;
