@@ -22,7 +22,7 @@ impl BlockLayer {
         page
     }
 
-    pub fn put_page(&mut self, page: &mut Page) {
+    pub fn put_page(&mut self, page: &mut Page) -> () {
         let page_number = page.get_page_number();
         self.set_checksum(page);
         self.file_layer.write_page_to_disk(page, page_number).expect("Failed to write page");
@@ -52,6 +52,16 @@ impl BlockLayer {
         if stored_checksum != calculated_checksum {
             panic!("Checksum mismatch: stored {}, calculated {} for page {}", stored_checksum, calculated_checksum, page.get_page_number());
         }
+    }
+
+    pub fn sync_data(&mut self) -> () {
+        self.file_layer.sync_data();
+        ()
+    }
+
+    pub fn sync_all(&mut self) -> () {
+        self.file_layer.sync();
+        ()
     }
 }   
 

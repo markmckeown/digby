@@ -32,20 +32,18 @@ impl FileLayer {
         Ok(())
     }
 
-    pub fn sync(&mut self) -> std::io::Result<()> {
-        self.file.sync_all().expect("Failed to sync");
-        Ok(())
+    pub fn sync(&mut self)  {
+        self.file.sync_all().expect("Failed to sync")
     }
 
-    pub fn sync_data(&mut self) -> std::io::Result<()> {
-        self.file.sync_data().expect("Failed to sync data");
-        Ok(())
+    pub fn sync_data(&mut self) {
+        self.file.sync_data().expect("Failed to sync data")
     }
 }
 
 impl Drop for FileLayer {
     fn drop(&mut self) {
-        self.sync().expect("Failed to sync on drop");
+        self.sync();
     }
 }
 

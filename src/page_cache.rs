@@ -1,68 +1,61 @@
+use crate::block_layer::BlockLayer;
+use crate::page::Page;
+
+
 pub struct PageCache {
-     file: std::fs::File,   
-     page_size: u64, 
+    block_layer: BlockLayer,
+    page_size: u64,
 }
 
 impl PageCache {
-    pub fn new(file: std::fs::File, page_size: u64) -> Self {
-        PageCache { file, page_size }
+    pub fn new(block_layer: BlockLayer, page_size: u64) -> Self {
+        PageCache { block_layer, page_size }
     }
 
-    pub fn read_page(&mut self, page_number: u64, buffer: &mut [u8]) -> std::io::Result<()> {
-        use std::io::{Seek, SeekFrom, Read};
-
-        let offset = page_number * self.page_size;
-        self.file.seek(SeekFrom::Start(offset)).expect("Failed to seek to DB page");
-        self.file.read_exact(buffer).expect("Failed to read DB page");
-        Ok(())
+    pub fn read_page(&mut self, page_number: u32) -> Page {
+        self.block_layer.get_page(page_number, self.page_size)
     }
 
-    pub fn write_page(&mut self, page_number: u64, page_data: &[u8]) -> std::io::Result<()> {
-        use std::io::{Seek, SeekFrom, Write};
-
-        let offset = page_number * self.page_size;
-        self.file.seek(SeekFrom::Start(offset)).expect("Failed to seek to DB page");
-        self.file.write_all(page_data).expect("Failed to write DB page");
-
-        Ok(())
+    pub fn write_page(&mut self, page: &mut Page) -> () {
+        self.block_layer.put_page(page);
     }
 
-    pub fn sync_data(&mut self) -> std::io::Result<()> {
-        self.file.sync_data().expect("Failed to sync data DB file to disk");
-        Ok(())
-    }   
+    pub fn sync_data(&mut self) -> () {
+        self.block_layer.sync_data()
+    }
 
-    pub fn sync_all(&mut self) -> std::io::Result<()> {
-        self.file.sync_all().expect("Failed to sync all DB file to disk");
-        Ok(())
+    pub fn sync_all(&mut self) -> () {
+        self.block_layer.sync_all()
     }
 }
 
-impl Drop for PageCache {
-    fn drop(&mut self) {
-        self.sync_all().expect("Failed to sync all DB file to disk on drop");
-    }
-}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::OpenOptions;
+    use crate::{file_layer::FileLayer, page::PageTrait};
+    use tempfile::tempfile;
+    const PAGE_SIZE: u64 = 4096;
     
 
     #[test]
     fn test_page_cache_read_write() {
-        let path = "/tmp/test_page_cache.db";
-        let page_size: u64 = 4096;
-        let file = OpenOptions::new() 
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(path)
-            .expect("Should be able to create/open file");      
+        let temp_file = tempfile().expect("Failed to create temp file");
+        let file_layer = FileLayer::new(temp_file);
+        let block_layer = BlockLayer::new(file_layer);
+        let mut page_cache = PageCache::new(block_layer, PAGE_SIZE);
+        let page_number = 0;
 
-        let _cache = PageCache::new(file, page_size);
-
+        // Write a page to the cache
+        let mut page = Page::new(PAGE_SIZE);
+        page.set_page_number(page_number);
+        page_cache.write_page(&mut page);
+        page_cache.sync_all();
+        // Read the page back from the cache
+        let mut read_page = page_cache.read_page(page_number);
+        assert_eq!(read_page.get_page_number(), page_number);
+        assert_eq!(read_page.get_bytes(), page.get_bytes());
     }
     
 }
