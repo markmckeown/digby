@@ -4,3 +4,8 @@ pub mod page_cache;
 pub use page_cache::PageCache;
 pub mod page;
 pub use page::Page;
+pub mod head_page;
+pub use head_page::HeadPage;
+pub mod data_page;
+pub use data_page::DataPage;
+pub mod file_layer;
