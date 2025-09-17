@@ -70,19 +70,7 @@ impl Page {
         cursor.write_u32::<LittleEndian>(page_number as u32).expect("Failed to write page number");
     }
 
-    pub fn get_checksum(&mut self) -> u32 {
-        let mut cursor = Cursor::new(&mut self.bytes[..]);
-        cursor.set_position(0);
-        cursor.read_u32::<LittleEndian>().unwrap()
-    }
-
-    pub fn set_checksum(&mut self, checksum: u32) {
-        let mut cursor = Cursor::new(&mut self.bytes[..]);
-        cursor.set_position(0);
-        cursor.write_u32::<LittleEndian>(checksum as u32).expect("Failed to write checksum");
-    }
-
-     pub fn get_type(&mut self) -> PageType {
+    pub fn get_type(&mut self) -> PageType {
         let mut cursor = Cursor::new(&mut self.bytes[..]);
         cursor.set_position(8);
         PageType::try_from(cursor.read_u8().unwrap()).expect("Invalid page type")
@@ -112,11 +100,9 @@ mod tests {
         let mut page = Page::new(4096);
         assert_eq!(page.get_bytes().len(), 4096);
         assert_eq!(page.get_page_number(), 0);
-        page.set_checksum(23);
         page.set_page_number(42);
         page.set_type(PageType::Data);
         assert_eq!(page.get_page_number(), 42);
-        assert_eq!(page.get_checksum(), 23);
         assert_eq!(page.get_type() as u8, PageType::Data as u8);
     }
 
