@@ -14,3 +14,5 @@ pub mod db;
 pub use db::Db;
 pub mod head_page;
 pub use head_page::HeadPage;
+pub mod tuple;
+pub use tuple::Tuple;
