@@ -1,6 +1,7 @@
-use std::i128;
-
-use crate::page;
+use std::io::Cursor;
+use byteorder::LittleEndian;
+use byteorder::{ReadBytesExt, WriteBytesExt};
+use crate::page::PageType;
 use crate::page::Page;
 use crate::page::PageTrait;
 
@@ -8,7 +9,7 @@ pub struct HeadPage {
     page: Page
 }
 
-pub impl PageTrait for HeadPage {
+impl PageTrait for HeadPage {
     fn get_bytes(&self) -> &[u8] {
         self.page.get_bytes()
     }
@@ -22,15 +23,14 @@ pub impl PageTrait for HeadPage {
     }
 }
 
-pub impl HeadPage {
-    
-
-    pub fn new(page_size: u64, page_number: u32) -> Self {
+impl HeadPage {
+    pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
         let mut head_page = HeadPage {
             page: Page::new(page_size),
         };
         head_page.page.set_type(PageType::Head);
         head_page.page.set_page_number(page_number);
+        head_page.set_version(version);
         head_page
     }
 
@@ -44,9 +44,32 @@ pub impl HeadPage {
             panic!("Invalid page type for HeadPage");
         }
 
-        let mut head_page = HeadPage { page };
+        let head_page = HeadPage { page };
         head_page
     }
 
+    pub fn get_version(&mut self) -> u64 {
+        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        cursor.set_position(12);
+        cursor.read_u64::<LittleEndian>().unwrap()
+    }
 
+    pub fn set_version(&mut self, version: u64) {
+        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        cursor.set_position(12);
+        cursor.write_u64::<LittleEndian>(version as u64).expect("Failed to write version");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_head_page() {
+        let mut head_page = HeadPage::new(4096, 0, 1);
+        assert_eq!(head_page.get_version(), 1);
+        head_page.set_version(2);
+        assert_eq!(head_page.get_version(), 2);
+    }
 }

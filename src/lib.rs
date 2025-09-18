@@ -12,3 +12,5 @@ pub mod block_layer;
 pub use block_layer::BlockLayer;
 pub mod db;
 pub use db::Db;
+pub mod head_page;
+pub use head_page::HeadPage;

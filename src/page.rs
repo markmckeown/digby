@@ -7,6 +7,7 @@ use std::convert::TryFrom;
 pub enum PageType {
     Root = 1,
     Data = 2,
+    Head = 3
 }
 
 impl TryFrom<u8> for PageType {
