@@ -19,6 +19,7 @@ impl Db {
         use std::path::Path;
         
         let mut is_new = false;
+        let mut file_size: u64 = 0;
 
         let db_file: std::fs::File;
         if Path::new(path).exists() {
@@ -26,7 +27,8 @@ impl Db {
                 .read(true)
                 .write(true)
                 .open(path).expect("Failed to open existing DB file");
-            if std::fs::metadata(path).unwrap().len() == 0 {
+            file_size = std::fs::metadata(path).unwrap().len();
+            if file_size == 0 {
                 is_new = true;
             }
         } else {
@@ -50,12 +52,13 @@ impl Db {
         if is_new {
             db.init_db_file().expect("Failed to initialize DB file");
         } else {
-            db.check_db_integrity().expect("DB integrity check failed");
+            db.check_db_integrity(file_size).expect("DB integrity check failed");
         }
         db
     }
 
-    pub fn check_db_integrity(&mut self) -> std::io::Result<()> {
+    pub fn check_db_integrity(&mut self, file_size: u64) -> std::io::Result<()> {
+        assert!(file_size % Self::PAGE_SIZE == 0, "Corrupted DB file: size is not multiple of page size");
         let mut _page : Page = self.page_cache.read_page(0);
         Ok(())
     }
