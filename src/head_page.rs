@@ -17,6 +17,10 @@ impl PageTrait for HeadPage {
     fn get_page_number(&mut self) -> u32 {
         self.page.get_page_number()
     }
+
+    fn get_page(&mut self) -> &mut Page {
+        &mut self.page
+    }
 }
 
 impl HeadPage {

@@ -51,7 +51,7 @@ impl Drop for FileLayer {
 mod tests {
     use super::*;
     const PAGE_SIZE: u64 = 4096;
-    use tempfile::tempfile; // Add this line to use the tempfile crate  
+    use tempfile::tempfile;   
     use rand::Rng;
     use rand::distr::Alphanumeric;
     use crate::page::PageTrait;

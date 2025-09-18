@@ -2,6 +2,8 @@ use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
 use crate::block_layer::BlockLayer;
 use crate::page::Page;
+use crate::head_page::HeadPage;
+use crate::page::PageTrait;
 
 pub struct Db {
     path: String, 
@@ -11,7 +13,6 @@ pub struct Db {
 
 impl Db {
     pub const PAGE_SIZE: u64 = 4096;
-    pub const MAGIC_NUMBER: u32 = 26061973;
 
     pub fn new(path: &str) -> Self {        
         use std::fs::OpenOptions;
@@ -25,6 +26,9 @@ impl Db {
                 .read(true)
                 .write(true)
                 .open(path).expect("Failed to open existing DB file");
+            if std::fs::metadata(path).unwrap().len() == 0 {
+                is_new = true;
+            }
         } else {
             db_file = OpenOptions::new()
             .write(true)
@@ -57,6 +61,9 @@ impl Db {
     }
 
     pub fn init_db_file(&mut self) -> std::io::Result<()> {
+        let mut head_page: HeadPage = HeadPage::new(Db::PAGE_SIZE);
+        self.page_cache.write_page(&mut head_page.get_page());
+        self.page_cache.sync_all();
         Ok(())
     }
 
@@ -66,3 +73,30 @@ impl Db {
 
 }
 
+impl Drop for Db {
+    fn drop(&mut self) {
+        self.page_cache.sync_all();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::NamedTempFile; 
+
+    #[test]
+    fn test_db_creation() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        {
+        let db = Db::new(temp_file.path().to_str().unwrap());
+        assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+        }
+        {
+        let db = Db::new(temp_file.path().to_str().unwrap());
+        assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
+}
