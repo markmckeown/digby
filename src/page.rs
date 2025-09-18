@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 
 #[derive(PartialEq, Eq)]
 pub enum PageType {
-    Header = 1,
+    Root = 1,
     Data = 2,
 }
 
@@ -14,7 +14,7 @@ impl TryFrom<u8> for PageType {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            1 => Ok(PageType::Header),
+            1 => Ok(PageType::Root),
             2 => Ok(PageType::Data),
             _ => Err(()),
         }

@@ -5,11 +5,11 @@ use crate::page::PageTrait;
 use crate::page::PageType;
 
 
-pub struct HeadPage {
+pub struct RootPage {
     page: Page
 }
 
-impl PageTrait for HeadPage {
+impl PageTrait for RootPage {
     fn get_bytes(&self) -> &[u8] {
         self.page.get_bytes()
     }
@@ -23,14 +23,14 @@ impl PageTrait for HeadPage {
     }
 }
 
-impl HeadPage {
+impl RootPage {
     const MAGIC_NUMBER: u32 = 26061973;
 
     pub fn new(page_size: u64) -> Self {
-        let mut head_page = HeadPage {
+        let mut head_page = RootPage {
             page: Page::new(page_size),
         };
-        head_page.page.set_type(PageType::Header);
+        head_page.page.set_type(PageType::Root);
         head_page.page.set_page_number(0);
         head_page.set_magic_number();
         head_page
@@ -42,13 +42,13 @@ impl HeadPage {
     }
 
     pub fn from_page(mut page: Page) -> Self {
-        if page.get_type() != PageType::Header {
+        if page.get_type() != PageType::Root {
             panic!("Invalid page type for HeadPage");
         }
         if page.get_page_number() != 0 {
             panic!("Invalid page number for HeadPage");
         }
-        let mut head_page = HeadPage { page };
+        let mut head_page = RootPage { page };
         if head_page.get_magic_number() != Self::MAGIC_NUMBER {
             panic!("Invalid magic number for HeadPage");
         }

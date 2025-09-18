@@ -2,7 +2,7 @@ use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
 use crate::block_layer::BlockLayer;
 use crate::page::Page;
-use crate::head_page::HeadPage;
+use crate::root_page::RootPage;
 use crate::page::PageTrait;
 
 pub struct Db {
@@ -61,7 +61,7 @@ impl Db {
     }
 
     pub fn init_db_file(&mut self) -> std::io::Result<()> {
-        let mut head_page: HeadPage = HeadPage::new(Db::PAGE_SIZE);
+        let mut head_page: RootPage = RootPage::new(Db::PAGE_SIZE);
         self.page_cache.write_page(&mut head_page.get_page());
         self.page_cache.sync_all();
         Ok(())
