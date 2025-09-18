@@ -1,5 +1,3 @@
-pub mod db;
-pub use db::Db;
 pub mod page_cache;
 pub use page_cache::PageCache;
 pub mod page;
@@ -12,3 +10,5 @@ pub mod file_layer;
 pub use file_layer::FileLayer;
 pub mod block_layer;
 pub use block_layer::BlockLayer;
+pub mod db;
+pub use db::Db;
