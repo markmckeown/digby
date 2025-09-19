@@ -3,7 +3,22 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 use crate::tuple::Tuple;
 
-// Checksum(u32) | Page No (u32)| Type(u8) | Entries (u8) | Free_Space (u16) | Data(4084 bytes)
+// DataPage structure
+//
+// Header is 12 bytes:
+// | Checksum(u32) | Page No (u32)| Type(u8) | Entries (u8) | Free_Space (u16) | 
+//
+// DataPage body is of the format:
+//
+// | Header | Tuple | Tuple  | ... Free Space ... | Index to Tuple | Index to Type | End Of Page |
+// |--------|-------|--------|--------------------|----------------|---------------|-------------|
+// Tuples grow down the Page, while the Tuple Index grows up the page - with the free space in between.
+//
+// Note we can only have up to 255 entries in a DataPage, as Entries is a u8. A tuple is at least
+// 16 bytes - 4 bytes key length, 4 bytes value length, 8 bytes version.
+// 16 * 255 = 4080 + 12 bytes header + 510 bytes index = 4602 bytes - so we will have less than 255
+// tuples in a 4KB page as there is not enough space for 255 tuples and their indexes.
+// We do not need to check entries for overflow as we check if there is enough space in the page before adding a tuple.
 pub struct DataPage {
     page: Page
 }
@@ -81,8 +96,9 @@ impl DataPage {
         }
 
         let current_entries = self.get_entries();
-        let current_entries_size: usize = current_entries as usize * 2; // Each entry has 2 bytes of metadata
+        let current_entries_size: usize = current_entries as usize * 2; // Each entry has 2 bytes for index
         let free_space = self.get_free_space();
+
 
         let tuple_offset : usize = (page_size as usize) - (free_space as usize + current_entries_size);
         let page_bytes = self.page.get_bytes_mut();
@@ -94,6 +110,26 @@ impl DataPage {
         self.set_free_space(free_space - (tuple_size as u16 + 2));
         
         Ok(())
+    }
+
+    pub fn get_tuple(&mut self, index: u8, page_size: usize) -> Option<Tuple> {
+        let entries = self.get_entries();
+        if index >= entries {
+            return None;
+        }
+
+        let current_entries_size: usize = entries as usize * 2; // Each entry has 2 bytes for index
+        let mut cursor = Cursor::new(&self.page.get_bytes()[page_size - current_entries_size..]);
+        cursor.set_position((index as u64) * 2);
+        let tuple_offset = cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
+
+        let mut tuple_cursor = Cursor::new(&self.page.get_bytes()[tuple_offset..]);
+        let key_len = tuple_cursor.read_u32::<byteorder::LittleEndian>().unwrap() as usize;
+        let value_len = tuple_cursor.read_u32::<byteorder::LittleEndian>().unwrap() as usize;
+        let tuple_size = key_len + value_len + 8 + 4 + 4; // key + value + version + key_len + value_len
+        
+
+        Some(Tuple::from_bytes(self.page.get_bytes()[tuple_offset..tuple_offset + tuple_size].to_vec()))
     }
 }
 
@@ -110,5 +146,10 @@ mod tests {
 
         let tuple = Tuple::new(key, value, version);
         assert!(data_page.add_tuple(&tuple, 4096).is_ok());
+        assert_eq!(data_page.get_entries(), 1);
+        let retrieved_tuple = data_page.get_tuple(0, 4096).unwrap();
+        assert_eq!(retrieved_tuple.get_key(), b"key");
+        assert_eq!(retrieved_tuple.get_value(), b"value");
+        assert_eq!(retrieved_tuple.get_version(), 1);
     }
 }
