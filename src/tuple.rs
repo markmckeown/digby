@@ -60,6 +60,10 @@ impl Tuple {
     pub fn get_serialized(&self) -> &[u8] {
         &self.serialized
     }
+
+    pub fn get_size(&self) -> usize {
+        self.serialized.len()
+    }
 }
 
 #[cfg(test)]
