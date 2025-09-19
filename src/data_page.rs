@@ -89,7 +89,7 @@ impl DataPage {
         free_space >= size + 2
     }
 
-    pub fn add_tuple(&mut self, tuple: &Tuple, page_size: u64) -> Result<(), String> {
+    pub fn add_tuple_base(&mut self, tuple: &Tuple, page_size: u64) -> Result<(), String> {
         let tuple_size: usize = tuple.get_size();
         if !self.can_fit(tuple_size) {
             return Err("Not enough space in DataPage".to_string());
@@ -112,7 +112,7 @@ impl DataPage {
         Ok(())
     }
 
-    pub fn get_tuple(&mut self, index: u8, page_size: usize) -> Option<Tuple> {
+    pub fn get_tuple_index(&mut self, index: u8, page_size: usize) -> Option<Tuple> {
         let entries = self.get_entries();
         if index >= entries {
             return None;
@@ -131,6 +131,31 @@ impl DataPage {
 
         Some(Tuple::from_bytes(self.page.get_bytes()[tuple_offset..tuple_offset + tuple_size].to_vec()))
     }
+
+
+    pub fn get_all_tuples(&mut self, page_size: usize) -> Vec<Tuple> {
+        let entries = self.get_entries();
+        let mut tuples = Vec::new();
+        for i in 0..entries {
+            if let Some(tuple) = self.get_tuple_index(i, page_size) {
+                tuples.push(tuple);
+            }
+        }
+        tuples
+    }
+
+    pub fn get_tuple(&mut self, key: Vec<u8>, page_size: usize) -> Option<Tuple> {
+        let entries = self.get_entries();
+        for i in 0..entries {
+            if let Some(tuple) = self.get_tuple_index(i, page_size) {
+                if tuple.get_key() == key {
+                    return Some(tuple);
+                }
+            }
+        }
+        None
+    }
+
 }
 
 #[cfg(test)]
@@ -145,11 +170,32 @@ mod tests {
         let version = 1;
 
         let tuple = Tuple::new(key, value, version);
-        assert!(data_page.add_tuple(&tuple, 4096).is_ok());
+        assert!(data_page.add_tuple_base(&tuple, 4096).is_ok());
         assert_eq!(data_page.get_entries(), 1);
-        let retrieved_tuple = data_page.get_tuple(0, 4096).unwrap();
+        let retrieved_tuple = data_page.get_tuple_index(0, 4096).unwrap();
         assert_eq!(retrieved_tuple.get_key(), b"key");
         assert_eq!(retrieved_tuple.get_value(), b"value");
         assert_eq!(retrieved_tuple.get_version(), 1);
+    }
+
+    #[test]
+    fn test_get_tuple() {
+        let mut data_page = DataPage::new(4096, 1);
+        let key = b"key".to_vec();
+        let value = b"value".to_vec();
+        let version = 1;
+
+        let tuple = Tuple::new(key, value, version);
+        assert!(data_page.add_tuple_base(&Tuple::new(b"key2".to_vec(), b"value2".to_vec(), 2), 4096).is_ok());
+        assert!(data_page.add_tuple_base(&tuple, 4096).is_ok());
+        assert_eq!(data_page.get_entries(), 2);
+        let key_to_find = b"key".to_vec();
+        let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
+        assert_eq!(retrieved_tuple.get_key(), b"key");
+        assert_eq!(retrieved_tuple.get_value(), b"value");
+        assert_eq!(retrieved_tuple.get_version(), 1);
+
+        let missing_key = b"missing".to_vec();
+        assert!(data_page.get_tuple(missing_key, 4096).is_none());
     }
 }
