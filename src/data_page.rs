@@ -38,6 +38,8 @@ impl PageTrait for DataPage {
 }
 
 impl DataPage {
+    // Create a new DataPage with given page size and page number.
+    // This is used when creating a page to add to the DB.
     pub fn new(page_size: u64, page_number: u32) -> Self {
         let mut page = Page::new(page_size);
         page.set_type(PageType::Data);
@@ -48,11 +50,14 @@ impl DataPage {
         data_page
     }
 
+    // Create a DataPage from some bytes, ie read from disk.
      pub fn from_bytes(bytes: Vec<u8>) -> Self {
         let page = Page::from_bytes(bytes);
         return Self::from_page(page);
     }
 
+    // Create a DataPage from a Page - read bytes from disk,
+    // determine it is a DataPage, and wrap it.
     pub fn from_page(mut page: Page) -> Self {
         if page.get_type() != PageType::Data {
             panic!("Page type is not Data");
@@ -60,36 +65,38 @@ impl DataPage {
         DataPage { page }
     }
 
-    pub fn get_entries(&mut self) -> u8 {
+    fn get_entries(&mut self) -> u8 {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
         cursor.set_position(9);
         cursor.read_u8().unwrap()
     }
 
-    pub fn set_entries(&mut self, entries: u8) {
+    fn set_entries(&mut self, entries: u8) {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
         cursor.set_position(9);
         cursor.write_u8(entries).expect("Failed to write entries");
     }
 
-    pub fn get_free_space(&mut self) -> u16 {
+    fn get_free_space(&mut self) -> u16 {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
         cursor.set_position(10);
         cursor.read_u16::<byteorder::LittleEndian>().unwrap()
     }
 
-    pub fn set_free_space(&mut self, free_space: u16) {
+    fn set_free_space(&mut self, free_space: u16) {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
         cursor.set_position(10);
         cursor.write_u16::<byteorder::LittleEndian>(free_space).expect("Failed to write free space");
     }
 
-    pub fn can_fit(&mut self, size: usize) -> bool {
+    fn can_fit(&mut self, size: usize) -> bool {
         let free_space: usize = self.get_free_space() as usize;
         free_space >= size + 2
     }
 
-    pub fn add_tuple_base(&mut self, tuple: &Tuple, page_size: u64) -> Result<(), String> {
+    // Add a tuple to the DataPage. Returns an error if there is not enough space.
+    // This is low level API. Use store_tuple to add or update a tuple.
+    fn add_tuple(&mut self, tuple: &Tuple, page_size: u64) -> Result<(), String> {
         let tuple_size: usize = tuple.get_size();
         if !self.can_fit(tuple_size) {
             return Err("Not enough space in DataPage".to_string());
@@ -112,11 +119,12 @@ impl DataPage {
         Ok(())
     }
 
-    pub fn get_tuple_index(&mut self, index: u8, page_size: usize) -> Option<Tuple> {
+    // Get tuple at index, used as part of binary search.
+    // Crashes if index is out of bounds.
+    fn get_tuple_index(&mut self, index: u8, page_size: usize) -> Tuple {
         let entries = self.get_entries();
-        if index >= entries {
-            return None;
-        }
+
+        assert!(index < entries);
 
         let current_entries_size: usize = entries as usize * 2; // Each entry has 2 bytes for index
         let mut cursor = Cursor::new(&self.page.get_bytes()[page_size - current_entries_size..]);
@@ -129,29 +137,73 @@ impl DataPage {
         let tuple_size = key_len + value_len + 8 + 4 + 4; // key + value + version + key_len + value_len
         
 
-        Some(Tuple::from_bytes(self.page.get_bytes()[tuple_offset..tuple_offset + tuple_size].to_vec()))
+        Tuple::from_bytes(self.page.get_bytes()[tuple_offset..tuple_offset + tuple_size].to_vec())
+    }
+
+    // Store a tuple in the DataPage. If a tuple with the same key exists, it is replaced.
+    // Tuples are kept in sorted order by key.
+    // Get all tuples in page, remove any with same key, add new tuple, sort, 
+    // clear page and re-add all tuples.
+    pub fn store_tuple(&mut self, new_tuple: Tuple, page_size: usize) -> Result<(), String> {
+        let tuple_size: usize = new_tuple.get_size();
+        if !self.can_fit(tuple_size) {
+            return Err("Not enough space in DataPage".to_string());
+        }
+
+        let sorted_tuples = self.build_sorted_tuples(new_tuple, page_size);
+        // Clear the page and re-add all tuples
+        self.set_entries(0);
+        self.set_free_space((page_size - 12) as u16); // Reset free space
+
+        for tuple in sorted_tuples {
+            self.add_tuple(&tuple, page_size as u64)?;
+        }
+        
+        Ok(())
     }
 
 
-    pub fn get_all_tuples(&mut self, page_size: usize) -> Vec<Tuple> {
+
+    // Part of store_tuple - get all tuples, remove any with same key as new_tuple,
+    // add new_tuple, sort and return.
+    fn build_sorted_tuples(&mut self, new_tuple: Tuple, page_size: usize) -> Vec<Tuple> {
+        let mut tuples = self.get_all_tuples(page_size);
+        // Remove any existing tuple with the same key
+        tuples.retain(|t| t.get_key() != new_tuple.get_key());
+        tuples.push(new_tuple);
+        tuples.sort_by(|a, b| a.get_key().cmp(b.get_key()));
+        tuples
+    }
+
+
+    // Get all tuples in the DataPage - used for rebuilding the page when adding or updating a tuple.
+    fn get_all_tuples(&mut self, page_size: usize) -> Vec<Tuple> {
         let entries = self.get_entries();
         let mut tuples = Vec::new();
         for i in 0..entries {
-            if let Some(tuple) = self.get_tuple_index(i, page_size) {
-                tuples.push(tuple);
-            }
+            let tuple = self.get_tuple_index(i, page_size);
+            tuples.push(tuple);
         }
         tuples
     }
 
+    // Get a tuple by key using binary search. Returns None if not found.
     pub fn get_tuple(&mut self, key: Vec<u8>, page_size: usize) -> Option<Tuple> {
         let entries = self.get_entries();
-        for i in 0..entries {
-            if let Some(tuple) = self.get_tuple_index(i, page_size) {
-                if tuple.get_key() == key {
-                    return Some(tuple);
+        let mut left = 0;
+        let mut right = entries as i32 - 1;
+
+        while left <= right {
+            let mid = left + (right - left) / 2;
+            let tuple: Tuple = self.get_tuple_index(mid as u8, page_size);
+            if tuple.get_key() == key {
+                return Some(tuple);
+            } else if tuple.get_key().to_vec() > key {
+                left = mid + 1;
+            } else {
+                    right = mid - 1;
                 }
-            }
+            
         }
         None
     }
@@ -170,9 +222,9 @@ mod tests {
         let version = 1;
 
         let tuple = Tuple::new(key, value, version);
-        assert!(data_page.add_tuple_base(&tuple, 4096).is_ok());
+        assert!(data_page.add_tuple(&tuple, 4096).is_ok());
         assert_eq!(data_page.get_entries(), 1);
-        let retrieved_tuple = data_page.get_tuple_index(0, 4096).unwrap();
+        let retrieved_tuple = data_page.get_tuple_index(0, 4096);
         assert_eq!(retrieved_tuple.get_key(), b"key");
         assert_eq!(retrieved_tuple.get_value(), b"value");
         assert_eq!(retrieved_tuple.get_version(), 1);
@@ -181,18 +233,19 @@ mod tests {
     #[test]
     fn test_get_tuple() {
         let mut data_page = DataPage::new(4096, 1);
-        let key = b"key".to_vec();
-        let value = b"value".to_vec();
-        let version = 1;
+        
 
-        let tuple = Tuple::new(key, value, version);
-        assert!(data_page.add_tuple_base(&Tuple::new(b"key2".to_vec(), b"value2".to_vec(), 2), 4096).is_ok());
-        assert!(data_page.add_tuple_base(&tuple, 4096).is_ok());
-        assert_eq!(data_page.get_entries(), 2);
-        let key_to_find = b"key".to_vec();
+        assert!(data_page.store_tuple(Tuple::new(b"a".to_vec(), b"value-a".to_vec(), 1), 4096).is_ok());
+        assert!(data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096).is_ok());
+        assert!(data_page.store_tuple(Tuple::new(b"c".to_vec(), b"value-c".to_vec(), 3), 4096).is_ok());
+        assert!(data_page.store_tuple(Tuple::new(b"d".to_vec(), b"value-d".to_vec(), 4), 4096).is_ok());
+        assert!(data_page.store_tuple(Tuple::new(b"e".to_vec(), b"value-e".to_vec(), 5), 4096).is_ok());
+
+        assert_eq!(data_page.get_entries(), 5);
+        let key_to_find = b"a".to_vec();
         let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
-        assert_eq!(retrieved_tuple.get_key(), b"key");
-        assert_eq!(retrieved_tuple.get_value(), b"value");
+        assert_eq!(retrieved_tuple.get_key(), b"a");
+        assert_eq!(retrieved_tuple.get_value(), b"value-a");
         assert_eq!(retrieved_tuple.get_version(), 1);
 
         let missing_key = b"missing".to_vec();
