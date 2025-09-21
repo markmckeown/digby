@@ -134,8 +134,7 @@ impl DataPage {
         let mut tuple_cursor = Cursor::new(&self.page.get_bytes()[tuple_offset..]);
         let key_len = tuple_cursor.read_u32::<byteorder::LittleEndian>().unwrap() as usize;
         let value_len = tuple_cursor.read_u32::<byteorder::LittleEndian>().unwrap() as usize;
-        let tuple_size = key_len + value_len + 8 + 4 + 4; // key + value + version + key_len + value_len
-        
+        let tuple_size = key_len + value_len + 8 + 4 + 4 + 1; // key + value + version + key_len + value_len + overflow
 
         Tuple::from_bytes(self.page.get_bytes()[tuple_offset..tuple_offset + tuple_size].to_vec())
     }
