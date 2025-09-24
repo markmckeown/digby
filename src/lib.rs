@@ -24,3 +24,5 @@ pub mod master_record_page;
 pub use master_record_page::MasterRecordPage;
 pub mod free_page_dir;
 pub use free_page_dir::FreePageDir;
+pub mod tree_page_dir;
+pub use tree_page_dir::TreePageDir;
