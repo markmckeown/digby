@@ -5,10 +5,12 @@ use std::convert::TryFrom;
 
 #[derive(PartialEq, Eq)]
 pub enum PageType {
+    Free = 0,
     Root = 1,
     Data = 2,
     Head = 3,
-    Overflow
+    Overflow = 4,
+    FreeDir = 5,
 }
 
 impl TryFrom<u8> for PageType {
@@ -16,10 +18,12 @@ impl TryFrom<u8> for PageType {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
+            0 => Ok(PageType::Free),
             1 => Ok(PageType::Root),
             2 => Ok(PageType::Data),
             3 => Ok(PageType::Head),
             4 => Ok(PageType::Overflow),
+            5 => Ok(PageType::FreeDir),
             _ => Err(()),
         }
     }
