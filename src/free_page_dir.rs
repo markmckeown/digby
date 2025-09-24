@@ -144,13 +144,16 @@ mod tests {
     fn test_fill_free_page_dir() {
         let mut free_page_dir = FreePageDir::new(4096, 34);
         let mut count = 0;
-        for number in 1..=1018 {
+        for number in 1..=1020 {
             if !free_page_dir.is_full() {
                 count = count + 1;
                 free_page_dir.add_free_page(number);
             }
         }
+        assert!(free_page_dir.is_full());
         assert!(count == 1017);
+        assert!(1017 == free_page_dir.get_free_page());
+        assert!(!free_page_dir.is_full());
     }
 
 }
