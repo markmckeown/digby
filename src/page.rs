@@ -7,7 +7,8 @@ use std::convert::TryFrom;
 pub enum PageType {
     Root = 1,
     Data = 2,
-    Head = 3
+    Head = 3,
+    Overflow
 }
 
 impl TryFrom<u8> for PageType {
@@ -17,6 +18,8 @@ impl TryFrom<u8> for PageType {
         match value {
             1 => Ok(PageType::Root),
             2 => Ok(PageType::Data),
+            3 => Ok(PageType::Head),
+            4 => Ok(PageType::Overflow),
             _ => Err(()),
         }
     }
@@ -26,10 +29,12 @@ pub trait PageTrait {
     fn get_bytes(&self) -> &[u8];
     fn get_page_number(&mut self) -> u32;
     fn get_page(&mut self) -> &mut Page;
+    fn get_version(&mut self) -> u64;
+    fn set_version(&mut self, version: u64) -> ();
 }
 
 
-// Checksum(u32) | Page No (u32)| Type(u8) | Reserved(3 bytes) | Data(4084 bytes)
+// | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | Data(4084 bytes)
 pub struct Page {
     bytes: Vec<u8>
 }
@@ -47,6 +52,18 @@ impl PageTrait for Page {
 
     fn get_page(&mut self) -> &mut Page {
         self
+    }
+
+    fn get_version(&mut self) -> u64 {
+        let mut cursor = Cursor::new(&mut self.bytes[..]);
+        cursor.set_position(8);
+        cursor.read_u64::<LittleEndian>().unwrap()
+    }
+
+    fn set_version(&mut self, version: u64) -> () {
+        let mut cursor = Cursor::new(&mut self.bytes[..]);
+        cursor.set_position(8);
+        cursor.write_u64::<LittleEndian>(version as u64).expect("Failed to write version");     
     }
 }
 
@@ -78,13 +95,13 @@ impl Page {
 
     pub fn get_type(&mut self) -> PageType {
         let mut cursor = Cursor::new(&mut self.bytes[..]);
-        cursor.set_position(8);
+        cursor.set_position(16);
         PageType::try_from(cursor.read_u8().unwrap()).expect("Invalid page type")
      }
 
     pub fn set_type(&mut self, page_type: PageType) {
         let mut cursor = Cursor::new(&mut self.bytes[..]);
-        cursor.set_position(8);
+        cursor.set_position(16);
         cursor.write_i8(page_type as i8).expect("Failed to write page type");
     }
 }

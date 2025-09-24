@@ -5,8 +5,8 @@ use crate::tuple::Tuple;
 
 // DataPage structure
 //
-// Header is 12 bytes:
-// | Checksum(u32) | Page No (u32)| Type(u8) | Entries (u8) | Free_Space (u16) | 
+// Header is 20 bytes:
+// | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Entries(u8) | Free_Space(u16) | 
 //
 // DataPage body is of the format:
 //
@@ -35,6 +35,14 @@ impl PageTrait for DataPage {
     fn get_page(&mut self) -> &mut Page {
         &mut self.page       
     }
+
+    fn get_version(&mut self) -> u64 {
+        self.page.get_version()         
+    }
+
+    fn set_version(&mut self, version: u64) -> () {
+        self.page.set_version(version);         
+    }
 }
 
 impl DataPage {
@@ -46,7 +54,7 @@ impl DataPage {
         page.set_page_number(page_number);      
         let mut data_page = DataPage { page };
         data_page.set_entries(0);
-        data_page.set_free_space((page_size - 12) as u16); // 12 bytes for header
+        data_page.set_free_space((page_size - 20) as u16); // 12 bytes for header
         data_page
     }
 
@@ -67,25 +75,25 @@ impl DataPage {
 
     fn get_entries(&mut self) -> u8 {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(9);
+        cursor.set_position(17);
         cursor.read_u8().unwrap()
     }
 
     fn set_entries(&mut self, entries: u8) {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(9);
+        cursor.set_position(17);
         cursor.write_u8(entries).expect("Failed to write entries");
     }
 
     fn get_free_space(&mut self) -> u16 {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(10);
+        cursor.set_position(18);
         cursor.read_u16::<byteorder::LittleEndian>().unwrap()
     }
 
     fn set_free_space(&mut self, free_space: u16) {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(10);
+        cursor.set_position(18);
         cursor.write_u16::<byteorder::LittleEndian>(free_space).expect("Failed to write free space");
     }
 
@@ -152,7 +160,7 @@ impl DataPage {
         let sorted_tuples = self.build_sorted_tuples(new_tuple, page_size);
         // Clear the page and re-add all tuples
         self.set_entries(0);
-        self.set_free_space((page_size - 12) as u16); // Reset free space
+        self.set_free_space((page_size - 20) as u16); // Reset free space
 
         for tuple in sorted_tuples {
             self.add_tuple(&tuple, page_size as u64)?;

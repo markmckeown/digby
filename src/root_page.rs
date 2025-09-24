@@ -4,7 +4,8 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
 
-
+// | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | Data(4084 bytes)
+// | Magic Number(u32) |
 pub struct RootPage {
     page: Page
 }
@@ -21,6 +22,14 @@ impl PageTrait for RootPage {
     fn get_page(&mut self) -> &mut Page {
         &mut self.page
     }
+
+    fn get_version(&mut self) -> u64 {
+        self.page.get_version()     
+    }
+
+    fn set_version(&mut self, version: u64) -> () {
+        self.page.set_version(version);
+    }   
 }
 
 impl RootPage {
@@ -58,13 +67,13 @@ impl RootPage {
 
     pub fn get_magic_number(&mut self) -> u32 {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(12);
+        cursor.set_position(20);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
 
     pub fn set_magic_number(&mut self) {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(12);
+        cursor.set_position(20);
         cursor.write_u32::<LittleEndian>(Self::MAGIC_NUMBER).expect("Failed to write magic number");
     }
 }   
