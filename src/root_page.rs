@@ -52,14 +52,14 @@ impl RootPage {
 
     pub fn from_page(mut page: Page) -> Self {
         if page.get_type() != PageType::Root {
-            panic!("Invalid page type for HeadPage");
+            panic!("Invalid page type for RootPage");
         }
         if page.get_page_number() != 0 {
-            panic!("Invalid page number for HeadPage");
+            panic!("Invalid page number for RootPage");
         }
         let mut head_page = RootPage { page };
         if head_page.get_magic_number() != Self::MAGIC_NUMBER {
-            panic!("Invalid magic number for HeadPage");
+            panic!("Invalid magic number for RootPage");
         }
 
         head_page

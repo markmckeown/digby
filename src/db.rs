@@ -1,7 +1,7 @@
+use crate::head_page::HeadPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
 use crate::block_layer::BlockLayer;
-use crate::page::Page;
 use crate::root_page::RootPage;
 use crate::page::PageTrait;
 
@@ -19,7 +19,6 @@ impl Db {
         use std::path::Path;
         
         let mut is_new = false;
-        let mut file_size: u64 = 0;
 
         let db_file: std::fs::File;
         if Path::new(path).exists() {
@@ -27,8 +26,7 @@ impl Db {
                 .read(true)
                 .write(true)
                 .open(path).expect("Failed to open existing DB file");
-            file_size = std::fs::metadata(path).unwrap().len();
-            if file_size == 0 {
+            if std::fs::metadata(path).unwrap().len() == 0 {
                 is_new = true;
             }
         } else {
@@ -40,8 +38,8 @@ impl Db {
             is_new = true;
         }
 
-        let file_layer: FileLayer = FileLayer::new(db_file);
-        let block_layer: BlockLayer = BlockLayer::new(file_layer);
+        let file_layer: FileLayer = FileLayer::new(db_file, Db::PAGE_SIZE);
+        let block_layer: BlockLayer = BlockLayer::new(file_layer, Db::PAGE_SIZE);
         let page_cache: PageCache = PageCache::new(block_layer, Self::PAGE_SIZE);
 
         let mut db = Db {
@@ -52,20 +50,32 @@ impl Db {
         if is_new {
             db.init_db_file().expect("Failed to initialize DB file");
         } else {
-            db.check_db_integrity(file_size).expect("DB integrity check failed");
+            db.check_db_integrity().expect("DB integrity check failed");
         }
         db
     }
 
-    pub fn check_db_integrity(&mut self, file_size: u64) -> std::io::Result<()> {
-        assert!(file_size % Self::PAGE_SIZE == 0, "Corrupted DB file: size is not multiple of page size");
-        let mut _page : Page = self.page_cache.read_page(0);
+    pub fn check_db_integrity(&mut self) -> std::io::Result<()> {
+        let _root_page = RootPage::from_page(self.page_cache.get_page(0));
+
+        let _head_page1 = HeadPage::from_page(self.page_cache.get_page(1)); 
+
+        let _head_page2 = HeadPage::from_page(self.page_cache.get_page(2)); 
+
         Ok(())
     }
 
     pub fn init_db_file(&mut self) -> std::io::Result<()> {
-        let mut head_page: RootPage = RootPage::new(Db::PAGE_SIZE);
-        self.page_cache.write_page(&mut head_page.get_page());
+        let mut root_page: RootPage = RootPage::new(Db::PAGE_SIZE);
+        let mut free_pages: Vec<u32> = self.page_cache.put_page(&mut root_page.get_page());
+
+        let mut head_page1: HeadPage = HeadPage::new(Db::PAGE_SIZE, 1, 0);
+        free_pages.extend(self.page_cache.put_page(&mut head_page1.get_page()));
+
+        let mut head_page2: HeadPage = HeadPage::new(Db::PAGE_SIZE, 2, 0);
+        free_pages.extend(self.page_cache.put_page(&mut head_page2.get_page()));
+        assert!(free_pages.len() == 0, "There should be no free pages");
+
         self.page_cache.sync_all();
         Ok(())
     }
