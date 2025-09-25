@@ -1,3 +1,4 @@
+use crate::{FreePage, FreePageDir};
 use crate::head_page::HeadPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
@@ -57,9 +58,7 @@ impl Db {
 
     pub fn check_db_integrity(&mut self) -> std::io::Result<()> {
         let _root_page = RootPage::from_page(self.page_cache.get_page(0));
-
         let _head_page1 = HeadPage::from_page(self.page_cache.get_page(1)); 
-
         let _head_page2 = HeadPage::from_page(self.page_cache.get_page(2)); 
 
         Ok(())
@@ -69,12 +68,27 @@ impl Db {
         let mut root_page: RootPage = RootPage::new(Db::PAGE_SIZE);
         let mut free_pages: Vec<u32> = self.page_cache.put_page(&mut root_page.get_page());
 
-        let mut head_page1: HeadPage = HeadPage::new(Db::PAGE_SIZE, 1, 0);
-        free_pages.extend(self.page_cache.put_page(&mut head_page1.get_page()));
+        let mut free_page: FreePage = FreePage::new(Db::PAGE_SIZE, 9);
+        free_pages.extend(self.page_cache.put_page(&mut free_page.get_page()));
 
-        let mut head_page2: HeadPage = HeadPage::new(Db::PAGE_SIZE, 2, 0);
-        free_pages.extend(self.page_cache.put_page(&mut head_page2.get_page()));
-        assert!(free_pages.len() == 0, "There should be no free pages");
+        free_pages.retain(|&x| x != 1);
+        free_pages.retain(|&x| x != 2);
+
+        let mut free_page_dir = FreePageDir::new(Db::PAGE_SIZE, 3);
+        for page_number in &free_pages {
+            free_page_dir.add_free_page(*page_number);
+        }
+        self.page_cache.put_page(&mut free_page_dir.get_page());
+
+        let mut head_page1: HeadPage = HeadPage::new(Db::PAGE_SIZE, 1, 0);
+        head_page1.set_free_page_dir(3);
+        self.page_cache.put_page(&mut head_page1.get_page());
+
+        let mut head_page2: HeadPage = HeadPage::new(Db::PAGE_SIZE, 2, 1);
+        head_page2.set_free_page_dir(3);
+        self.page_cache.put_page(&mut head_page2.get_page());
+        
+        assert!(free_pages.len() == 7, "There should be 7 free pages");
 
         self.page_cache.sync_all();
         Ok(())
@@ -102,12 +116,17 @@ mod tests {
     fn test_db_creation() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
-        let db = Db::new(temp_file.path().to_str().unwrap());
-        assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            let db = Db::new(temp_file.path().to_str().unwrap());
+            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
         }
         {
-        let db = Db::new(temp_file.path().to_str().unwrap());
-        assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            let mut db = Db::new(temp_file.path().to_str().unwrap());
+            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            let _head_page1 = HeadPage::from_page(db.page_cache.get_page(1));
+            let mut head_page2 = HeadPage::from_page(db.page_cache.get_page(2));
+            let free_page_dir_page_no = head_page2.get_free_page_dir();
+            let mut free_page_dir_page = FreePageDir::from_page(db.page_cache.get_page(free_page_dir_page_no));
+            assert!(free_page_dir_page.get_entries() == 7);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }

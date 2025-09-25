@@ -1,9 +1,11 @@
 use crate::page::PageType;
 use crate::page::Page;
 use crate::page::PageTrait;
+use std::io::Cursor;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-// | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | Data(4084 bytes)
-// 
+// | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | 
+// | FreePageDir(u32) |
 pub struct HeadPage {
     page: Page
 }
@@ -54,6 +56,19 @@ impl HeadPage {
         let head_page = HeadPage { page };
         head_page
     }
+
+    pub fn get_free_page_dir(&mut self) -> u32 {
+        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        cursor.set_position(20);
+        cursor.read_u32::<LittleEndian>().unwrap()
+    }
+
+    pub fn set_free_page_dir(&mut self, entries: u32) {
+        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        cursor.set_position(20);
+        cursor.write_u32::<LittleEndian>(entries).expect("Failed to write free page dir page");
+    }
+
     
 }
 

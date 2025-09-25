@@ -1,4 +1,5 @@
 use crate::file_layer::FileLayer; 
+use crate::page;
 use crate::page::Page; 
 use crate::page::PageTrait;
 use xxhash_rust::xxh32::xxh32;
@@ -36,7 +37,10 @@ impl BlockLayer {
         self.set_checksum(page);
         self.file_layer.write_page_to_disk(page, page_number).expect("Failed to write page");
         // Remove this page from the free pages if we added free pages and have overwritten it.
-        new_pages.retain(|&x| x != page_number);
+        // Only if this is not an empty page.
+        if page.get_type() != page::PageType::Free {
+            new_pages.retain(|&x| x != page_number);
+        }
         new_pages
     }
 

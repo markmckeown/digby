@@ -37,7 +37,7 @@ impl FreePageDir {
         let mut free_page_dir = FreePageDir {
             page: Page::new(page_size),
         };
-        free_page_dir.page.set_type(crate::page::PageType::Free);
+        free_page_dir.page.set_type(crate::page::PageType::FreeDir);
         free_page_dir.page.set_page_number(page_number);
         free_page_dir
     }
@@ -48,12 +48,12 @@ impl FreePageDir {
     }
 
     pub fn from_page(mut page: Page) -> Self {
-        if page.get_type() != crate::page::PageType::FreeDir {
+        let page_type = page.get_type();
+        if page_type != crate::page::PageType::FreeDir {
             panic!("Invalid page type for FreePageDir");
         }
 
-        let free_page_dir = FreePageDir { page };
-        free_page_dir
+        FreePageDir { page }
     }
 
     pub fn get_entries(&mut self) -> u16 {
