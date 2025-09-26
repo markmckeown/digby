@@ -5,7 +5,7 @@ use crate::page::PageTrait;
 use crate::page::PageType;
 
 // | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | Data(4084 bytes)
-// | Magic Number(u32) |
+// | Magic Number(u32) | DbVersionMajor (u16) | DbVersionMinor (u16) |
 pub struct DbRootPage {
     page: Page
 }
@@ -34,15 +34,19 @@ impl PageTrait for DbRootPage {
 
 impl DbRootPage {
     const MAGIC_NUMBER: u32 = 26061973;
+    const VERSION_MAJOR: u16 = 0;
+    const VERSION_MINOR: u16 = 1;
 
     pub fn new(page_size: u64) -> Self {
-        let mut head_page = DbRootPage {
+        let mut db_root_page = DbRootPage {
             page: Page::new(page_size),
         };
-        head_page.page.set_type(PageType::DbRoot);
-        head_page.page.set_page_number(0);
-        head_page.set_magic_number();
-        head_page
+        db_root_page.page.set_type(PageType::DbRoot);
+        db_root_page.page.set_page_number(0);
+        db_root_page.set_magic_number();
+        db_root_page.set_db_major_version();
+        db_root_page.set_db_minor_version();
+        db_root_page
     }
 
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
@@ -75,5 +79,29 @@ impl DbRootPage {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
         cursor.set_position(20);
         cursor.write_u32::<LittleEndian>(Self::MAGIC_NUMBER).expect("Failed to write magic number");
+    }
+
+    pub fn get_db_major_version(&mut self) -> u16 {
+        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        cursor.set_position(24);
+        cursor.read_u16::<LittleEndian>().unwrap()
+    }
+
+    pub fn set_db_major_version(&mut self) {
+        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        cursor.set_position(24);
+        cursor.write_u16::<LittleEndian>(Self::VERSION_MAJOR).expect("Failed to write major version number");
+    }
+
+    pub fn get_db_minor_version(&mut self) -> u16 {
+        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        cursor.set_position(26);
+        cursor.read_u16::<LittleEndian>().unwrap()
+    }
+
+    pub fn set_db_minor_version(&mut self) {
+        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        cursor.set_position(26);
+        cursor.write_u16::<LittleEndian>(Self::VERSION_MINOR).expect("Failed to write minor version number");
     }
 }   

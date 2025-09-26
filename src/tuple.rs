@@ -144,7 +144,7 @@ impl Tuple {
         &self.serialized
     }
 
-    pub fn get_size(&self) -> usize {
+    pub fn get_byte_size(&self) -> usize {
         self.serialized.len()
     }
 

@@ -26,3 +26,5 @@ pub mod free_dir_page;
 pub use free_dir_page::FreeDirPage;
 pub mod tree_internal_page;
 pub use tree_internal_page::TreeInternalPage;
+pub mod table_dir_entry;
+pub use table_dir_entry::TableDirEntry;

@@ -105,7 +105,7 @@ impl TreeLeafPage {
     // Add a tuple to the DataPage. Returns an error if there is not enough space.
     // This is low level API. Use store_tuple to add or update a tuple.
     fn add_tuple(&mut self, tuple: &Tuple, page_size: u64) -> Result<(), String> {
-        let tuple_size: usize = tuple.get_size();
+        let tuple_size: usize = tuple.get_byte_size();
         if !self.can_fit(tuple_size) {
             return Err("Not enough space in DataPage".to_string());
         }
@@ -152,7 +152,7 @@ impl TreeLeafPage {
     // Get all tuples in page, remove any with same key, add new tuple, sort, 
     // clear page and re-add all tuples.
     pub fn store_tuple(&mut self, new_tuple: Tuple, page_size: usize) -> Result<(), String> {
-        let tuple_size: usize = new_tuple.get_size();
+        let tuple_size: usize = new_tuple.get_byte_size();
         if !self.can_fit(tuple_size) {
             return Err("Not enough space in DataPage".to_string());
         }
