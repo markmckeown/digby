@@ -101,7 +101,7 @@ mod tests {
     use super::*;
     use crate::file_layer::FileLayer;
     use crate::page::Page;
-    use crate::HeadPage;
+    use crate::DbMasterPage;
     use tempfile::tempfile; 
 
     #[test]
@@ -113,6 +113,7 @@ mod tests {
         let page_number = 0;
         let mut page = Page::new(page_size);
         page.set_page_number(page_number);
+        page.set_type(page::PageType::Free);
         page.get_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
         block_layer.write_page(&mut page);
         let retrieved_page = block_layer.read_page(page_number, page_size as u64);
@@ -142,7 +143,7 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, page_size);
         let mut block_layer = BlockLayer::new(file_layer, page_size);
-        let mut page = HeadPage::new(page_size, 0, 0);
+        let mut page = DbMasterPage::new(page_size, 0, 0);
         let free_pages = block_layer.write_page(page.get_page());
         assert!(free_pages.len() == 0);
     }

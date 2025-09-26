@@ -34,7 +34,7 @@ impl PageCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{file_layer::FileLayer, page::PageTrait};
+    use crate::{file_layer::FileLayer, page::{self, PageTrait}};
     use tempfile::tempfile;
     const PAGE_SIZE: u64 = 4096;
     
@@ -50,6 +50,7 @@ mod tests {
         // Write a page to the cache
         let mut page = Page::new(PAGE_SIZE);
         page.set_page_number(page_number);
+        page.set_type(page::PageType::Free);
         page_cache.put_page(&mut page);
         page_cache.sync_all();
         // Read the page back from the cache

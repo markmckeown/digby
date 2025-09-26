@@ -3,27 +3,27 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 use crate::tuple::Tuple;
 
-// DataPage structure
+// TreeLeafPage structure
 //
 // Header is 20 bytes:
 // | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Entries(u8) | Free_Space(u16) | 
 //
-// DataPage body is of the format:
+// TreeLeafPage body is of the format:
 //
 // | Header | Tuple | Tuple  | ... Free Space ... | Index to Tuple | Index to Type | End Of Page |
 // |--------|-------|--------|--------------------|----------------|---------------|-------------|
 // Tuples grow down the Page, while the Tuple Index grows up the page - with the free space in between.
 //
-// Note we can only have up to 255 entries in a DataPage, as Entries is a u8. A tuple is at least
+// Note we can only have up to 255 entries in a TreeLeafPage, as Entries is a u8. A tuple is at least
 // 16 bytes - 4 bytes key length, 4 bytes value length, 8 bytes version.
 // 16 * 255 = 4080 + 12 bytes header + 510 bytes index = 4602 bytes - so we will have less than 255
 // tuples in a 4KB page as there is not enough space for 255 tuples and their indexes.
 // We do not need to check entries for overflow as we check if there is enough space in the page before adding a tuple.
-pub struct DataPage {
+pub struct TreeLeafPage {
     page: Page
 }
 
-impl PageTrait for DataPage {
+impl PageTrait for TreeLeafPage {
     fn get_bytes(&self) -> &[u8] {
         self.page.get_bytes()
     }
@@ -45,14 +45,14 @@ impl PageTrait for DataPage {
     }
 }
 
-impl DataPage {
+impl TreeLeafPage {
     // Create a new DataPage with given page size and page number.
     // This is used when creating a page to add to the DB.
     pub fn new(page_size: u64, page_number: u32) -> Self {
         let mut page = Page::new(page_size);
-        page.set_type(PageType::Data);
+        page.set_type(PageType::TreeLeaf);
         page.set_page_number(page_number);      
-        let mut data_page = DataPage { page };
+        let mut data_page = TreeLeafPage { page };
         data_page.set_entries(0);
         data_page.set_free_space((page_size - 20) as u16); // 12 bytes for header
         data_page
@@ -67,10 +67,10 @@ impl DataPage {
     // Create a DataPage from a Page - read bytes from disk,
     // determine it is a DataPage, and wrap it.
     pub fn from_page(mut page: Page) -> Self {
-        if page.get_type() != PageType::Data {
+        if page.get_type() != PageType::TreeLeaf {
             panic!("Page type is not Data");
         }
-        DataPage { page }
+        TreeLeafPage { page }
     }
 
     fn get_entries(&mut self) -> u8 {
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_data_page() {
-        let mut data_page = DataPage::new(4096, 1);
+        let mut data_page = TreeLeafPage::new(4096, 1);
         let key = b"key".to_vec();
         let value = b"value".to_vec();
         let version = 1;
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_get_tuple() {
-        let mut data_page = DataPage::new(4096, 1);
+        let mut data_page = TreeLeafPage::new(4096, 1);
         
 
         assert!(data_page.store_tuple(Tuple::new(b"a".to_vec(), b"value-a".to_vec(), 1), 4096).is_ok());

@@ -1,9 +1,9 @@
-use crate::{FreePage, FreePageDir};
-use crate::head_page::HeadPage;
+use crate::{FreePage, FreeDirPage};
+use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
 use crate::block_layer::BlockLayer;
-use crate::root_page::RootPage;
+use crate::db_root_page::DbRootPage;
 use crate::page::PageTrait;
 
 pub struct Db {
@@ -57,15 +57,15 @@ impl Db {
     }
 
     pub fn check_db_integrity(&mut self) -> std::io::Result<()> {
-        let _root_page = RootPage::from_page(self.page_cache.get_page(0));
-        let _head_page1 = HeadPage::from_page(self.page_cache.get_page(1)); 
-        let _head_page2 = HeadPage::from_page(self.page_cache.get_page(2)); 
+        let _root_page = DbRootPage::from_page(self.page_cache.get_page(0));
+        let _head_page1 = DbMasterPage::from_page(self.page_cache.get_page(1)); 
+        let _head_page2 = DbMasterPage::from_page(self.page_cache.get_page(2)); 
 
         Ok(())
     }
 
     pub fn init_db_file(&mut self) -> std::io::Result<()> {
-        let mut root_page: RootPage = RootPage::new(Db::PAGE_SIZE);
+        let mut root_page: DbRootPage = DbRootPage::new(Db::PAGE_SIZE);
         let mut free_pages: Vec<u32> = self.page_cache.put_page(&mut root_page.get_page());
 
         let mut free_page: FreePage = FreePage::new(Db::PAGE_SIZE, 9);
@@ -74,17 +74,17 @@ impl Db {
         free_pages.retain(|&x| x != 1);
         free_pages.retain(|&x| x != 2);
 
-        let mut free_page_dir = FreePageDir::new(Db::PAGE_SIZE, 3);
+        let mut free_page_dir = FreeDirPage::new(Db::PAGE_SIZE, 3);
         for page_number in &free_pages {
             free_page_dir.add_free_page(*page_number);
         }
         self.page_cache.put_page(&mut free_page_dir.get_page());
 
-        let mut head_page1: HeadPage = HeadPage::new(Db::PAGE_SIZE, 1, 0);
+        let mut head_page1: DbMasterPage = DbMasterPage::new(Db::PAGE_SIZE, 1, 0);
         head_page1.set_free_page_dir(3);
         self.page_cache.put_page(&mut head_page1.get_page());
 
-        let mut head_page2: HeadPage = HeadPage::new(Db::PAGE_SIZE, 2, 1);
+        let mut head_page2: DbMasterPage = DbMasterPage::new(Db::PAGE_SIZE, 2, 1);
         head_page2.set_free_page_dir(3);
         self.page_cache.put_page(&mut head_page2.get_page());
         
@@ -122,10 +122,10 @@ mod tests {
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap());
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
-            let _head_page1 = HeadPage::from_page(db.page_cache.get_page(1));
-            let mut head_page2 = HeadPage::from_page(db.page_cache.get_page(2));
+            let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(1));
+            let mut head_page2 = DbMasterPage::from_page(db.page_cache.get_page(2));
             let free_page_dir_page_no = head_page2.get_free_page_dir();
-            let mut free_page_dir_page = FreePageDir::from_page(db.page_cache.get_page(free_page_dir_page_no));
+            let mut free_page_dir_page = FreeDirPage::from_page(db.page_cache.get_page(free_page_dir_page_no));
             assert!(free_page_dir_page.get_entries() == 7);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");

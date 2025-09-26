@@ -3,11 +3,11 @@ use crate::page::PageTrait;
 
 
 // | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | 
-pub struct TreePageDir {
+pub struct TreeInternalPage {
     page: Page
 }
 
-impl PageTrait for TreePageDir {
+impl PageTrait for TreeInternalPage {
     fn get_bytes(&self) -> &[u8] {
         self.page.get_bytes()
     }
@@ -29,12 +29,12 @@ impl PageTrait for TreePageDir {
     }
 }
 
-impl TreePageDir {
+impl TreeInternalPage {
     pub fn new(page_size: u64, page_number: u32) -> Self {
-        let mut tree_page_dir =  TreePageDir {
+        let mut tree_page_dir =  TreeInternalPage {
             page: Page::new(page_size),
         };
-        tree_page_dir.page.set_type(crate::page::PageType::TreeDir);
+        tree_page_dir.page.set_type(crate::page::PageType::TreeInternal);
         tree_page_dir.page.set_page_number(page_number);
         tree_page_dir
     }
@@ -45,11 +45,11 @@ impl TreePageDir {
     }
 
     pub fn from_page(mut page: Page) -> Self {
-        if page.get_type() != crate::page::PageType::TreeDir {
+        if page.get_type() != crate::page::PageType::TreeInternal {
             panic!("Invalid page type for TreePageDir");
         }
 
-        let tree_page_dir = TreePageDir { page };
+        let tree_page_dir = TreeInternalPage { page };
         tree_page_dir
     }
 }

@@ -5,13 +5,14 @@ use std::convert::TryFrom;
 
 #[derive(PartialEq, Eq)]
 pub enum PageType {
-    Free = 0,
-    Root = 1,
-    Data = 2,
-    Head = 3,
-    Overflow = 4,
-    FreeDir = 5,
-    TreeDir = 6,
+    Free = 1,
+    DbRoot = 2,
+    TreeLeaf = 3,
+    DbMaster = 4,
+    Overflow = 5,
+    FreeDir = 6,
+    TreeInternal = 7,
+    TreeRoot = 8,
 }
 
 impl TryFrom<u8> for PageType {
@@ -19,13 +20,14 @@ impl TryFrom<u8> for PageType {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(PageType::Free),
-            1 => Ok(PageType::Root),
-            2 => Ok(PageType::Data),
-            3 => Ok(PageType::Head),
-            4 => Ok(PageType::Overflow),
-            5 => Ok(PageType::FreeDir),
-            6 => Ok(PageType::TreeDir),
+            1 => Ok(PageType::Free),
+            2 => Ok(PageType::DbRoot),
+            3 => Ok(PageType::TreeLeaf),
+            4 => Ok(PageType::DbMaster),
+            5 => Ok(PageType::Overflow),
+            6 => Ok(PageType::FreeDir),
+            7 => Ok(PageType::TreeInternal),
+            8 => Ok(PageType::TreeRoot),
             _ => Err(()),
         }
     }
@@ -130,9 +132,9 @@ mod tests {
         assert_eq!(page.get_bytes().len(), 4096);
         assert_eq!(page.get_page_number(), 0);
         page.set_page_number(42);
-        page.set_type(PageType::Data);
+        page.set_type(PageType::TreeLeaf);
         assert_eq!(page.get_page_number(), 42);
-        assert_eq!(page.get_type() as u8, PageType::Data as u8);
+        assert_eq!(page.get_type() as u8, PageType::TreeLeaf as u8);
     }
 
 }

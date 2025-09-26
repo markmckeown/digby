@@ -6,11 +6,11 @@ use crate::page::PageTrait;
 
 // | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) |  Entries (u16) | Reserved(1 byte) |
 // | NextPage(u32) | PreviousPage (u32) | Free Page Id (u32) | Free Page Id (u32) ....|
-pub struct FreePageDir {
+pub struct FreeDirPage {
     page: Page
 }
 
-impl PageTrait for FreePageDir {
+impl PageTrait for FreeDirPage {
     fn get_bytes(&self) -> &[u8] {
         self.page.get_bytes()
     }
@@ -32,9 +32,9 @@ impl PageTrait for FreePageDir {
     }
 }
 
-impl FreePageDir {
+impl FreeDirPage {
     pub fn new(page_size: u64, page_number: u32) -> Self {
-        let mut free_page_dir = FreePageDir {
+        let mut free_page_dir = FreeDirPage {
             page: Page::new(page_size),
         };
         free_page_dir.page.set_type(crate::page::PageType::FreeDir);
@@ -53,7 +53,7 @@ impl FreePageDir {
             panic!("Invalid page type for FreePageDir");
         }
 
-        FreePageDir { page }
+        FreeDirPage { page }
     }
 
     pub fn get_entries(&mut self) -> u16 {
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_adding_entries() {
-        let mut free_page_dir = FreePageDir::new(4096, 34);
+        let mut free_page_dir = FreeDirPage::new(4096, 34);
         assert!(!free_page_dir.has_free_pages());
         free_page_dir.add_free_page(73);
         free_page_dir.add_free_page(103);
@@ -142,7 +142,7 @@ mod tests {
 
      #[test]
     fn test_fill_free_page_dir() {
-        let mut free_page_dir = FreePageDir::new(4096, 34);
+        let mut free_page_dir = FreeDirPage::new(4096, 34);
         let mut count = 0;
         for number in 1..=1020 {
             if !free_page_dir.is_full() {

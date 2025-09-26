@@ -6,11 +6,11 @@ use crate::page::PageType;
 
 // | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | Data(4084 bytes)
 // | Magic Number(u32) |
-pub struct RootPage {
+pub struct DbRootPage {
     page: Page
 }
 
-impl PageTrait for RootPage {
+impl PageTrait for DbRootPage {
     fn get_bytes(&self) -> &[u8] {
         self.page.get_bytes()
     }
@@ -32,14 +32,14 @@ impl PageTrait for RootPage {
     }   
 }
 
-impl RootPage {
+impl DbRootPage {
     const MAGIC_NUMBER: u32 = 26061973;
 
     pub fn new(page_size: u64) -> Self {
-        let mut head_page = RootPage {
+        let mut head_page = DbRootPage {
             page: Page::new(page_size),
         };
-        head_page.page.set_type(PageType::Root);
+        head_page.page.set_type(PageType::DbRoot);
         head_page.page.set_page_number(0);
         head_page.set_magic_number();
         head_page
@@ -51,13 +51,13 @@ impl RootPage {
     }
 
     pub fn from_page(mut page: Page) -> Self {
-        if page.get_type() != PageType::Root {
+        if page.get_type() != PageType::DbRoot {
             panic!("Invalid page type for RootPage");
         }
         if page.get_page_number() != 0 {
             panic!("Invalid page number for RootPage");
         }
-        let mut head_page = RootPage { page };
+        let mut head_page = DbRootPage { page };
         if head_page.get_magic_number() != Self::MAGIC_NUMBER {
             panic!("Invalid magic number for RootPage");
         }

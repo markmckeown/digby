@@ -6,11 +6,11 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 // | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | 
 // | FreePageDir(u32) |
-pub struct HeadPage {
+pub struct DbMasterPage {
     page: Page
 }
 
-impl PageTrait for HeadPage {
+impl PageTrait for DbMasterPage {
     fn get_bytes(&self) -> &[u8] {
         self.page.get_bytes()
     }
@@ -32,12 +32,12 @@ impl PageTrait for HeadPage {
     }
 }
 
-impl HeadPage {
+impl DbMasterPage {
     pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
-        let mut head_page = HeadPage {
+        let mut head_page = DbMasterPage {
             page: Page::new(page_size),
         };
-        head_page.page.set_type(PageType::Head);
+        head_page.page.set_type(PageType::DbMaster);
         head_page.page.set_page_number(page_number);
         head_page.set_version(version);
         head_page
@@ -49,11 +49,11 @@ impl HeadPage {
     }
 
     pub fn from_page(mut page: Page) -> Self {
-        if page.get_type() != PageType::Head {
+        if page.get_type() != PageType::DbMaster {
             panic!("Invalid page type for HeadPage");
         }
 
-        let head_page = HeadPage { page };
+        let head_page = DbMasterPage { page };
         head_page
     }
 
@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn test_head_page() {
-        let mut head_page = HeadPage::new(4096, 0, 1);
+        let mut head_page = DbMasterPage::new(4096, 0, 1);
         assert_eq!(head_page.get_version(), 1);
         head_page.set_version(2);
         assert_eq!(head_page.get_version(), 2);
