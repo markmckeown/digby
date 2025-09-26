@@ -30,9 +30,10 @@ impl PageTrait for TableDirPage {
 
 
 impl TableDirPage {
-    pub fn new(page_size: u64, page_number: u32) -> Self {
+    pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
         let mut page = TreeLeafPage::new(page_size, page_number);
         page.make_table_dir_page();
+        page.set_version(version);
         TableDirPage { page }
     }
 
@@ -59,7 +60,6 @@ impl TableDirPage {
         self.page.can_fit(size)
     }
 
-
     pub fn add_table_entry(&mut self, table_dir_entry: TableDirEntry, page_size: u64) {
         self.page.store_tuple(table_dir_entry.get_tuple().clone(), page_size as usize).expect("Failed to add table entry.")
     }
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_entry_basic() {
-        let mut page = TableDirPage::new(4096, 45);
+        let mut page = TableDirPage::new(4096, 45, 679);
         let table_dir_entry = TableDirEntry::new(b"mmk".to_vec(), 45, 678);
         assert!(page.can_fit(table_dir_entry.get_byte_size()));
         page.add_table_entry(table_dir_entry, 4096);

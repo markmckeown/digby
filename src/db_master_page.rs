@@ -5,7 +5,7 @@ use std::io::Cursor;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 // | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | 
-// | FreePageDir(u32) |
+// | GlobalTreeRootPage (u32) | FreeDirPage(u32) | TableDirPage(u32) |
 pub struct DbMasterPage {
     page: Page
 }
@@ -57,18 +57,41 @@ impl DbMasterPage {
         head_page
     }
 
-    pub fn get_free_page_dir(&mut self) -> u32 {
+    pub fn get_global_tree_root_page_no(&mut self) -> u32 {
+        self.get_u32_at_offset(20)
+    }
+
+    pub fn set_global_tree_root_page_no(&mut self, page_no: u32) {
+        self.set_u32_at_offset(20, page_no);
+    }
+
+    pub fn get_free_page_dir_page_no(&mut self) -> u32 {
+        self.get_u32_at_offset(24)
+    }
+
+    pub fn set_free_page_dir_page_no(&mut self, page_no: u32) {
+        self.set_u32_at_offset(24, page_no);
+    }
+
+    pub fn get_table_dir_page_no(&mut self) -> u32 {
+        self.get_u32_at_offset(28)
+    }
+
+    pub fn set_table_dir_page_no(&mut self, page_no: u32) {
+        self.set_u32_at_offset(28, page_no);
+    }
+
+    fn set_u32_at_offset(&mut self, offset: u64, value: u32) {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(20);
+        cursor.set_position(offset);
+        cursor.write_u32::<LittleEndian>(value).expect("Failed to write table dir page number");
+    }
+
+    fn get_u32_at_offset(&mut self, offset: u64) -> u32 {
+        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        cursor.set_position(offset);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
-
-    pub fn set_free_page_dir(&mut self, entries: u32) {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(20);
-        cursor.write_u32::<LittleEndian>(entries).expect("Failed to write free page dir page");
-    }
-
     
 }
 

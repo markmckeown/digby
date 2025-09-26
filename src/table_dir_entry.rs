@@ -7,6 +7,7 @@ pub struct TableDirEntry {
 // Just wrap a tuple.
 impl TableDirEntry {
     pub fn new(name: Vec<u8>, root_page_number: u32, version: u64) -> Self {
+        assert!(name.len() < 255, "Table name too long");
         let entry = Tuple::new(name, root_page_number.to_le_bytes().to_vec(), version);
 
         TableDirEntry {

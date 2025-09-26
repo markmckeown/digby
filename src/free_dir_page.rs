@@ -33,12 +33,13 @@ impl PageTrait for FreeDirPage {
 }
 
 impl FreeDirPage {
-    pub fn new(page_size: u64, page_number: u32) -> Self {
+    pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
         let mut free_page_dir = FreeDirPage {
             page: Page::new(page_size),
         };
         free_page_dir.page.set_type(crate::page::PageType::FreeDir);
         free_page_dir.page.set_page_number(page_number);
+        free_page_dir.page.set_version(version);
         free_page_dir
     }
     
@@ -130,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_adding_entries() {
-        let mut free_page_dir = FreeDirPage::new(4096, 34);
+        let mut free_page_dir = FreeDirPage::new(4096, 34, 4564);
         assert!(!free_page_dir.has_free_pages());
         free_page_dir.add_free_page(73);
         free_page_dir.add_free_page(103);
@@ -142,7 +143,7 @@ mod tests {
 
      #[test]
     fn test_fill_free_page_dir() {
-        let mut free_page_dir = FreeDirPage::new(4096, 34);
+        let mut free_page_dir = FreeDirPage::new(4096, 34, 657);
         let mut count = 0;
         for number in 1..=1020 {
             if !free_page_dir.is_full() {
