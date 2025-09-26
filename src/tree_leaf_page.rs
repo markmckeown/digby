@@ -67,10 +67,14 @@ impl TreeLeafPage {
     // Create a DataPage from a Page - read bytes from disk,
     // determine it is a DataPage, and wrap it.
     pub fn from_page(mut page: Page) -> Self {
-        if page.get_type() != PageType::TreeLeaf {
-            panic!("Page type is not Data");
+        if page.get_type() != PageType::TreeLeaf && page.get_type() != PageType::TableDir {
+            panic!("Page type is not TreeLeaf or TableDir");
         }
         TreeLeafPage { page }
+    }
+
+    pub fn make_table_dir_page(&mut self) {
+        self.page.set_type(PageType::TableDir)
     }
 
     fn get_entries(&mut self) -> u8 {
@@ -97,7 +101,7 @@ impl TreeLeafPage {
         cursor.write_u16::<byteorder::LittleEndian>(free_space).expect("Failed to write free space");
     }
 
-    fn can_fit(&mut self, size: usize) -> bool {
+    pub fn can_fit(&mut self, size: usize) -> bool {
         let free_space: usize = self.get_free_space() as usize;
         free_space >= size + 2
     }

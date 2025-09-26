@@ -59,7 +59,7 @@ impl TryFrom<u8> for Overflow {
 
 
 
-
+#[derive(Clone)]
 pub struct Tuple {
     key: Vec<u8>,
     value: Vec<u8>,
