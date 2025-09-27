@@ -54,7 +54,7 @@ mod tests {
         page_cache.put_page(&mut page);
         page_cache.sync_all();
         // Read the page back from the cache
-        let mut read_page = page_cache.get_page(page_number);
+        let read_page = page_cache.get_page(page_number);
         assert_eq!(read_page.get_page_number(), page_number);
         assert_eq!(read_page.get_bytes(), page.get_bytes());
     }

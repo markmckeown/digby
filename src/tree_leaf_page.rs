@@ -28,7 +28,7 @@ impl PageTrait for TreeLeafPage {
         self.page.get_bytes()
     }
 
-    fn get_page_number(&mut self) -> u32 {
+    fn get_page_number(& self) -> u32 {
         self.page.get_page_number()
     }
 
@@ -36,7 +36,7 @@ impl PageTrait for TreeLeafPage {
         &mut self.page       
     }
 
-    fn get_version(&mut self) -> u64 {
+    fn get_version(& self) -> u64 {
         self.page.get_version()         
     }
 

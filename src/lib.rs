@@ -32,3 +32,5 @@ pub mod table_dir_page;
 pub use table_dir_page::TableDirPage;
 pub mod tree_root_single_page;
 pub use tree_root_single_page::TreeRootSinglePage;
+pub mod tree_dir_entry;
+pub use tree_dir_entry::TreeDirEntry;

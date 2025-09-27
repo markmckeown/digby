@@ -58,8 +58,8 @@ impl Db {
 
     pub fn check_db_integrity(&mut self) -> std::io::Result<()> {
         let _root_page = DbRootPage::from_page(self.page_cache.get_page(0));
-        let mut master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1)); 
-        let mut master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2)); 
+        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1)); 
+        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2)); 
         let mut current_master = if master_page1.get_version() > master_page2.get_version() {
              master_page1 
         } else {
@@ -67,10 +67,10 @@ impl Db {
         }; 
         let current_version = current_master.get_version();
         let free_dir_page_no = current_master.get_free_page_dir_page_no();
-        let mut free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
+        let free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
         assert!(free_dir_page.get_version() <= current_version);
         let table_dir_page_no = current_master.get_table_dir_page_no();
-        let mut table_dir_page = TableDirPage::from_page(self.page_cache.get_page(table_dir_page_no));
+        let table_dir_page = TableDirPage::from_page(self.page_cache.get_page(table_dir_page_no));
         assert!(table_dir_page.get_version() <= current_version);
 
         Ok(())
