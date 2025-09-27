@@ -67,14 +67,20 @@ impl TreeLeafPage {
     // Create a DataPage from a Page - read bytes from disk,
     // determine it is a DataPage, and wrap it.
     pub fn from_page(mut page: Page) -> Self {
-        if page.get_type() != PageType::TreeLeaf && page.get_type() != PageType::TableDir {
-            panic!("Page type is not TreeLeaf or TableDir");
+        if page.get_type() != PageType::TreeLeaf 
+        && page.get_type() != PageType::TableDir 
+        && page.get_type() != PageType::TreeRootSingle {
+            panic!("Page type is not TreeLeaf or TableDir or TreeRootSingle");
         }
         TreeLeafPage { page }
     }
 
     pub fn make_table_dir_page(&mut self) {
         self.page.set_type(PageType::TableDir)
+    }
+
+    pub fn make_tree_root_single_page(&mut self) {
+        self.page.set_type(PageType::TreeRootSingle)
     }
 
     fn get_entries(&mut self) -> u8 {
@@ -106,14 +112,13 @@ impl TreeLeafPage {
         free_space >= size + 2
     }
 
-    // Add a tuple to the DataPage. Returns an error if there is not enough space.
+    // Add a tuple to the DataPage. 
+    // Will crash if not enough space.
     // This is low level API. Use store_tuple to add or update a tuple.
-    fn add_tuple(&mut self, tuple: &Tuple, page_size: u64) -> Result<(), String> {
+    fn add_tuple(&mut self, tuple: &Tuple, page_size: u64) -> () {
         let tuple_size: usize = tuple.get_byte_size();
-        if !self.can_fit(tuple_size) {
-            return Err("Not enough space in DataPage".to_string());
-        }
-
+        assert!(self.can_fit(tuple_size), "Cannot add Tuple to page, not enough space.");
+            
         let current_entries = self.get_entries();
         let current_entries_size: usize = current_entries as usize * 2; // Each entry has 2 bytes for index
         let free_space = self.get_free_space();
@@ -127,8 +132,6 @@ impl TreeLeafPage {
         cursor.write_u16::<byteorder::LittleEndian>(tuple_offset as u16).expect("Failed to write tuple offset");
         self.set_entries(current_entries + 1);
         self.set_free_space(free_space - (tuple_size as u16 + 2));
-        
-        Ok(())
     }
 
     // Get tuple at index, used as part of binary search.
@@ -155,11 +158,11 @@ impl TreeLeafPage {
     // Tuples are kept in sorted order by key.
     // Get all tuples in page, remove any with same key, add new tuple, sort, 
     // clear page and re-add all tuples.
-    pub fn store_tuple(&mut self, new_tuple: Tuple, page_size: usize) -> Result<(), String> {
+    // If tuple does not fit then crash.
+    pub fn store_tuple(&mut self, new_tuple: Tuple, page_size: usize) -> () {
         let tuple_size: usize = new_tuple.get_byte_size();
-        if !self.can_fit(tuple_size) {
-            return Err("Not enough space in DataPage".to_string());
-        }
+        assert!(self.can_fit(tuple_size), "Cannot fit tuple in page");
+    
 
         let sorted_tuples = self.build_sorted_tuples(new_tuple, page_size);
         // Clear the page and re-add all tuples
@@ -167,13 +170,9 @@ impl TreeLeafPage {
         self.set_free_space((page_size - 20) as u16); // Reset free space
 
         for tuple in sorted_tuples {
-            self.add_tuple(&tuple, page_size as u64)?;
+            self.add_tuple(&tuple, page_size as u64);
         }
-        
-        Ok(())
     }
-
-
 
     // Part of store_tuple - get all tuples, remove any with same key as new_tuple,
     // add new_tuple, sort and return.
@@ -188,7 +187,7 @@ impl TreeLeafPage {
 
 
     // Get all tuples in the DataPage - used for rebuilding the page when adding or updating a tuple.
-    fn get_all_tuples(&mut self, page_size: usize) -> Vec<Tuple> {
+    pub fn get_all_tuples(&mut self, page_size: usize) -> Vec<Tuple> {
         let entries = self.get_entries();
         let mut tuples = Vec::new();
         for i in 0..entries {
@@ -233,7 +232,7 @@ mod tests {
         let version = 1;
 
         let tuple = Tuple::new(key, value, version);
-        assert!(data_page.add_tuple(&tuple, 4096).is_ok());
+        data_page.add_tuple(&tuple, 4096);
         assert_eq!(data_page.get_entries(), 1);
         let retrieved_tuple = data_page.get_tuple_index(0, 4096);
         assert_eq!(retrieved_tuple.get_key(), b"key");
@@ -246,11 +245,11 @@ mod tests {
         let mut data_page = TreeLeafPage::new(4096, 1);
         
 
-        assert!(data_page.store_tuple(Tuple::new(b"a".to_vec(), b"value-a".to_vec(), 1), 4096).is_ok());
-        assert!(data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096).is_ok());
-        assert!(data_page.store_tuple(Tuple::new(b"c".to_vec(), b"value-c".to_vec(), 3), 4096).is_ok());
-        assert!(data_page.store_tuple(Tuple::new(b"d".to_vec(), b"value-d".to_vec(), 4), 4096).is_ok());
-        assert!(data_page.store_tuple(Tuple::new(b"e".to_vec(), b"value-e".to_vec(), 5), 4096).is_ok());
+        data_page.store_tuple(Tuple::new(b"a".to_vec(), b"value-a".to_vec(), 1), 4096);
+        data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
+        data_page.store_tuple(Tuple::new(b"c".to_vec(), b"value-c".to_vec(), 3), 4096);
+        data_page.store_tuple(Tuple::new(b"d".to_vec(), b"value-d".to_vec(), 4), 4096);
+        data_page.store_tuple(Tuple::new(b"e".to_vec(), b"value-e".to_vec(), 5), 4096);
 
         assert_eq!(data_page.get_entries(), 5);
         let key_to_find = b"a".to_vec();

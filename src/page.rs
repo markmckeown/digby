@@ -14,6 +14,7 @@ pub enum PageType {
     TreeInternal = 7,
     TreeRoot = 8,
     TableDir = 9,
+    TreeRootSingle = 10,
 }
 
 impl TryFrom<u8> for PageType {
@@ -30,6 +31,7 @@ impl TryFrom<u8> for PageType {
             7 => Ok(PageType::TreeInternal),
             8 => Ok(PageType::TreeRoot),
             9 => Ok(PageType::TableDir),
+            10 => Ok(PageType::TreeRootSingle),
             _ => Err(()),
         }
     }

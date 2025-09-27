@@ -65,10 +65,13 @@ impl Db {
         } else {
              master_page2
         }; 
+        let current_version = current_master.get_version();
         let free_dir_page_no = current_master.get_free_page_dir_page_no();
-        let mut _free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
+        let mut free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
+        assert!(free_dir_page.get_version() <= current_version);
         let table_dir_page_no = current_master.get_table_dir_page_no();
-        let mut _table_dir_page = TableDirPage::from_page(self.page_cache.get_page(table_dir_page_no));
+        let mut table_dir_page = TableDirPage::from_page(self.page_cache.get_page(table_dir_page_no));
+        assert!(table_dir_page.get_version() <= current_version);
 
         Ok(())
     }

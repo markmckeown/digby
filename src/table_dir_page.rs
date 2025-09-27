@@ -61,7 +61,7 @@ impl TableDirPage {
     }
 
     pub fn add_table_entry(&mut self, table_dir_entry: TableDirEntry, page_size: u64) {
-        self.page.store_tuple(table_dir_entry.get_tuple().clone(), page_size as usize).expect("Failed to add table entry.")
+        self.page.store_tuple(table_dir_entry.get_tuple().clone(), page_size as usize);
     }
 
     pub fn get_table_page(&mut self, name: Vec<u8>, page_size: u64) -> Option<u32> {
