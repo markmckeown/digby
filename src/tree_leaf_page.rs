@@ -83,8 +83,8 @@ impl TreeLeafPage {
         self.page.set_type(PageType::TreeRootSingle)
     }
 
-    fn get_entries(&mut self) -> u8 {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+    fn get_entries(&self) -> u8 {
+        let mut cursor = Cursor::new(&self.page.get_bytes()[..]);
         cursor.set_position(17);
         cursor.read_u8().unwrap()
     }
@@ -95,8 +95,8 @@ impl TreeLeafPage {
         cursor.write_u8(entries).expect("Failed to write entries");
     }
 
-    fn get_free_space(&mut self) -> u16 {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+    fn get_free_space(&self) -> u16 {
+        let mut cursor = Cursor::new(&self.page.get_bytes()[..]);
         cursor.set_position(18);
         cursor.read_u16::<byteorder::LittleEndian>().unwrap()
     }
@@ -107,7 +107,7 @@ impl TreeLeafPage {
         cursor.write_u16::<byteorder::LittleEndian>(free_space).expect("Failed to write free space");
     }
 
-    pub fn can_fit(&mut self, size: usize) -> bool {
+    pub fn can_fit(&self, size: usize) -> bool {
         let free_space: usize = self.get_free_space() as usize;
         free_space >= size + 2
     }
@@ -136,7 +136,7 @@ impl TreeLeafPage {
 
     // Get tuple at index, used as part of binary search.
     // Crashes if index is out of bounds.
-    fn get_tuple_index(&mut self, index: u8, page_size: usize) -> Tuple {
+    fn get_tuple_index(&self, index: u8, page_size: usize) -> Tuple {
         let entries = self.get_entries();
 
         assert!(index < entries);
@@ -176,18 +176,18 @@ impl TreeLeafPage {
 
     // Part of store_tuple - get all tuples, remove any with same key as new_tuple,
     // add new_tuple, sort and return.
-    fn build_sorted_tuples(&mut self, new_tuple: Tuple, page_size: usize) -> Vec<Tuple> {
+    fn build_sorted_tuples(&self, new_tuple: Tuple, page_size: usize) -> Vec<Tuple> {
         let mut tuples = self.get_all_tuples(page_size);
         // Remove any existing tuple with the same key
         tuples.retain(|t| t.get_key() != new_tuple.get_key());
         tuples.push(new_tuple);
-        tuples.sort_by(|a, b| a.get_key().cmp(b.get_key()));
+        tuples.sort_by(|b, a| a.get_key().cmp(b.get_key()));
         tuples
     }
 
 
     // Get all tuples in the DataPage - used for rebuilding the page when adding or updating a tuple.
-    pub fn get_all_tuples(&mut self, page_size: usize) -> Vec<Tuple> {
+    pub fn get_all_tuples(&self, page_size: usize) -> Vec<Tuple> {
         let entries = self.get_entries();
         let mut tuples = Vec::new();
         for i in 0..entries {
@@ -198,7 +198,7 @@ impl TreeLeafPage {
     }
 
     // Get a tuple by key using binary search. Returns None if not found.
-    pub fn get_tuple(&mut self, key: Vec<u8>, page_size: usize) -> Option<Tuple> {
+    pub fn get_tuple(&self, key: Vec<u8>, page_size: usize) -> Option<Tuple> {
         let entries = self.get_entries();
         let mut left = 0;
         let mut right = entries as i32 - 1;
@@ -208,7 +208,7 @@ impl TreeLeafPage {
             let tuple: Tuple = self.get_tuple_index(mid as u8, page_size);
             if tuple.get_key() == key {
                 return Some(tuple);
-            } else if tuple.get_key().to_vec() > key {
+            } else if tuple.get_key().to_vec() < key {
                 left = mid + 1;
             } else {
                     right = mid - 1;
