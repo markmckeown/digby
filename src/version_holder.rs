@@ -30,6 +30,19 @@ impl VersionHolder {
         self.bytes[7]
     }
 
+    pub fn set_flags(&mut self, flags: u8) -> () {
+        self.bytes[7] = flags
+    }
+
+    pub fn set_version(&mut self, version: u64) -> () {
+        assert!(version < VersionHolder::MAX_IN_7_BYTES, "Version is too larget to store in 7 bytes.");
+        let flags = self.bytes[7];
+        self.bytes = version.to_le_bytes();
+        self.bytes[7] = flags;
+    }
+
+
+
     pub fn get_version(&self) -> u64 {
         let mut bytes_le_8 = [0u8; 8];
         bytes_le_8[0..7].copy_from_slice(&self.bytes[0..7]);
@@ -52,8 +65,14 @@ mod tests {
     #[test]
     fn test_get_set_large_version() {
         let version = VersionHolder::MAX_IN_7_BYTES - 1;
-        let version_holder = VersionHolder::new(7, version);
+        let mut version_holder = VersionHolder::new(7, version);
         assert!(7 == version_holder.get_flags());
         assert!(version == version_holder.get_version());
+
+        version_holder.set_flags(92);
+        version_holder.set_version(89);
+        assert!(92 == version_holder.get_flags());
+        assert!(89 == version_holder.get_version());
+
     }
 }

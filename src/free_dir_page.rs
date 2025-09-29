@@ -3,9 +3,9 @@ use std::io::Cursor;
 use crate::page::Page;
 use crate::page::PageTrait;
 
-
-// | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) |  Entries (u16) | Reserved(1 byte) |
-// | NextPage(u32) | PreviousPage (u32) | Free Page Id (u32) | Free Page Id (u32) ....|
+// | Header Size 26
+// | Checksum(u32) | Page No (u32) | VersionHolder (8 bytes) |  Entries (u16) | NextPage(u32) | PreviousPage (u32) |
+// | Free Page Id (u32) | Free Page Id (u32) ....|
 pub struct FreeDirPage {
     page: Page
 }
@@ -59,43 +59,43 @@ impl FreeDirPage {
 
     pub fn get_entries(&mut self) -> u16 {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(17);
+        cursor.set_position(16);
         cursor.read_u16::<LittleEndian>().unwrap()
     }
 
     pub fn set_entries(&mut self, entries: u16) {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(17);
+        cursor.set_position(16);
         cursor.write_u16::<LittleEndian>(entries).expect("Failed to write entries");
     }
 
     pub fn get_next(&mut self) -> u32 {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(20);
+        cursor.set_position(18);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
 
     pub fn set_next(&mut self, entries: u32) {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(20);
+        cursor.set_position(18);
         cursor.write_u32::<LittleEndian>(entries).expect("Failed to write next page");
     }
 
     pub fn get_previous(&mut self) -> u32 {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(24);
+        cursor.set_position(22);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
 
     pub fn set_previous(&mut self, entries: u32) {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(24);
+        cursor.set_position(22);
         cursor.write_u32::<LittleEndian>(entries).expect("Failed to write previous page");
     }
 
     pub fn is_full(&mut self) -> bool {
-        let capacity = self.page.get_bytes().len() - 28;
-        (capacity - (4 * self.get_entries() as usize)) <= 0
+        let capacity = self.page.get_bytes().len() - 26;
+        (capacity - (4 * self.get_entries() as usize)) < 4
     }
 
     pub fn has_free_pages(&mut self) -> bool {
@@ -106,7 +106,7 @@ impl FreeDirPage {
         assert!(self.has_free_pages());
         let entries = self.get_entries() - 1;
         self.set_entries(entries);
-        let offset = 24 + (4 * entries as u64);
+        let offset = 26 + (4 * entries as u64);
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
         cursor.set_position(offset as u64);
         cursor.read_u32::<LittleEndian>().unwrap()
@@ -115,7 +115,7 @@ impl FreeDirPage {
     pub fn add_free_page(&mut self, free_page_number: u32) -> () {
         assert!(!self.is_full());
         let entries = self.get_entries();
-        let offset = 24 + (4 * self.get_entries() as u64);
+        let offset = 26 + (4 * self.get_entries() as u64);
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
         cursor.set_position(offset);
         cursor.write_u32::<LittleEndian>(free_page_number).expect("Failed to write free page");

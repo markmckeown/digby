@@ -1,6 +1,7 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use std::io::Cursor;
+use std::io::{Cursor};
 use std::convert::TryFrom;
+use crate::version_holder::VersionHolder;
 
 
 #[derive(PartialEq, Eq)]
@@ -46,7 +47,7 @@ pub trait PageTrait {
 }
 
 
-// | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | Data(4084 bytes)
+// | Checksum(u32) | Page No (u32) | VersionHolder (8 bytes) | Data(4084 bytes)
 pub struct Page {
     bytes: Vec<u8>
 }
@@ -67,15 +68,13 @@ impl PageTrait for Page {
     }
 
     fn get_version(& self) -> u64 {
-        let mut cursor = Cursor::new(& self.bytes[..]);
-        cursor.set_position(8);
-        cursor.read_u64::<LittleEndian>().unwrap()
+        VersionHolder::from_bytes(self.bytes[8..8+8].to_vec()).get_version()
     }
 
     fn set_version(&mut self, version: u64) -> () {
-        let mut cursor = Cursor::new(&mut self.bytes[..]);
-        cursor.set_position(8);
-        cursor.write_u64::<LittleEndian>(version as u64).expect("Failed to write version");     
+        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8+8].to_vec());
+        version_holder.set_version(version);
+        self.bytes[8..8+8].copy_from_slice(&version_holder.get_bytes());
     }
 }
 
@@ -93,11 +92,9 @@ impl Page {
         }
     }
 
-
     pub fn get_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes
     }
-
     
     pub fn set_page_number(&mut self, page_number: u32) {
         let mut cursor = Cursor::new(&mut self.bytes[..]);
@@ -106,25 +103,16 @@ impl Page {
     }
 
     pub fn get_type(&mut self) -> PageType {
-        let mut cursor = Cursor::new(&mut self.bytes[..]);
-        cursor.set_position(16);
-        PageType::try_from(cursor.read_u8().unwrap()).expect("Invalid page type")
+        PageType::try_from(VersionHolder::from_bytes(self.bytes[8..8+8].to_vec()).get_flags()).unwrap()
      }
 
     pub fn set_type(&mut self, page_type: PageType) {
-        let mut cursor = Cursor::new(&mut self.bytes[..]);
-        cursor.set_position(16);
-        cursor.write_i8(page_type as i8).expect("Failed to write page type");
+        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8+8].to_vec());
+        version_holder.set_flags(page_type as u8);
+        self.bytes[8..8+8].copy_from_slice(&version_holder.get_bytes());
     }
 }
 
-
-impl Drop for Page {
-    fn drop(&mut self) {
-        // No special cleanup needed for Page
-    }   
-    
-}
 
 #[cfg(test)]
 mod tests {

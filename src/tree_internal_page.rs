@@ -4,9 +4,9 @@ use crate::TreeDirEntry;
 use std::io::Cursor;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-// Header 30 bytes.
-// | Checksum(u32)   | Page No (u32) | Version (u64) | Type(u8) | Reserved(1 bytes) | Entries (u16) |
-// | FreeSpace (u16) | ParentPage (u32) | LeftLeafPage (u32) |
+// Header 28 bytes.
+// | Checksum(u32)   | Page No (u32) | VersionHolder (8 bytes)  | Entries (u16) | FreeSpace (u16) | 
+// | ParentPage (u32) | LeftLeafPage (u32) |
 //
 // | TreeDirEntry | TreeDirEntry ...|
 //
@@ -38,7 +38,7 @@ impl PageTrait for TreeInternalPage {
 }
 
 impl TreeInternalPage {
-    const HEADER_SIZE: u16 =  30;
+    const HEADER_SIZE: u16 =  28;
 
     pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
         let mut tree_page_dir =  TreeInternalPage {
@@ -69,50 +69,50 @@ impl TreeInternalPage {
     }
 
     pub fn get_page_to_left(&self) -> u32 {
-        let index = 26;
+        let index = 24;
         let slice = &self.page.get_bytes()[index..index + 4];
         let array: [u8; 4] = slice.try_into().unwrap();
         u32::from_le_bytes(array)
     }
 
     pub fn set_page_to_left(&mut self, page_no: u32) -> () {
-        let index = 26;
+        let index = 24;
         self.page.get_bytes_mut()[index..index+4].copy_from_slice(&page_no.to_le_bytes());
     }
 
     pub fn get_entries(&self) -> u16 {
-        let index = 18;
+        let index = 16;
         let slice = &self.page.get_bytes()[index..index + 2];
         let array: [u8; 2] = slice.try_into().unwrap();
         u16::from_le_bytes(array)
     }
 
     pub fn set_entries(&mut self, entries: u16) -> () {
-        let index = 18;
+        let index = 16;
         self.page.get_bytes_mut()[index..index+2].copy_from_slice(&entries.to_le_bytes());
     }
 
     pub fn get_free_space(&self) -> u16 {
-        let index = 20;
+        let index = 18;
         let slice = &self.page.get_bytes()[index..index + 2];
         let array: [u8; 2] = slice.try_into().unwrap();
         u16::from_le_bytes(array)
     }
 
     pub fn set_free_space(&mut self, entries: u16) -> () {
-        let index = 20;
+        let index = 18;
         self.page.get_bytes_mut()[index..index+2].copy_from_slice(&entries.to_le_bytes());
     }
 
     pub fn get_parent_page(&self) -> u32 {
-        let index = 22;
+        let index = 20;
         let slice = &self.page.get_bytes()[index..index + 4];
         let array: [u8; 4] = slice.try_into().unwrap();
         u32::from_le_bytes(array)
     }
 
     pub fn set_parent_page(&mut self, page_no: u32) -> () {
-        let index = 22;
+        let index = 20;
         self.page.get_bytes_mut()[index..index + 4].copy_from_slice(&page_no.to_le_bytes());
     }
 
@@ -261,7 +261,7 @@ mod tests {
         page.set_entries(79);
         assert!(79 == page.get_entries());
         
-        assert!(4096 - 30 == page.get_free_space());
+        assert!(4096 - 28 == page.get_free_space());
         page.set_free_space(179);
         assert!(179 == page.get_free_space());
         

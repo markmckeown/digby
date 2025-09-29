@@ -6,7 +6,7 @@ use crate::tuple::Tuple;
 // TreeLeafPage structure
 //
 // Header is 20 bytes:
-// | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Entries(u8) | Free_Space(u16) | 
+// | Checksum(u32) | Page No (u32) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) | 
 //
 // TreeLeafPage body is of the format:
 //
@@ -14,11 +14,6 @@ use crate::tuple::Tuple;
 // |--------|-------|--------|--------------------|----------------|---------------|-------------|
 // Tuples grow down the Page, while the Tuple Index grows up the page - with the free space in between.
 //
-// Note we can only have up to 255 entries in a TreeLeafPage, as Entries is a u8. A tuple is at least
-// 16 bytes - 4 bytes key length, 4 bytes value length, 8 bytes version.
-// 16 * 255 = 4080 + 12 bytes header + 510 bytes index = 4602 bytes - so we will have less than 255
-// tuples in a 4KB page as there is not enough space for 255 tuples and their indexes.
-// We do not need to check entries for overflow as we check if there is enough space in the page before adding a tuple.
 pub struct TreeLeafPage {
     page: Page
 }
@@ -83,16 +78,16 @@ impl TreeLeafPage {
         self.page.set_type(PageType::TreeRootSingle)
     }
 
-    fn get_entries(&self) -> u8 {
+    fn get_entries(&self) -> u16 {
         let mut cursor = Cursor::new(&self.page.get_bytes()[..]);
-        cursor.set_position(17);
-        cursor.read_u8().unwrap()
+        cursor.set_position(16);
+        cursor.read_u16::<byteorder::LittleEndian>().unwrap()
     }
 
-    fn set_entries(&mut self, entries: u8) {
+    fn set_entries(&mut self, entries: u16) {
         let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
-        cursor.set_position(17);
-        cursor.write_u8(entries).expect("Failed to write entries");
+        cursor.set_position(16);
+        cursor.write_u16::<byteorder::LittleEndian>(entries).expect("Failed to write entries");
     }
 
     fn get_free_space(&self) -> u16 {
@@ -136,7 +131,7 @@ impl TreeLeafPage {
 
     // Get tuple at index, used as part of binary search.
     // Crashes if index is out of bounds.
-    fn get_tuple_index(&self, index: u8, page_size: usize) -> Tuple {
+    fn get_tuple_index(&self, index: u16, page_size: usize) -> Tuple {
         let entries = self.get_entries();
 
         assert!(index < entries);
@@ -205,7 +200,7 @@ impl TreeLeafPage {
 
         while left <= right {
             let mid = left + (right - left) / 2;
-            let tuple: Tuple = self.get_tuple_index(mid as u8, page_size);
+            let tuple: Tuple = self.get_tuple_index(mid as u16, page_size);
             if tuple.get_key() == key {
                 return Some(tuple);
             } else if tuple.get_key().to_vec() < key {
