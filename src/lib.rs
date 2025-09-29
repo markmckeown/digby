@@ -34,3 +34,5 @@ pub mod tree_root_single_page;
 pub use tree_root_single_page::TreeRootSinglePage;
 pub mod tree_dir_entry;
 pub use tree_dir_entry::TreeDirEntry;
+pub mod version_holder;
+pub use version_holder::VersionHolder;
