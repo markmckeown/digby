@@ -101,8 +101,10 @@ impl DbMasterPage {
     
     pub fn flip_page_number(&mut self) -> () {
         let page_number = self.get_page_number();
-        let mut new_page_number = 0;
-        if page_number == 0 {
+        let new_page_number: u32;
+        if page_number == 1 {
+            new_page_number = 2;
+        } else {
             new_page_number = 1;
         }
         self.page.set_page_number(new_page_number);

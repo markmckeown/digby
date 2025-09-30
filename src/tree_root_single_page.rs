@@ -68,7 +68,7 @@ pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
         self.page.get_all_tuples(page_size)
     }
 
-    pub fn get_tuple(&mut self, key: Vec<u8>, page_size: usize) -> Option<Tuple> {
+    pub fn get_tuple(&self, key: Vec<u8>, page_size: usize) -> Option<Tuple> {
         self.page.get_tuple(key, page_size)
     }
 

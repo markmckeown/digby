@@ -150,6 +150,20 @@ impl Db {
     }
 
 
+    pub fn get_value(&mut self, key: Vec<u8>) -> Option<Tuple> {
+        assert!(key.len() < 1024, "Cannot handle big keys yet.");
+        let master_page = self.get_master_page();
+        let tree_page_no = master_page.get_global_tree_root_page_no();
+        let page = self.page_cache.get_page(tree_page_no);
+
+        if page.get_type() == page::PageType::TreeRootSingle {
+            let tree_root_page = TreeRootSinglePage::from_page(page);
+            tree_root_page.get_tuple(key, Db::PAGE_SIZE as usize)
+        } else {
+            panic!("Can only handle TreeRootSingle at the minute.")
+        }
+    }
+
     pub fn store_key_value(&mut self, key: Vec<u8>, value: Vec<u8>) -> () {
         assert!(key.len() < 1024, "Cannot handle big keys yet.");
         assert!(value.len() < 1024, "Cannot handle big values yet.");
@@ -172,7 +186,7 @@ impl Db {
             new_tree_root_page.set_version(new_version);
             let free_page_no = free_dir_page.get_free_page();
             free_dir_page.add_free_page(tree_page_no);
-            free_dir_page.add_free_page(tree_free_page_no);
+            free_dir_page.add_free_page(free_dir_page_no);
             free_dir_page.set_version(new_version);
             let mut next_free_page = FreePage::new(Db::PAGE_SIZE, free_page_no);
             next_free_page.copy_page_body(free_dir_page, Db::PAGE_SIZE);
@@ -233,7 +247,12 @@ mod tests {
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.store_key_value(b"the_key".to_vec(), b"the_value".to_vec());
         }
-        
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap());
+            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            let tuple = db.get_value(b"the_key".to_vec()).unwrap();
+            assert!(tuple.get_value() == b"the_value".to_vec());
+        }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
