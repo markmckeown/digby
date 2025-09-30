@@ -2,6 +2,7 @@ use crate::page::{Page, PageTrait, PageType};
 use byteorder::{ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 use crate::tuple::Tuple;
+use crate::tuple::TupleTrait;
 
 // TreeLeafPage structure
 //
@@ -49,7 +50,7 @@ impl TreeLeafPage {
         page.set_page_number(page_number);      
         let mut data_page = TreeLeafPage { page };
         data_page.set_entries(0);
-        data_page.set_free_space((page_size - 20) as u16); // 12 bytes for header
+        data_page.set_free_space((page_size - 20) as u16); // 20 bytes for header
         data_page
     }
 
@@ -61,7 +62,7 @@ impl TreeLeafPage {
 
     // Create a DataPage from a Page - read bytes from disk,
     // determine it is a DataPage, and wrap it.
-    pub fn from_page(mut page: Page) -> Self {
+    pub fn from_page(page: Page) -> Self {
         if page.get_type() != PageType::TreeLeaf 
         && page.get_type() != PageType::TableDir 
         && page.get_type() != PageType::TreeRootSingle {
@@ -142,9 +143,9 @@ impl TreeLeafPage {
         let tuple_offset = cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
 
         let mut tuple_cursor = Cursor::new(&self.page.get_bytes()[tuple_offset..]);
-        let key_len = tuple_cursor.read_u32::<byteorder::LittleEndian>().unwrap() as usize;
-        let value_len = tuple_cursor.read_u32::<byteorder::LittleEndian>().unwrap() as usize;
-        let tuple_size = key_len + value_len + 8 + 4 + 4 + 1; // key + value + version + key_len + value_len + overflow
+        let key_len = tuple_cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
+        let value_len = tuple_cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
+        let tuple_size = key_len + value_len + 8 + 2 + 2; // key + value + version + key_len + value_len
 
         Tuple::from_bytes(self.page.get_bytes()[tuple_offset..tuple_offset + tuple_size].to_vec())
     }

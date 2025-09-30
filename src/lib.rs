@@ -36,3 +36,5 @@ pub mod tree_dir_entry;
 pub use tree_dir_entry::TreeDirEntry;
 pub mod version_holder;
 pub use version_holder::VersionHolder;
+pub mod overflow_tuple;
+pub use overflow_tuple::OverflowTuple;

@@ -18,7 +18,7 @@ impl PageTrait for TreeRootPage {
         &mut self.page
     }
 
-    fn get_version(& self) -> u64 {
+    fn get_version(&self) -> u64 {
         self.page.get_version()     
     }
 
@@ -42,7 +42,7 @@ impl TreeRootPage {
         return Self::from_page(page);
     }
 
-    pub fn from_page(mut page: Page) -> Self {
+    pub fn from_page(page: Page) -> Self {
         if page.get_type() != crate::page::PageType::TreeRoot {
             panic!("Invalid page type for FreePage");
         }

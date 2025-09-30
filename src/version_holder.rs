@@ -41,8 +41,6 @@ impl VersionHolder {
         self.bytes[7] = flags;
     }
 
-
-
     pub fn get_version(&self) -> u64 {
         let mut bytes_le_8 = [0u8; 8];
         bytes_le_8[0..7].copy_from_slice(&self.bytes[0..7]);

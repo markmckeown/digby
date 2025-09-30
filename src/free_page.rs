@@ -43,12 +43,16 @@ impl FreePage {
         return Self::from_page(page);
     }
 
-    pub fn from_page(mut page: Page) -> Self {
+    pub fn from_page(page: Page) -> Self {
         if page.get_type() != crate::page::PageType::Free {
             panic!("Invalid page type for FreePage");
         }
 
         let free_page = FreePage { page };
         free_page
+    }
+
+    pub fn copy_page_body(&mut self, from: impl PageTrait, page_size: u64) {
+        self.page.copy_page_body(from, page_size);
     }
 }

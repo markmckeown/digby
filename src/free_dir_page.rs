@@ -48,7 +48,7 @@ impl FreeDirPage {
         return Self::from_page(page);  
     }
 
-    pub fn from_page(mut page: Page) -> Self {
+    pub fn from_page(page: Page) -> Self {
         let page_type = page.get_type();
         if page_type != crate::page::PageType::FreeDir {
             panic!("Invalid page type for FreePageDir");
@@ -57,8 +57,8 @@ impl FreeDirPage {
         FreeDirPage { page }
     }
 
-    pub fn get_entries(&mut self) -> u16 {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+    pub fn get_entries(&self) -> u16 {
+        let mut cursor = Cursor::new(&self.page.get_bytes()[..]);
         cursor.set_position(16);
         cursor.read_u16::<LittleEndian>().unwrap()
     }
@@ -69,8 +69,8 @@ impl FreeDirPage {
         cursor.write_u16::<LittleEndian>(entries).expect("Failed to write entries");
     }
 
-    pub fn get_next(&mut self) -> u32 {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+    pub fn get_next(&self) -> u32 {
+        let mut cursor = Cursor::new(&self.page.get_bytes()[..]);
         cursor.set_position(18);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
@@ -81,8 +81,8 @@ impl FreeDirPage {
         cursor.write_u32::<LittleEndian>(entries).expect("Failed to write next page");
     }
 
-    pub fn get_previous(&mut self) -> u32 {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+    pub fn get_previous(&self) -> u32 {
+        let mut cursor = Cursor::new(&self.page.get_bytes()[..]);
         cursor.set_position(22);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
@@ -93,12 +93,12 @@ impl FreeDirPage {
         cursor.write_u32::<LittleEndian>(entries).expect("Failed to write previous page");
     }
 
-    pub fn is_full(&mut self) -> bool {
+    pub fn is_full(&self) -> bool {
         let capacity = self.page.get_bytes().len() - 26;
         (capacity - (4 * self.get_entries() as usize)) < 4
     }
 
-    pub fn has_free_pages(&mut self) -> bool {
+    pub fn has_free_pages(&self) -> bool {
         self.get_entries() > 0
     }
 

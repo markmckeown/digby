@@ -92,6 +92,11 @@ impl Page {
         }
     }
 
+
+    pub fn copy_page_body(&mut self, from: impl PageTrait, page_size: u64) -> () {
+        self.bytes[8..page_size as usize].copy_from_slice(&from.get_bytes()[8..4096]);
+    }
+
     pub fn get_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes
     }
@@ -102,7 +107,7 @@ impl Page {
         cursor.write_u32::<LittleEndian>(page_number as u32).expect("Failed to write page number");
     }
 
-    pub fn get_type(&mut self) -> PageType {
+    pub fn get_type(&self) -> PageType {
         PageType::try_from(VersionHolder::from_bytes(self.bytes[8..8+8].to_vec()).get_flags()).unwrap()
      }
 

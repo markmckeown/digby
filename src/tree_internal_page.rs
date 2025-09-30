@@ -59,7 +59,7 @@ impl TreeInternalPage {
         return Self::from_page(page);
     }
 
-    pub fn from_page(mut page: Page) -> Self {
+    pub fn from_page(page: Page) -> Self {
         if page.get_type() != crate::page::PageType::TreeInternal {
             panic!("Invalid page type for TreePageDir");
         }

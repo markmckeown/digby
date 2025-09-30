@@ -1,4 +1,5 @@
 use crate::{page::{Page, PageTrait, PageType}, TableDirEntry, TreeLeafPage};
+use crate::tuple::TupleTrait;
 
 
 // TableDirPage is just a TreeLeafPage wrapped.
@@ -45,7 +46,7 @@ impl TableDirPage {
 
     // Create a DataPage from a Page - read bytes from disk,
     // determine it is a DataPage, and wrap it.
-    pub fn from_page(mut page: Page) -> Self {
+    pub fn from_page(page: Page) -> Self {
         if page.get_type() != PageType::TableDir {
             panic!("Page type is not TableDir");
         }

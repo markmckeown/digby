@@ -50,7 +50,7 @@ pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
 
     // Create a DataPage from a Page - read bytes from disk,
     // determine it is a DataPage, and wrap it.
-    pub fn from_page(mut page: Page) -> Self {
+    pub fn from_page(page: Page) -> Self {
         if page.get_type() != PageType::TreeRootSingle {
             panic!("Page type is not TreeRootSingle");
         }

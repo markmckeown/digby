@@ -54,7 +54,7 @@ impl DbRootPage {
         return Self::from_page(page);
     }
 
-    pub fn from_page(mut page: Page) -> Self {
+    pub fn from_page(page: Page) -> Self {
         if page.get_type() != PageType::DbRoot {
             panic!("Invalid page type for RootPage");
         }
