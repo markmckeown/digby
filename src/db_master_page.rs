@@ -17,8 +17,12 @@ impl PageTrait for DbMasterPage {
         self.page.get_bytes()
     }
 
-    fn get_page_number(& self) -> u32 {
+    fn get_page_number(&self) -> u32 {
         self.page.get_page_number()
+    }
+
+    fn set_page_number(&mut self,  page_no: u32) -> () {
+        self.page.set_page_number(page_no)
     }
 
     fn get_page(&mut self) -> &mut Page {

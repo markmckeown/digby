@@ -5,7 +5,7 @@ use crate::file_layer::FileLayer;
 use crate::block_layer::BlockLayer;
 use crate::db_root_page::DbRootPage;
 use crate::page::PageTrait;
-use crate::tuple::{Tuple, TupleTrait};
+use crate::tuple::{Tuple};
 
 pub struct Db {
     path: String, 
@@ -165,44 +165,77 @@ impl Db {
     }
 
     pub fn store_key_value(&mut self, key: Vec<u8>, value: Vec<u8>) -> () {
+        // Assert on the things that cannot be handled yet.
         assert!(key.len() < 1024, "Cannot handle big keys yet.");
         assert!(value.len() < 1024, "Cannot handle big values yet.");
+        
+        // Get the current master page. Note this is a copy of the page 
         let mut master_page = self.get_master_page();
-        let new_version = master_page.get_version() + 1;
-        let free_dir_page_no = master_page.get_free_page_dir_page_no();
-        let mut free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
+
+        // Increment the version number
+        let old_version = master_page.get_version();
+        let new_version = old_version + 1;
+
+        // Find the free page directory that has the free page numbers. Make sure
+        // it has free pages - cannot handle the case it does not yet.
+        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
+        let mut free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_page_dir_page_no));
+        assert!(free_dir_page.get_version() <= old_version, "Version out of date for free page directory");
         assert!(free_dir_page.has_free_pages(), "Cannot handle empty free page directories yet.");
-        let tree_page_no = master_page.get_global_tree_root_page_no();
-        let tree_root_page = self.page_cache.get_page(tree_page_no);
+        
+        // Now get the page number of the root of the global tree. Then get the page,
+        // this is a copy of the page. Only handle the case when the root is also 
+        // a leaf node ATM.
+        let tree_root_page_no = master_page.get_global_tree_root_page_no();
 
-        if tree_root_page.get_type() == page::PageType::TreeRootSingle {
-            let tuple = Tuple::new(key, value, new_version);
-            let tree_free_page_no = free_dir_page.get_free_page();
-            let mut tree_free_page = FreePage::new(Db::PAGE_SIZE, tree_free_page_no);
-            tree_free_page.copy_page_body(tree_root_page, Db::PAGE_SIZE);
-            let mut new_tree_root_page = TreeRootSinglePage::from_bytes(tree_free_page.get_bytes().to_vec());
-            assert!(new_tree_root_page.can_fit(tuple.get_byte_size()), "Cannot handle page full");
-            new_tree_root_page.store_tuple(tuple, Db::PAGE_SIZE as usize);
-            new_tree_root_page.set_version(new_version);
-            let free_page_no = free_dir_page.get_free_page();
-            free_dir_page.add_free_page(tree_page_no);
-            free_dir_page.add_free_page(free_dir_page_no);
-            free_dir_page.set_version(new_version);
-            let mut next_free_page = FreePage::new(Db::PAGE_SIZE, free_page_no);
-            next_free_page.copy_page_body(free_dir_page, Db::PAGE_SIZE);
-            master_page.set_free_page_dir_page_no(next_free_page.get_page_number());
-            master_page.set_global_tree_root_page_no(new_tree_root_page.get_page_number());
-            master_page.set_version(new_version);
-            master_page.flip_page_number();
+        // Get the Global Treee Root Page
+        assert!(self.page_cache.get_page(tree_root_page_no).get_type() == page::PageType::TreeRootSingle, "Only handle root node if it is also a leaf node");
+        let mut tree_root_page = TreeRootSinglePage::from_page(self.page_cache.get_page(tree_root_page_no));
+        // Cannot handle the versions being out of date ATM.
+        assert!(tree_root_page.get_version() <= old_version, "Versions out of date, cannot handle.");
 
-            self.page_cache.put_page(next_free_page.get_page());
-            self.page_cache.put_page(new_tree_root_page.get_page());
-            self.page_cache.sync_data();
-            self.page_cache.put_page(master_page.get_page());
-            self.page_cache.sync_all();          
-        } else {
-            panic!("Can only handle TreeRootSingle at the minute.")
-        }
+        // Create the tuple we want to add. 
+        let tuple = Tuple::new(key, value, new_version);
+
+        // Store the tuple in the root node - there is a check above to make sure it fits.        
+        tree_root_page.store_tuple(tuple, Db::PAGE_SIZE as usize);
+        tree_root_page.set_version(new_version);
+        // Need a place to store this version of this page.
+        let new_tree_free_page_no = free_dir_page.get_free_page();
+        tree_root_page.set_page_number(new_tree_free_page_no);
+        // Write the tree node back through the page cache.
+        self.page_cache.put_page(tree_root_page.get_page());
+
+        // Need to update the free page directory, we need to re-write this page
+        // so need a free page to write it to.
+        let new_free_page_no = free_dir_page.get_free_page();
+        // There are two pages that are now free, the old tree root page and the
+        // the old free page directory page so add them to the free page directory.
+        free_dir_page.add_free_page(tree_root_page_no);
+        free_dir_page.add_free_page(free_page_dir_page_no);
+        free_dir_page.set_version(new_version);
+        // Set the page number to write this page.
+        free_dir_page.set_page_number(new_free_page_no);
+        // Write the new free page directory back through the page cache.
+        self.page_cache.put_page(free_dir_page.get_page());
+            
+        // Now need to update the master - tell it were the 
+        // the globale tree root page is and where the free page
+        // directory is now.
+        master_page.set_free_page_dir_page_no(new_free_page_no);
+        master_page.set_global_tree_root_page_no(new_tree_free_page_no);
+        // update the version
+        master_page.set_version(new_version);
+        // flip the page number to overrwrite the non-current master
+        // page and make it the new current master.
+        master_page.flip_page_number();
+
+        // Sync the first two pages before writing the new master page.
+        self.page_cache.sync_data();
+        // Put the master page.
+        self.page_cache.put_page(master_page.get_page());
+        // Noow sync the master
+        self.page_cache.sync_data();          
 
     }
 
@@ -219,6 +252,7 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::NamedTempFile; 
+    use crate::tuple::{TupleTrait};
 
     #[test]
     fn test_db_creation() {
@@ -247,6 +281,8 @@ mod tests {
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.store_key_value(b"the_key".to_vec(), b"the_value".to_vec());
         }
+        // The new scope essentially closes the DB - when Files run out of scope then 
+        // they are close, Rust bizairely does not allow error handling on close!
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap());
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());

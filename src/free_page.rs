@@ -15,6 +15,10 @@ impl PageTrait for FreePage {
         self.page.get_page_number()
     }
 
+    fn set_page_number(&mut self,  page_no: u32) -> () {
+        self.page.set_page_number(page_no)
+    }
+
     fn get_page(&mut self) -> &mut Page {
         &mut self.page
     }

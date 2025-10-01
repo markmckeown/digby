@@ -41,6 +41,7 @@ impl TryFrom<u8> for PageType {
 pub trait PageTrait {
     fn get_bytes(&self) -> &[u8];
     fn get_page_number(& self) -> u32;
+    fn set_page_number(&mut self, page_no: u32) -> (); 
     fn get_page(&mut self) -> &mut Page;
     fn get_version(& self) -> u64;
     fn set_version(&mut self, version: u64) -> ();
@@ -62,6 +63,11 @@ impl PageTrait for Page {
         cursor.set_position(4);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
+
+    fn set_page_number(&mut self, page_no: u32) -> () {
+        self.bytes[4..4+4].copy_from_slice(&page_no.to_le_bytes());
+    }
+
 
     fn get_page(&mut self) -> &mut Page {
         self

@@ -7,11 +7,22 @@ pub struct PageCache {
     page_size: u64,
 }
 
+// PageCache does not cache any pages - any gets are retrieved from
+// disk and any puts go to disk. 
+// In the future when it does hold a cache of pages then need to think
+// about mutability. Any client doing a look up can get a  immutable
+// reference to a page, any client looking to make changes can get a 
+// copy of the page.
 impl PageCache {
     pub fn new(block_layer: BlockLayer, page_size: u64) -> Self {
         PageCache { block_layer, page_size }
     }
 
+    // This returns a newly created page at the block layer. So each
+    // client would get their own copy of the page. In future there
+    // maybe two versions of this method, one that returns an
+    // immutable refernce to a page that is shared, and a version
+    // that returns a copy of the page.
     pub fn get_page(&mut self, page_number: u32) -> Page {
         self.block_layer.read_page(page_number, self.page_size)
     }
