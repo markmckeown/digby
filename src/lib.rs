@@ -38,3 +38,5 @@ pub mod version_holder;
 pub use version_holder::VersionHolder;
 pub mod overflow_tuple;
 pub use overflow_tuple::OverflowTuple;
+pub mod free_page_tracker;
+pub use free_page_tracker::FreePageTracker;

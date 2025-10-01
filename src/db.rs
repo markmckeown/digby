@@ -1,3 +1,4 @@
+use crate::free_page_tracker::FreePageTracker;
 use crate::{ page, FreeDirPage, FreePage, TableDirPage, TreeRootSinglePage};
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
@@ -179,9 +180,14 @@ impl Db {
         // Find the free page directory that has the free page numbers. Make sure
         // it has free pages - cannot handle the case it does not yet.
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
-        let mut free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_page_dir_page_no));
-        assert!(free_dir_page.get_version() <= old_version, "Version out of date for free page directory");
-        assert!(free_dir_page.has_free_pages(), "Cannot handle empty free page directories yet.");
+        let mut free_page_tracker = FreePageTracker::new(
+            self.page_cache.get_page(free_page_dir_page_no), 
+            new_version);
+
+
+        //let mut free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_page_dir_page_no));
+        //assert!(free_dir_page.get_version() <= old_version, "Version out of date for free page directory");
+        //assert!(free_dir_page.has_free_pages(), "Cannot handle empty free page directories yet.");
         
         // Now get the page number of the root of the global tree. Then get the page,
         // this is a copy of the page. Only handle the case when the root is also 
@@ -201,28 +207,30 @@ impl Db {
         tree_root_page.store_tuple(tuple, Db::PAGE_SIZE as usize);
         tree_root_page.set_version(new_version);
         // Need a place to store this version of this page.
-        let new_tree_free_page_no = free_dir_page.get_free_page();
+        let new_tree_free_page_no = free_page_tracker.get_free_page_no();
         tree_root_page.set_page_number(new_tree_free_page_no);
         // Write the tree node back through the page cache.
         self.page_cache.put_page(tree_root_page.get_page());
 
         // Need to update the free page directory, we need to re-write this page
         // so need a free page to write it to.
-        let new_free_page_no = free_dir_page.get_free_page();
+        //let new_free_page_no = free_dir_page.get_free_page();
         // There are two pages that are now free, the old tree root page and the
         // the old free page directory page so add them to the free page directory.
-        free_dir_page.add_free_page(tree_root_page_no);
-        free_dir_page.add_free_page(free_page_dir_page_no);
-        free_dir_page.set_version(new_version);
+        free_page_tracker.return_free_page_no(tree_root_page_no);
+        //free_dir_page.add_free_page(tree_root_page_no);
+        //free_dir_page.add_free_page(free_page_dir_page_no);
+        //free_dir_page.set_version(new_version);
         // Set the page number to write this page.
-        free_dir_page.set_page_number(new_free_page_no);
+        //free_dir_page.set_page_number(new_free_page_no);
         // Write the new free page directory back through the page cache.
-        self.page_cache.put_page(free_dir_page.get_page());
+        let free_dir_page = free_page_tracker.get_free_page_dir().get_page();
+        self.page_cache.put_page(free_dir_page);
             
         // Now need to update the master - tell it were the 
         // the globale tree root page is and where the free page
         // directory is now.
-        master_page.set_free_page_dir_page_no(new_free_page_no);
+        master_page.set_free_page_dir_page_no(free_dir_page.get_page_number());
         master_page.set_global_tree_root_page_no(new_tree_free_page_no);
         // update the version
         master_page.set_version(new_version);
