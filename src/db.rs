@@ -203,7 +203,7 @@ impl Db {
         tree_root_page.store_tuple(tuple, Db::PAGE_SIZE as usize);
         tree_root_page.set_version(new_version);
         // Need a place to store this version of this page.
-        let new_tree_free_page_no = free_page_tracker.get_free_page_no(&mut self.page_cache);
+        let new_tree_free_page_no = free_page_tracker.get_free_page(&mut self.page_cache);
         tree_root_page.set_page_number(new_tree_free_page_no);
         // Write the tree node back through the page cache.
         self.page_cache.put_page(tree_root_page.get_page());
@@ -213,7 +213,7 @@ impl Db {
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_page(&mut self.page_cache);
         assert!(free_dir_pages.len() >= 1);
-        let first_free_dir_page = free_dir_pages.get(0).unwrap().get_page_number();
+        let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
             self.page_cache.put_page(free_dir_page.get_page());
         }

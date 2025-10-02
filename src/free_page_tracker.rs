@@ -25,19 +25,35 @@ impl FreePageTracker {
         }
     }
 
-    pub fn get_free_page_no(&mut self, page_cache: &mut PageCache) -> u32 {
-        FreePageTracker::get_free_page_internal(&mut self.free_dir_page, page_cache)
-    }
-
-    fn get_free_page_internal(free_dir_page: &mut FreeDirPage, page_cache: &mut PageCache) -> u32 {
-        if !free_dir_page.has_free_pages() {
-            let mut new_free_pages: Vec<u32> = page_cache.create_new_pages(16);
-            let new_free_page = new_free_pages.pop().unwrap();
-            free_dir_page.add_free_pages(&new_free_pages);
-            return new_free_page;
+   
+    pub fn get_free_page(&mut self, page_cache: &mut PageCache) -> u32 {
+        // If the self.free_dir_page has free pages then use one of them.
+        if self.free_dir_page.has_free_pages() {
+            return self.free_dir_page.get_free_page();
         }
-
-        free_dir_page.get_free_page()
+        
+        // The self.free_dir_page has no free pages then check if it has
+        // a link to another free_page_dir. 
+        let next_free_dir_page_no = self.free_dir_page.get_next();
+        if next_free_dir_page_no != 0 {
+            // There is another free_dir_page, replace the self.free_dir_page
+            // with next free_dir_page and put the previous into the list
+            // pf returned pages.
+            self.returned_pages.push(self.free_dir_page_no);
+            // Update internal state.
+            self.free_dir_page = FreeDirPage::from_page(page_cache.get_page(next_free_dir_page_no));
+            self.free_dir_page_no = next_free_dir_page_no;
+            // Now recursively call get_free_page
+            return self.get_free_page(page_cache);
+        }
+        
+        // The current free_dir_page has no free pages, it has no links
+        // to other free_dir_pages - so have the page_cache generate
+        // new free pages.
+        let mut new_free_pages: Vec<u32> = page_cache.create_new_pages(16);
+        let new_free_page = new_free_pages.pop().unwrap();
+        self.free_dir_page.add_free_pages(&new_free_pages);
+        return new_free_page;
     }
 
 
@@ -46,7 +62,7 @@ impl FreePageTracker {
     }
 
     pub fn get_free_dir_page(&mut self, page_cache: &mut PageCache) ->  Vec<FreeDirPage> {
-        let next_free_page_no = FreePageTracker::get_free_page_internal(&mut self.free_dir_page, page_cache);
+        let next_free_page_no = self.get_free_page(page_cache);
 
         self.free_dir_page.set_page_number(next_free_page_no);
         self.returned_pages.push(self.free_dir_page_no);
@@ -59,16 +75,21 @@ impl FreePageTracker {
             self.free_dir_page.add_free_page(page_no);
         }
     
+        // If we filled the free page directory page then we need to add more pages to hold
+        // all the free pages. We build up a linked list of these.
+        // Take a copy of the directory page - might be some more sane way to do this, but the tracker
+        // will still have the old page.
+        // We push full pages back and add the latest to the front.
         let first_page = FreeDirPage::from_bytes(self.free_dir_page.get_bytes().to_vec());
         let mut pages: Vec<FreeDirPage> = Vec::new();
         pages.push(first_page);
         while !self.returned_pages.is_empty() {
             let last = pages.last_mut().unwrap();
             // We know last must have entries
-            let next_free_page_no = FreePageTracker::get_free_page_internal(last, page_cache);
+            let next_free_page_no = last.get_free_page();
             let mut next_free_dir_page = FreeDirPage::new(self.page_size as u64, next_free_page_no, self.new_version);
-            next_free_dir_page.set_previous(last.get_page_number());
-            last.set_next(next_free_dir_page.get_page_number());
+            next_free_dir_page.set_next(last.get_page_number());
+            last.set_previous(next_free_dir_page.get_page_number());
             while let Some(page_no) = self.returned_pages.pop()  {
                 if next_free_dir_page.is_full() {
                     break;
