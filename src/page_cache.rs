@@ -18,6 +18,11 @@ impl PageCache {
         PageCache { block_layer, page_size }
     }
 
+
+    pub fn create_new_pages(&mut self, no_new_pages: u32) -> Vec<u32> {
+        self.block_layer.create_new_pages(no_new_pages)
+    }
+
     // This returns a newly created page at the block layer. So each
     // client would get their own copy of the page. In future there
     // maybe two versions of this method, one that returns an
@@ -27,8 +32,8 @@ impl PageCache {
         self.block_layer.read_page(page_number, self.page_size)
     }
 
-    pub fn put_page(&mut self, page: &mut Page) -> Vec::<u32> {
-        self.block_layer.write_page(page)
+    pub fn put_page(&mut self, page: &mut Page) -> () {
+        self.block_layer.write_page(page);
     }
 
     pub fn sync_data(&mut self) -> () {
@@ -60,6 +65,7 @@ mod tests {
 
         // Write a page to the cache
         let mut page = Page::new(PAGE_SIZE);
+        page_cache.create_new_pages(10);
         page.set_page_number(page_number);
         page.set_type(page::PageType::Free);
         page_cache.put_page(&mut page);

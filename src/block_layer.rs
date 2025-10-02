@@ -1,5 +1,4 @@
-use crate::file_layer::FileLayer; 
-use crate::page;
+use crate::file_layer::FileLayer;
 use crate::page::Page; 
 use crate::page::PageTrait;
 use xxhash_rust::xxh32::xxh32;
@@ -27,35 +26,28 @@ impl BlockLayer {
         page
     }
 
-    pub fn write_page(&mut self, page: &mut Page) -> Vec::<u32> {
+    pub fn write_page(&mut self, page: &mut Page) -> () {
         let page_number = page.get_page_number();
-        let mut new_pages = Vec::<u32>::new();
-        if page_number + 1 > self.file_layer.get_page_count() {
-           self.create_new_pages(page_number, &mut new_pages);
-        }
+        assert!(page_number < self.file_layer.get_page_count(), "Writing page outside the file.");
 
         self.set_checksum(page);
         self.file_layer.write_page_to_disk(page, page_number).expect("Failed to write page");
-        // Remove this page from the free pages if we added free pages and have overwritten it.
-        // Only if this is not an empty page.
-        if page.get_type() != page::PageType::Free {
-            new_pages.retain(|&x| x != page_number);
-        }
-        new_pages
     }
 
-    pub fn create_new_pages(&mut self, page_number: u32, new_pages:&mut Vec<u32>) {
+    pub fn create_new_pages(&mut self, no_new_pages: u32) -> Vec<u32> {
         let existing_page_count = self.file_layer.get_page_count();
-        for new_page_no in existing_page_count..=page_number {
+        let mut created_page_nos: Vec<u32> = Vec::new();
+        for new_page_no in existing_page_count..existing_page_count + no_new_pages {
             let mut page = Page::new(self.page_size);
             page.set_page_number(new_page_no);
             page.set_type(crate::page::PageType::Free);
             self.set_checksum(&mut page);
-            new_pages.push(new_page_no);
+            created_page_nos.push(new_page_no);
             self.file_layer.append_new_page(&mut page, new_page_no);
         }
         // Sync the file and file metadata.
         self.file_layer.sync();
+        created_page_nos
     }
 
 
@@ -100,7 +92,7 @@ impl BlockLayer {
 mod tests {
     use super::*;
     use crate::file_layer::FileLayer;
-    use crate::page::Page;
+    use crate::page::{Page, PageType};
     use crate::DbMasterPage;
     use tempfile::tempfile; 
 
@@ -111,9 +103,10 @@ mod tests {
         let file_layer = FileLayer::new(temp_file, page_size);
         let mut block_layer = BlockLayer::new(file_layer, page_size);
         let page_number = 0;
+        block_layer.create_new_pages(10);
         let mut page = Page::new(page_size);
         page.set_page_number(page_number);
-        page.set_type(page::PageType::Free);
+        page.set_type(PageType::Free);
         page.get_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
         block_layer.write_page(&mut page);
         let retrieved_page = block_layer.read_page(page_number, page_size as u64);
@@ -127,13 +120,11 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, page_size);
         let mut block_layer = BlockLayer::new(file_layer, page_size);
-        let page_number = 0;
-        let mut free_pages = Vec::<u32>::new();
-        block_layer.create_new_pages(page_number, &mut free_pages);
+        let mut free_pages = block_layer.create_new_pages(1);
         assert!(free_pages.len() == 1);
-        block_layer.create_new_pages(page_number + 1, &mut free_pages);
+        free_pages = block_layer.create_new_pages(2);
         assert!(free_pages.len() == 2);
-        block_layer.create_new_pages(4, &mut free_pages);
+        free_pages = block_layer.create_new_pages(5);
         assert!(free_pages.len() == 5);
     }
 
@@ -144,8 +135,8 @@ mod tests {
         let file_layer = FileLayer::new(temp_file, page_size);
         let mut block_layer = BlockLayer::new(file_layer, page_size);
         let mut page = DbMasterPage::new(page_size, 0, 0);
-        let free_pages = block_layer.write_page(page.get_page());
-        assert!(free_pages.len() == 0);
+        block_layer.create_new_pages(1);
+        block_layer.write_page(page.get_page());
     }
 
 

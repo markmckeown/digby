@@ -1,5 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
+use std::u16;
 use crate::page::Page;
 use crate::page::PageTrait;
 
@@ -97,9 +98,13 @@ impl FreeDirPage {
         cursor.write_u32::<LittleEndian>(entries).expect("Failed to write previous page");
     }
 
-    pub fn is_full(&self) -> bool {
+    fn is_full_for(&self, number_of_pages: usize) -> bool {
         let capacity = self.page.get_bytes().len() - 26;
-        (capacity - (4 * self.get_entries() as usize)) < 4
+        (capacity - (4 * self.get_entries() as usize)) < 4 * number_of_pages
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.is_full_for(1)
     }
 
     pub fn has_free_pages(&self) -> bool {
@@ -124,6 +129,21 @@ impl FreeDirPage {
         cursor.set_position(offset);
         cursor.write_u32::<LittleEndian>(free_page_number).expect("Failed to write free page");
         self.set_entries(entries + 1);
+    }
+
+    pub fn add_free_pages(&mut self, free_pages: &Vec<u32>) -> () {
+        assert!(!self.is_full_for(free_pages.len()));
+        assert!(free_pages.len() < u16::MAX as usize);
+        let entries = self.get_entries();
+        let mut offset = 26 + (4 * self.get_entries() as u64);
+        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        cursor.set_position(offset);
+        for free_page in &free_pages[..] {
+            cursor.write_u32::<LittleEndian>(*free_page).expect("Failed to write free page");
+            offset = offset + 4;
+            cursor.set_position(offset);
+        }
+        self.set_entries(entries + free_pages.len() as u16);
     }
 
 }
