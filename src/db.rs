@@ -182,7 +182,7 @@ impl Db {
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
         let mut free_page_tracker = FreePageTracker::new(
             self.page_cache.get_page(free_page_dir_page_no), 
-            new_version);
+            new_version, Db::PAGE_SIZE as usize);
 
         
         // Now get the page number of the root of the global tree. Then get the page,
@@ -211,13 +211,17 @@ impl Db {
         
         free_page_tracker.return_free_page_no(tree_root_page_no);
         // Write the new free page directory back through the page cache.
-        let free_dir_page = free_page_tracker.get_free_dir_page().get_page();
-        self.page_cache.put_page(free_dir_page);
+        let mut free_dir_pages = free_page_tracker.get_free_dir_page(&mut self.page_cache);
+        assert!(free_dir_pages.len() >= 1);
+        let first_free_dir_page = free_dir_pages.get(0).unwrap().get_page_number();
+        while let Some(mut free_dir_page) = free_dir_pages.pop() {
+            self.page_cache.put_page(free_dir_page.get_page());
+        }
             
         // Now need to update the master - tell it were the 
         // the globale tree root page is and where the free page
         // directory is now.
-        master_page.set_free_page_dir_page_no(free_dir_page.get_page_number());
+        master_page.set_free_page_dir_page_no(first_free_dir_page);
         master_page.set_global_tree_root_page_no(new_tree_free_page_no);
         // update the version
         master_page.set_version(new_version);
