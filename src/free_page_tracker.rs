@@ -61,7 +61,7 @@ impl FreePageTracker {
         self.returned_pages.push(page_no);
     }
 
-    pub fn get_free_dir_page(&mut self, page_cache: &mut PageCache) ->  Vec<FreeDirPage> {
+    pub fn get_free_dir_pages(&mut self, page_cache: &mut PageCache) ->  Vec<FreeDirPage> {
         let next_free_page_no = self.get_free_page(page_cache);
 
         self.free_dir_page.set_page_number(next_free_page_no);
@@ -85,8 +85,9 @@ impl FreePageTracker {
         pages.push(first_page);
         while !self.returned_pages.is_empty() {
             let last = pages.last_mut().unwrap();
-            // We know last must have entries
-            let next_free_page_no = last.get_free_page();
+            // We create a new free page for the new free_page_dir page we need - we do not want to use a returned page
+            // as that could cause corruption. Returned pages are still in use until the commit is complete.
+            let next_free_page_no = *page_cache.create_new_pages(1).get(0).unwrap();
             let mut next_free_dir_page = FreeDirPage::new(self.page_size as u64, next_free_page_no, self.new_version);
             next_free_dir_page.set_next(last.get_page_number());
             last.set_previous(next_free_dir_page.get_page_number());
@@ -98,8 +99,6 @@ impl FreePageTracker {
             }
             pages.push(next_free_dir_page);
         }
-
         pages
     }
-
 }

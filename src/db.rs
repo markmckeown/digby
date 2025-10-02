@@ -211,7 +211,7 @@ impl Db {
         
         free_page_tracker.return_free_page_no(tree_root_page_no);
         // Write the new free page directory back through the page cache.
-        let mut free_dir_pages = free_page_tracker.get_free_dir_page(&mut self.page_cache);
+        let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
         assert!(free_dir_pages.len() >= 1);
         let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
