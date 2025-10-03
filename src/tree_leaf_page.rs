@@ -141,9 +141,8 @@ impl TreeLeafPage {
 
         assert!(index < entries);
 
-        let current_entries_size: usize = entries as usize * 2; // Each entry has 2 bytes for index
-        let mut cursor = Cursor::new(&self.page.get_bytes()[page_size - current_entries_size..]);
-        cursor.set_position((index as u64) * 2);
+        let offset = (index * 2) + 2;
+        let mut cursor = Cursor::new(&self.page.get_bytes()[page_size - offset as usize..]);
         let tuple_offset = cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
 
         let mut tuple_cursor = Cursor::new(&self.page.get_bytes()[tuple_offset..]);
@@ -181,10 +180,21 @@ impl TreeLeafPage {
         // Remove any existing tuple with the same key
         tuples.retain(|t| t.get_key() != new_tuple.get_key());
         tuples.push(new_tuple);
-        tuples.sort_by(|b, a| a.get_key().cmp(b.get_key()));
+        tuples.sort_by(|b, a| b.get_key().cmp(a.get_key()));
         tuples
     }
 
+    pub fn get_right_half_tuples(&mut self, page_size: usize) -> Vec<Tuple> {
+        let entries = self.get_entries();
+        let start = (entries+1)/2;
+        let mut tuples = Vec::new();
+        for i in start..entries {
+            let tuple = self.get_tuple_index(i, page_size);
+            tuples.push(tuple);
+        }
+        self.set_entries(start);
+        tuples 
+    }
 
     // Get all tuples in the DataPage - used for rebuilding the page when adding or updating a tuple.
     pub fn get_all_tuples(&self, page_size: usize) -> Vec<Tuple> {
@@ -258,7 +268,66 @@ mod tests {
         assert_eq!(retrieved_tuple.get_value(), b"value-a");
         assert_eq!(retrieved_tuple.get_version(), 1);
 
+        let key_to_find = b"b".to_vec();
+        let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
+        assert_eq!(retrieved_tuple.get_key(), b"b");
+        assert_eq!(retrieved_tuple.get_value(), b"value-b");
+        assert_eq!(retrieved_tuple.get_version(), 2);
+
+        let key_to_find = b"c".to_vec();
+        let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
+        assert_eq!(retrieved_tuple.get_key(), b"c");
+        assert_eq!(retrieved_tuple.get_value(), b"value-c");
+        assert_eq!(retrieved_tuple.get_version(), 3);
+
+        let key_to_find = b"d".to_vec();
+        let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
+        assert_eq!(retrieved_tuple.get_key(), b"d");
+        assert_eq!(retrieved_tuple.get_value(), b"value-d");
+        assert_eq!(retrieved_tuple.get_version(), 4);
+
+        let key_to_find = b"e".to_vec();
+        let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
+        assert_eq!(retrieved_tuple.get_key(), b"e");
+        assert_eq!(retrieved_tuple.get_value(), b"value-e");
+        assert_eq!(retrieved_tuple.get_version(), 5);
+
         let missing_key = b"missing".to_vec();
         assert!(data_page.get_tuple(missing_key, 4096).is_none());
     }
+
+    #[test]
+    fn test_get_right_half() {
+        let mut data_page = TreeLeafPage::new(4096, 1);
+        
+        data_page.store_tuple(Tuple::new(b"a".to_vec(), b"value-a".to_vec(), 1), 4096);
+        let tuples: Vec<Tuple> = data_page.get_right_half_tuples(4096);
+        assert!(tuples.is_empty());
+        assert!(data_page.get_entries() == 1);
+        data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
+
+        data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
+        data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
+        let tuples: Vec<Tuple> = data_page.get_right_half_tuples(4096);
+        assert!(tuples.len() == 1);
+        assert!(tuples.last().unwrap().get_key() == b"b".to_vec());
+        assert!(data_page.get_entries() == 1);
+        data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
+
+        
+        data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
+        assert!(data_page.get_entries() == 2);
+        data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
+        data_page.get_tuple(b"b".to_vec(), 4096).unwrap();
+        data_page.store_tuple(Tuple::new(b"c".to_vec(), b"value-c".to_vec(), 3), 4096);
+        assert!(data_page.get_entries() == 3);
+        let tuples: Vec<Tuple> = data_page.get_right_half_tuples(4096);
+        assert!(tuples.len() == 1);
+        //assert!(tuples.get(0).unwrap().get_key() == b"c".to_vec());
+        assert!(data_page.get_entries() == 2);
+        data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
+        data_page.get_tuple(b"b".to_vec(), 4096).unwrap();
+
+    }
+
 }

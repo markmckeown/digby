@@ -40,3 +40,6 @@ pub mod overflow_tuple;
 pub use overflow_tuple::OverflowTuple;
 pub mod free_page_tracker;
 pub use free_page_tracker::FreePageTracker;
+pub mod leaf_page_handler;
+pub use leaf_page_handler::LeafPageHandler;
+
