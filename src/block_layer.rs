@@ -26,6 +26,10 @@ impl BlockLayer {
         page
     }
 
+    pub fn get_total_page_count(&self) -> u32 {
+        self.file_layer.get_page_count()
+    }
+
     pub fn write_page(&mut self, page: &mut Page) -> () {
         let page_number = page.get_page_number();
         assert!(page_number < self.file_layer.get_page_count(), "Writing page outside the file.");
