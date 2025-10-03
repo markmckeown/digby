@@ -76,9 +76,7 @@ impl BlockLayer {
     fn verify_checksum(&self, page: &mut Page) -> () {
         let stored_checksum = self.get_checksum(page);
         let calculated_checksum = self.generate_checksum(page);
-        if stored_checksum != calculated_checksum {
-            panic!("Checksum mismatch: stored {}, calculated {} for page {}", stored_checksum, calculated_checksum, page.get_page_number());
-        }
+        assert!(stored_checksum == calculated_checksum, "Checksum does not match stored vaule for page " + page.get_page_number());
     }
 
     pub fn sync_data(&mut self) -> () {
