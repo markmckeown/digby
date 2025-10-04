@@ -187,7 +187,7 @@ impl TreeInternalPage {
     fn build_sorted_tree_dir_entries(&self, tree_dir_entry: TreeDirEntry, page_size: usize) -> Vec<TreeDirEntry> {
         let mut dir_entries = self.get_all_dir_entries(page_size);
         dir_entries.push(tree_dir_entry);
-        dir_entries.sort_by(|b, a| a.get_key().cmp(b.get_key()));
+        dir_entries.sort_by(|b, a| b.get_key().cmp(a.get_key()));
         dir_entries
     }
 
@@ -208,9 +208,8 @@ impl TreeInternalPage {
 
         assert!(index < entries);
 
-        let current_entries_size: usize = entries as usize * 2; // Each entry has 2 bytes for index
-        let mut cursor = Cursor::new(&self.page.get_bytes()[page_size - current_entries_size..]);
-        cursor.set_position((index as u64) * 2);
+        let offset = (index * 2) + 2;
+        let mut cursor = Cursor::new(&self.page.get_bytes()[page_size - offset as usize ..]);
         let tree_dir_index = cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
         
         let mut tree_dir_cursor = Cursor::new(&self.page.get_bytes()[tree_dir_index..]);
