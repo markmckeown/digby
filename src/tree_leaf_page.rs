@@ -173,6 +173,12 @@ impl TreeLeafPage {
         }
     }
 
+    pub fn add_sorted_tuples(&mut self, sorted_tuples: &mut Vec<Tuple>, page_size: usize) {
+        for tuple in sorted_tuples {
+            self.add_tuple(&tuple, page_size as u64);
+        }
+    }
+
     // Part of store_tuple - get all tuples, remove any with same key as new_tuple,
     // add new_tuple, sort and return.
     fn build_sorted_tuples(&self, new_tuple: Tuple, page_size: usize) -> Vec<Tuple> {
@@ -323,7 +329,7 @@ mod tests {
         assert!(data_page.get_entries() == 3);
         let tuples: Vec<Tuple> = data_page.get_right_half_tuples(4096);
         assert!(tuples.len() == 1);
-        //assert!(tuples.get(0).unwrap().get_key() == b"c".to_vec());
+        assert!(tuples.get(0).unwrap().get_key() == b"c".to_vec());
         assert!(data_page.get_entries() == 2);
         data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
         data_page.get_tuple(b"b".to_vec(), 4096).unwrap();
