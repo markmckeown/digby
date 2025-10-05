@@ -231,7 +231,7 @@ mod tests {
 
         // Each loop is a new commit.
         let mut tree_leaf_page_count = 0;
-        for i in 0u32..2 {
+        for _i in 0u32..2 {
             new_version = new_version + 1;
             let value = vec![0u8; 2048];
             tuple = Tuple::new(1u32.to_le_bytes().to_vec(), value, new_version);
@@ -443,6 +443,71 @@ mod tests {
             page_cache.put_page(free_dir_page.get_page());
         }
         assert_eq!(tree_leaf_page_count, 2);
+        std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
+
+     #[test]
+    fn test_add_small_large_large_reverse() {
+        let temp_file = tempfile::NamedTempFile::new().expect("Failed to create temp file");
+        let db_file = std::fs::OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(&temp_file).expect("Failed to open or create DB file");
+
+        let version = 0;
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE);
+        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE);
+        let mut page_cache: PageCache = PageCache::new(block_layer, crate::Db::PAGE_SIZE);
+
+        let mut free_dir_page_no = *page_cache.create_new_pages(1).get(0).unwrap();
+        let mut tree_leaf_page_no = *page_cache.create_new_pages(1).get(0).unwrap();
+        
+        let mut free_dir_page = FreeDirPage::new(crate::Db::PAGE_SIZE, free_dir_page_no, version);
+        page_cache.put_page(free_dir_page.get_page());
+
+        let mut first_tree_leaf_page: TreeLeafPage = TreeLeafPage::new(crate::Db::PAGE_SIZE, tree_leaf_page_no);
+        first_tree_leaf_page.set_version(version+1);
+        page_cache.put_page(first_tree_leaf_page.get_page());
+
+        let mut new_version = version;
+        let mut tree_leaf_page: TreeLeafPage;
+        let mut tuple: Tuple;
+        
+        // Each loop is a new commit.
+        let mut tree_leaf_page_count = 0;
+        for i in 0u32..3 {
+            new_version = new_version + 1;
+            let j = 3 - i;
+            let value: Vec<u8>;
+            if j == 3 {
+                value = vec![0u8; 8];
+            } else {
+                value = vec![0u8; 2048];
+            }
+            // Use the same key
+            tuple = Tuple::new(j.to_le_bytes().to_vec(), value, new_version);
+            tree_leaf_page = TreeLeafPage::from_page(page_cache.get_page(tree_leaf_page_no));
+            let mut free_page_tracker = FreePageTracker::new( 
+                 page_cache.get_page(free_dir_page_no), new_version, crate::Db::PAGE_SIZE as usize);
+
+            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &mut free_page_tracker,
+                &mut page_cache, new_version, crate::Db::PAGE_SIZE as usize);
+            tree_leaf_page_count = 0;    
+            while let Some(mut tree_leaf_page) = pages.pop() {
+                tree_leaf_page_count = tree_leaf_page_count + 1;
+                tree_leaf_page_no = tree_leaf_page.get_page_number();
+                page_cache.put_page(tree_leaf_page.get_page());
+            }
+            let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);  
+            assert!(free_dir_pages.len() == 1);  
+            free_dir_page = free_dir_pages.pop().unwrap();
+            free_dir_page_no = free_dir_page.get_page_number();
+            page_cache.put_page(free_dir_page.get_page());
+        }
+        assert_eq!(tree_leaf_page_count, 3);
+
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
