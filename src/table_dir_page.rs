@@ -70,7 +70,7 @@ impl TableDirPage {
     }
 
     pub fn get_table_page(&mut self, name: Vec<u8>, page_size: u64) -> Option<u32> {
-        let value = self.page.get_tuple(name, page_size as usize);
+        let value = self.page.get_tuple(&name, page_size as usize);
         if let Some(tuple) = value {
             Some(u32::from_le_bytes(tuple.get_value().try_into().unwrap()))
         } else {

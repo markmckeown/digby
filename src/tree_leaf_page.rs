@@ -214,7 +214,7 @@ impl TreeLeafPage {
     }
 
     // Get a tuple by key using binary search. Returns None if not found.
-    pub fn get_tuple(&self, key: Vec<u8>, page_size: usize) -> Option<Tuple> {
+    pub fn get_tuple(&self, key: &Vec<u8>, page_size: usize) -> Option<Tuple> {
         let entries = self.get_entries();
         let mut left = 0;
         let mut right = entries as i32 - 1;
@@ -224,7 +224,7 @@ impl TreeLeafPage {
             let tuple: Tuple = self.get_tuple_index(mid as u16, page_size);
             if tuple.get_key() == key {
                 return Some(tuple);
-            } else if tuple.get_key().to_vec() < key {
+            } else if tuple.get_key().to_vec() < *key {
                 left = mid + 1;
             } else {
                     right = mid - 1;
@@ -233,6 +233,24 @@ impl TreeLeafPage {
         }
         None
     }
+
+    pub fn delete_key(&mut self, key: &Vec<u8>, page_size: usize) -> bool {
+        if self.get_tuple(key, page_size).is_none() {
+            return false;
+        }
+        let mut tuples = self.get_all_tuples(page_size);
+        // Remove any existing tuple with the same key
+        tuples.retain(|t| t.get_key() != key);
+        self.set_entries(0);
+        self.set_free_space((page_size - 20) as u16); // Reset free space
+
+        // Could probably do this with a memmove
+        for tuple in tuples {
+            self.add_tuple(&tuple, page_size as u64);
+        }
+        return true;
+    }
+
 
 }
 
@@ -269,37 +287,37 @@ mod tests {
 
         assert_eq!(data_page.get_entries(), 5);
         let key_to_find = b"a".to_vec();
-        let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
+        let retrieved_tuple = data_page.get_tuple(&key_to_find, 4096).unwrap();
         assert_eq!(retrieved_tuple.get_key(), b"a");
         assert_eq!(retrieved_tuple.get_value(), b"value-a");
         assert_eq!(retrieved_tuple.get_version(), 1);
 
         let key_to_find = b"b".to_vec();
-        let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
+        let retrieved_tuple = data_page.get_tuple(&key_to_find, 4096).unwrap();
         assert_eq!(retrieved_tuple.get_key(), b"b");
         assert_eq!(retrieved_tuple.get_value(), b"value-b");
         assert_eq!(retrieved_tuple.get_version(), 2);
 
         let key_to_find = b"c".to_vec();
-        let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
+        let retrieved_tuple = data_page.get_tuple(&key_to_find, 4096).unwrap();
         assert_eq!(retrieved_tuple.get_key(), b"c");
         assert_eq!(retrieved_tuple.get_value(), b"value-c");
         assert_eq!(retrieved_tuple.get_version(), 3);
 
         let key_to_find = b"d".to_vec();
-        let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
+        let retrieved_tuple = data_page.get_tuple(&key_to_find, 4096).unwrap();
         assert_eq!(retrieved_tuple.get_key(), b"d");
         assert_eq!(retrieved_tuple.get_value(), b"value-d");
         assert_eq!(retrieved_tuple.get_version(), 4);
 
         let key_to_find = b"e".to_vec();
-        let retrieved_tuple = data_page.get_tuple(key_to_find, 4096).unwrap();
+        let retrieved_tuple = data_page.get_tuple(&key_to_find, 4096).unwrap();
         assert_eq!(retrieved_tuple.get_key(), b"e");
         assert_eq!(retrieved_tuple.get_value(), b"value-e");
         assert_eq!(retrieved_tuple.get_version(), 5);
 
         let missing_key = b"missing".to_vec();
-        assert!(data_page.get_tuple(missing_key, 4096).is_none());
+        assert!(data_page.get_tuple(&missing_key, 4096).is_none());
     }
 
     #[test]
@@ -310,30 +328,66 @@ mod tests {
         let tuples: Vec<Tuple> = data_page.get_right_half_tuples(4096);
         assert!(tuples.is_empty());
         assert!(data_page.get_entries() == 1);
-        data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
 
         data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
-        data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
         let tuples: Vec<Tuple> = data_page.get_right_half_tuples(4096);
         assert!(tuples.len() == 1);
         assert!(tuples.last().unwrap().get_key() == b"b".to_vec());
         assert!(data_page.get_entries() == 1);
-        data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
 
         
         data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
         assert!(data_page.get_entries() == 2);
-        data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
-        data_page.get_tuple(b"b".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
         data_page.store_tuple(Tuple::new(b"c".to_vec(), b"value-c".to_vec(), 3), 4096);
         assert!(data_page.get_entries() == 3);
         let tuples: Vec<Tuple> = data_page.get_right_half_tuples(4096);
         assert!(tuples.len() == 1);
         assert!(tuples.get(0).unwrap().get_key() == b"c".to_vec());
         assert!(data_page.get_entries() == 2);
-        data_page.get_tuple(b"a".to_vec(), 4096).unwrap();
-        data_page.get_tuple(b"b".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
 
+    }
+
+
+    #[test]
+    fn test_delete_tuple() {
+        let mut data_page = TreeLeafPage::new(4096, 1);
+
+        data_page.store_tuple(Tuple::new(b"a".to_vec(), b"value-a".to_vec(), 1), 4096);
+        data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
+        data_page.store_tuple(Tuple::new(b"c".to_vec(), b"value-c".to_vec(), 3), 4096);
+        data_page.store_tuple(Tuple::new(b"d".to_vec(), b"value-d".to_vec(), 4), 4096);
+        data_page.store_tuple(Tuple::new(b"e".to_vec(), b"value-e".to_vec(), 5), 4096);
+
+        data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"c".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"d".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"e".to_vec(), 4096).unwrap();
+
+        data_page.delete_key(&b"c".to_vec(), 4096);
+        assert!(data_page.get_tuple(&b"c".to_vec(), 4096).is_none());
+        data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"e".to_vec(), 4096).unwrap();
+
+        data_page.delete_key(&b"a".to_vec(), 4096);
+        data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"d".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"e".to_vec(), 4096).unwrap();
+
+        data_page.delete_key(&b"e".to_vec(), 4096);
+        assert!(data_page.get_tuple(&b"e".to_vec(), 4096).is_none());
+
+        data_page.delete_key(&b"b".to_vec(), 4096);
+        data_page.delete_key(&b"d".to_vec(), 4096);
+        assert!(data_page.get_tuple(&b"b".to_vec(), 4096).is_none());
+        assert!(data_page.get_tuple(&b"d".to_vec(), 4096).is_none());
     }
 
 }
