@@ -225,7 +225,7 @@ pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
             tree_dir_entries.push(tree_dir_entry);
         }
 
-        self.set_free_space(self.get_free_space() - size_removed);
+        self.set_free_space(self.get_free_space() + size_removed);
         self.set_entries(start);
         tree_dir_entries
     }
