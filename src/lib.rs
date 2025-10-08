@@ -42,4 +42,6 @@ pub mod free_page_tracker;
 pub use free_page_tracker::FreePageTracker;
 pub mod leaf_page_handler;
 pub use leaf_page_handler::LeafPageHandler;
+pub mod tree_dir_handler;
+pub use tree_dir_handler::TreeDirHandler;
 

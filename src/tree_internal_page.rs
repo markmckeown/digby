@@ -121,10 +121,20 @@ impl TreeInternalPage {
     }
 
 
-     pub fn can_fit(&mut self, size: usize) -> bool {
+     pub fn can_fit(&self, size: usize) -> bool {
         let free_space: usize = self.get_free_space() as usize;
         free_space >= size + 2
     }
+
+    pub fn can_fit_entries(&self, entries: &Vec<TreeDirEntry>) -> bool {
+        let mut size: usize = 0;
+        for entry in entries {
+            size = size + entry.get_byte_size() + 2; 
+        }
+        let free_space: usize = self.get_free_space() as usize;
+        free_space >= size
+    }
+
 
     pub fn add_page_entry(&mut self, page_no_left: u32, key: Vec<u8>, page_to_right: u32, page_size: usize) {
         let key_copy = key[..].to_vec();
@@ -165,7 +175,7 @@ impl TreeInternalPage {
 
 
 
-    fn add_tree_dir_entry(&mut self, tree_dir_entry: &TreeDirEntry, page_size: u64) -> () {
+    pub fn add_tree_dir_entry(&mut self, tree_dir_entry: &TreeDirEntry, page_size: u64) -> () {
         let tree_dir_entry_size: usize = tree_dir_entry.get_byte_size();
         assert!(self.can_fit(tree_dir_entry_size), "Cannot add TreeDirEntry to page, not enough space.");
             
@@ -186,6 +196,7 @@ impl TreeInternalPage {
 
     fn build_sorted_tree_dir_entries(&self, tree_dir_entry: TreeDirEntry, page_size: usize) -> Vec<TreeDirEntry> {
         let mut dir_entries = self.get_all_dir_entries(page_size);
+        dir_entries.retain(|t| t.get_key() != tree_dir_entry.get_key());
         dir_entries.push(tree_dir_entry);
         dir_entries.sort_by(|b, a| b.get_key().cmp(a.get_key()));
         dir_entries
@@ -203,6 +214,23 @@ impl TreeInternalPage {
         dir_entries
     }
 
+    pub fn get_right_half_entries(&mut self, page_size: usize) -> Vec<TreeDirEntry> {
+        let entries = self.get_entries();
+        let start = (entries+1)/2;
+        let mut tree_dir_entries = Vec::new();
+        let mut size_removed: u16 = 0;
+        for i in start..entries {
+            let tree_dir_entry = self.get_dir_entry_index(i, page_size);
+            size_removed =  tree_dir_entry.get_byte_size() as u16 + 2;
+            tree_dir_entries.push(tree_dir_entry);
+        }
+
+        self.set_free_space(self.get_free_space() - size_removed);
+        self.set_entries(start);
+        tree_dir_entries
+    }
+
+
     fn get_dir_entry_index(&self, index: u16, page_size: usize) -> TreeDirEntry {
         let entries = self.get_entries();
 
@@ -217,6 +245,13 @@ impl TreeInternalPage {
         let _page_no = tree_dir_cursor.read_u32::<byteorder::LittleEndian>().unwrap();
         let tree_dir_entry_size = key_len + 4 + 2;
         TreeDirEntry::from_bytes(self.page.get_bytes()[tree_dir_index..tree_dir_index + tree_dir_entry_size].to_vec())
+    }
+
+    pub fn get_dir_left_key(&self, page_size: usize) -> Option<Vec<u8>> {
+        if self.get_entries() == 0 {
+            return None;
+        }
+        Some(self.get_dir_entry_index(0, page_size).get_key().to_vec())
     }
 
 
@@ -247,6 +282,25 @@ impl TreeInternalPage {
             }
         }
         self.get_dir_entry_index(right as u16, page_size).get_page_no()
+    }
+
+
+    pub fn add_entries(&mut self, mut entries: Vec<TreeDirEntry>, page_size: usize) -> () {
+        // This only makes sense if the page has entries
+        assert!(self.get_entries() > 0);
+        // Entries should not be empty
+        assert!(!entries.is_empty());
+
+        if entries.get(0).unwrap().get_key() < self.get_dir_entry_index(0, page_size).get_key() {
+            self.set_page_to_left(entries.get(0).unwrap().get_page_no());
+            // remove is suboptimal
+            entries.remove(0);
+        }
+
+        // TODO - wildly sub optimal
+        for entry in entries {
+            self.store_tree_dir_in_page(entry, page_size);
+        }
     }
 
 }

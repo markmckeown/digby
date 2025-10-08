@@ -234,6 +234,14 @@ impl TreeLeafPage {
         None
     }
 
+    pub fn get_left_key(&self, page_size: usize) -> Option<Vec<u8>> {
+        if self.get_entries() == 0 {
+            return None;
+        }
+
+        Some(self.get_tuple_index(0, page_size).get_key().to_vec())
+    }
+
     pub fn delete_key(&mut self, key: &Vec<u8>, page_size: usize) -> bool {
         if self.get_tuple(key, page_size).is_none() {
             return false;
@@ -359,6 +367,8 @@ mod tests {
     fn test_delete_tuple() {
         let mut data_page = TreeLeafPage::new(4096, 1);
 
+        assert!(data_page.get_left_key(4096).is_none());
+        
         data_page.store_tuple(Tuple::new(b"a".to_vec(), b"value-a".to_vec(), 1), 4096);
         data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
         data_page.store_tuple(Tuple::new(b"c".to_vec(), b"value-c".to_vec(), 3), 4096);
@@ -366,6 +376,7 @@ mod tests {
         data_page.store_tuple(Tuple::new(b"e".to_vec(), b"value-e".to_vec(), 5), 4096);
 
         data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
+        assert_eq!(b"a".to_vec(), data_page.get_left_key(4096).unwrap());
         data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
         data_page.get_tuple(&b"c".to_vec(), 4096).unwrap();
         data_page.get_tuple(&b"d".to_vec(), 4096).unwrap();
@@ -377,6 +388,7 @@ mod tests {
         data_page.get_tuple(&b"e".to_vec(), 4096).unwrap();
 
         data_page.delete_key(&b"a".to_vec(), 4096);
+         data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
         data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
         data_page.get_tuple(&b"d".to_vec(), 4096).unwrap();
         data_page.get_tuple(&b"e".to_vec(), 4096).unwrap();
