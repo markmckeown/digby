@@ -44,7 +44,7 @@ impl PageTrait for TreeInternalPage {
 impl TreeInternalPage {
     const HEADER_SIZE: u16 =  28;
 
-    pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
+pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
         let mut tree_page_dir =  TreeInternalPage {
             page: Page::new(page_size),
         };
