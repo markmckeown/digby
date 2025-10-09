@@ -44,4 +44,5 @@ pub mod leaf_page_handler;
 pub use leaf_page_handler::LeafPageHandler;
 pub mod tree_dir_handler;
 pub use tree_dir_handler::TreeDirHandler;
-
+pub mod tree_dir_page;
+pub use tree_dir_page::TreeDirPage;
