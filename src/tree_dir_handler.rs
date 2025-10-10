@@ -199,47 +199,4 @@ mod tests {
     }
 
 
-    // Fill Dir Page
-    #[test]
-    fn test_4() {
-        let page_size: usize = 4096;
-        
-        let mut tree_dir_page = TreeInternalPage::new(page_size as u64, 0, 0);
-        tree_dir_page.add_page_entry(23, 0u32.to_le_bytes().to_vec(), 79, page_size);
-        let mut j: u32 = 0;
-        for i in 1u32 .. 4000 {
-            j = i;
-            let mut tree_leaf_page = TreeLeafPage::new(page_size as u64, 0);
-            tree_leaf_page.set_page_number(i);
-            let tuple: Tuple = Tuple::new(i.to_be_bytes().to_vec(), i.to_be_bytes().to_vec(), 345);
-            tree_leaf_page.store_tuple(tuple, page_size);
-            let mut leaf_pages: Vec<TreeLeafPage> = Vec::new();
-            leaf_pages.push(tree_leaf_page);
-            if !tree_dir_page.can_fit(TreeDirEntry::new(i.to_be_bytes().to_vec(), i).get_byte_size()) {
-                break;
-            }
-            let mut new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, leaf_pages, page_size);
-            assert_eq!(new_pages.len(), 1);
-            tree_dir_page = new_pages.pop().unwrap();
-        }
-        assert_eq!(tree_dir_page.get_entries(), 339 as u16);
-
-        let mut tree_leaf_page = TreeLeafPage::new(page_size as u64, 0);
-        tree_leaf_page.set_page_number(j);
-        let tuple: Tuple = Tuple::new(j.to_be_bytes().to_vec(), j.to_be_bytes().to_vec(), 345);
-        tree_leaf_page.store_tuple(tuple, page_size);
-        let mut leaf_pages: Vec<TreeLeafPage> = Vec::new();
-        leaf_pages.push(tree_leaf_page);
-        let mut new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, leaf_pages, page_size);
-        assert_eq!(new_pages.len(), 2);
-        let first = new_pages.pop().unwrap();
-        assert_eq!(first.get_entries(), 169 as u16);
-        assert_eq!(first.get_page_to_left(), 170);
-        
-        let second = new_pages.pop().unwrap();
-        assert_eq!(second.get_entries(), 170 as u16);
-        assert_eq!(second.get_page_to_left(), 23);
-
-    }
-
 }

@@ -113,16 +113,27 @@ impl TreeDirPage {
 
 
     pub fn can_fit_entries(&self, entries: &Vec<TreeDirEntry>) -> bool {
+        if entries.len() == 1 {
+            // if only one entry then its just an update, nothing to add.
+            return true;
+        }
+
         let mut size: usize = 0;
+        let mut count = 0;
         for entry in entries {
+            if count == 0 {
+                // skip first one as its an update.
+                count = count + 1;
+                continue;
+            }
             size = size + entry.get_byte_size() + 2; 
         }
         let free_space: usize = self.get_free_space() as usize;
         free_space >= size
     }
 
-    // Method to add entries to page - there must be one or more entries.
-    // If there are more than one entry then they must be sorted.
+    // If there is only one entry then its just an update. Any other entries are new entries
+    // that should be added.
     pub fn add_entries(&mut self, entries: Vec<TreeDirEntry>, page_size: usize) -> () {
         assert!(!entries.is_empty(), "Cannot add zero entries to tree dir page.");
         assert!(self.can_fit_entries(&entries), "Cannot fit entries into tree dir page.");
@@ -141,7 +152,7 @@ impl TreeDirPage {
             assert!(!deque.is_empty(), "Cannot add single entry to an empty tree dir page.");
             self.set_page_to_left(entry.get_page_no());
             while !deque.is_empty() {
-                self.store_tree_dir_in_page(deque.pop_front().unwrap(), page_size);
+                self.add_tree_dir_in_page(deque.pop_front().unwrap(), page_size);
             }
             return;
         }
@@ -150,10 +161,10 @@ impl TreeDirPage {
         if entry.get_key() < self.get_dir_left_key(page_size).unwrap().as_ref() {
             self.set_page_to_left(entry.get_page_no());
         } else {
-            self.store_tree_dir_in_page(entry, page_size);
+            self.set_page_no_for_key(entry.get_key().to_vec(), entry.get_page_no(), page_size);
         }
         while !deque.is_empty() {
-            self.store_tree_dir_in_page(deque.pop_front().unwrap(), page_size);
+            self.add_tree_dir_in_page(deque.pop_front().unwrap(), page_size);
         }
     }
 
@@ -161,7 +172,7 @@ impl TreeDirPage {
     // Store entry in page. The check for left-hand-page should already be done. This just
     // adds the entry to the page. It will replace any existing matching key.
     // TODO this is inefficient, should use memmove.
-    fn store_tree_dir_in_page(&mut self, table_dir_entry: TreeDirEntry, page_size: usize) -> () {
+    fn add_tree_dir_in_page(&mut self, table_dir_entry: TreeDirEntry, page_size: usize) -> () {
 
         // TODO inefficent way to do this.
         let sorted = self.build_sorted_tree_dir_entries(table_dir_entry, page_size);
@@ -170,13 +181,13 @@ impl TreeDirPage {
         self.set_free_space(page_size as u16 - TreeDirPage::HEADER_SIZE); // Reset free space
 
         for entry in sorted {
-            self.add_tree_dir_entry(&entry, page_size as u64);
+            self.append_tree_dir_entry(&entry, page_size as u64);
         }
     }
 
     // Add a directory entry to the top of the stack of entries. This should be called from 
     // store_tree_dir_in_page which sorts the entries before adding them.
-    fn add_tree_dir_entry(&mut self, tree_dir_entry: &TreeDirEntry, page_size: u64) -> () {
+    fn append_tree_dir_entry(&mut self, tree_dir_entry: &TreeDirEntry, page_size: u64) -> () {
         let tree_dir_entry_size: usize = tree_dir_entry.get_byte_size();
             
         let current_entries = self.get_entries();
@@ -196,7 +207,6 @@ impl TreeDirPage {
     // Create a sorted list of entries with the new entry - replace any existing entry with the same key.
     fn build_sorted_tree_dir_entries(&self, tree_dir_entry: TreeDirEntry, page_size: usize) -> Vec<TreeDirEntry> {
         let mut dir_entries = self.get_all_dir_entries(page_size);
-        dir_entries.retain(|t| t.get_key() != tree_dir_entry.get_key());
         dir_entries.push(tree_dir_entry);
         dir_entries.sort_by(|b, a| b.get_key().cmp(a.get_key()));
         dir_entries
@@ -242,8 +252,8 @@ impl TreeDirPage {
         let tree_dir_index = cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
         
         let mut tree_dir_cursor = Cursor::new(&self.page.get_bytes()[tree_dir_index..]);
-        let key_len = tree_dir_cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
         let _page_no = tree_dir_cursor.read_u32::<byteorder::LittleEndian>().unwrap();
+        let key_len = tree_dir_cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
         let tree_dir_entry_size = key_len + 4 + 2;
         TreeDirEntry::from_bytes(self.page.get_bytes()[tree_dir_index..tree_dir_index + tree_dir_entry_size].to_vec())
     }
@@ -274,12 +284,12 @@ impl TreeDirPage {
             return last_entry.get_page_no()
         }
 
-        let mut left = 0;
-        let mut right = entries as u32 - 1;
+        let mut left: u16 = 0;
+        let mut right: u16 = entries - 1;
 
         while left <= right {
             let mid = left + (right - left) / 2;
-            let entry: TreeDirEntry = self.get_dir_entry_index(mid as u16, page_size);
+            let entry: TreeDirEntry = self.get_dir_entry_index(mid, page_size);
             if entry.get_key() == key {
                 return entry.get_page_no()
             } else if entry.get_key().to_vec() < key {
@@ -288,8 +298,122 @@ impl TreeDirPage {
                 right = mid - 1;
             }
         }
-        self.get_dir_entry_index(right as u16, page_size).get_page_no()
+        self.get_dir_entry_index(right, page_size).get_page_no()
     }
 
 
+    fn set_page_no_for_key(&mut self, key: Vec<u8>, new_page_no: u32, page_size: usize) {
+        let entries = self.get_entries();
+        assert!(entries != 0);
+
+        let mut left: u16 = 0;
+        let mut right: u16 = entries - 1;
+        let mut index: u16 = 0;
+        let mut is_set = false;
+        while left <= right {
+            let mid = left + (right - left) / 2;
+            let entry: TreeDirEntry = self.get_dir_entry_index(mid, page_size);
+            let entry_key = entry.get_key().to_vec();
+            if entry_key == key {
+                is_set = true;
+                index = mid;
+                break;
+            } else if entry_key < key {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+        if !is_set {
+            index = right;
+        }
+
+        let offset = (index * 2) + 2;
+        let mut cursor = Cursor::new(&self.page.get_bytes()[page_size - offset as usize ..]);
+        let tree_dir_index = cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
+        
+        let page_bytes = self.page.get_bytes_mut();
+        page_bytes[tree_dir_index..tree_dir_index + 4 as usize].copy_from_slice(new_page_no.to_le_bytes().as_ref());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_entries() {
+        // Split root page to create two child pages.
+        let tree_dir_entry_1 = TreeDirEntry::new(b"d".to_vec(), 45);
+        let tree_dir_entry_2 = TreeDirEntry::new(b"s".to_vec(), 75);
+        let mut entries: Vec<TreeDirEntry> = Vec::new();
+        entries.push(tree_dir_entry_1);
+        entries.push(tree_dir_entry_2);
+        let mut tree_dir_page = TreeDirPage::new(4096, 3, 567);
+        tree_dir_page.add_entries(entries,4096);
+
+        assert_eq!(tree_dir_page.get_page_to_left(), 45);
+        assert_eq!(tree_dir_page.get_entries(), 1);
+        assert_eq!(tree_dir_page.get_next_page(b"a".to_vec(), 4096), 45);
+        assert_eq!(tree_dir_page.get_next_page(b"f".to_vec(), 4096), 45);
+        assert_eq!(tree_dir_page.get_next_page(b"d".to_vec(), 4096), 45);
+        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec(), 4096), 75);
+        assert_eq!(tree_dir_page.get_next_page(b"u".to_vec(), 4096), 75);
+
+        let tree_dir_entry_3 = TreeDirEntry::new(b"a".to_vec(), 23);
+        entries = Vec::new();
+        entries.push(tree_dir_entry_3);
+        tree_dir_page.add_entries(entries,4096);
+        assert_eq!(tree_dir_page.get_page_to_left(), 23);
+        assert_eq!(tree_dir_page.get_entries(), 1);
+        assert_eq!(tree_dir_page.get_next_page(b"a".to_vec(), 4096), 23);
+
+        let tree_dir_entry_4 = TreeDirEntry::new(b"t".to_vec(), 99);
+        entries = Vec::new();
+        entries.push(tree_dir_entry_4);
+        tree_dir_page.add_entries(entries,4096);
+        assert_eq!(tree_dir_page.get_page_to_left(), 23);
+        assert_eq!(tree_dir_page.get_entries(), 1);
+        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec(), 4096), 99);
+    }
+
+
+        #[test]
+    fn test_add_entries_1() {
+        // Split root page to create two child pages.
+        let tree_dir_entry_1 = TreeDirEntry::new(b"d".to_vec(), 45);
+        let tree_dir_entry_2 = TreeDirEntry::new(b"s".to_vec(), 75);
+        let mut entries: Vec<TreeDirEntry> = Vec::new();
+        entries.push(tree_dir_entry_1);
+        entries.push(tree_dir_entry_2);
+        let mut tree_dir_page = TreeDirPage::new(4096, 3, 567);
+        tree_dir_page.add_entries(entries,4096);
+        assert_eq!(tree_dir_page.get_entries(), 1);
+        assert_eq!(tree_dir_page.get_all_dir_entries(4096).get(0).unwrap().get_key(), b"s".to_vec());
+
+
+        // Add to the left. Page with "d" splits.
+        let tree_dir_entry_3 = TreeDirEntry::new(b"b".to_vec(), 25);
+        let tree_dir_entry_4 = TreeDirEntry::new(b"c".to_vec(), 85);
+        entries = Vec::new();
+        entries.push(tree_dir_entry_3);
+        entries.push(tree_dir_entry_4);
+        tree_dir_page.add_entries(entries,4096);
+        assert_eq!(tree_dir_page.get_entries(), 2);
+        assert_eq!(tree_dir_page.get_all_dir_entries(4096).get(0).unwrap().get_key(), b"c".to_vec());
+        assert_eq!(tree_dir_page.get_all_dir_entries(4096).get(1).unwrap().get_key(), b"s".to_vec());
+
+        assert_eq!(tree_dir_page.get_page_to_left(), 25);
+        assert_eq!(tree_dir_page.get_entries(), 2);
+        assert_eq!(tree_dir_page.get_next_page(b"f".to_vec(), 4096), 85);
+        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec(), 4096), 75);
+
+        
+        let tree_dir_entry_5 = TreeDirEntry::new(b"f".to_vec(), 185);
+        entries = Vec::new();
+        entries.push(tree_dir_entry_5);
+        tree_dir_page.add_entries(entries,4096);
+        assert_eq!(tree_dir_page.get_next_page(b"e".to_vec(), 4096), 185);
+
+    }
 }
