@@ -140,3 +140,50 @@ impl TreeDirHandler {
 
 }
 
+#[cfg(test)]
+mod tests {
+    use crate::Tuple;
+
+    use super::*;
+
+    #[test]
+    fn test_add_1() {
+        let page_size: usize = 4096;
+        let mut tree_leaf_page = TreeLeafPage::new(page_size as u64, 0);
+        tree_leaf_page.set_page_number(21);
+        let tuple: Tuple = Tuple::new(b"f".to_vec(), b"f_value".to_vec(), 345);
+        tree_leaf_page.store_tuple(tuple, page_size);
+        
+        let mut tree_leaf_page1 = TreeLeafPage::new(page_size as u64, 0);
+        tree_leaf_page1.set_page_number(27);
+        let tuple1: Tuple = Tuple::new(b"h".to_vec(), b"h_value".to_vec(), 345);
+        tree_leaf_page1.store_tuple(tuple1, page_size);
+
+        
+        let mut leaf_pages: Vec<TreeLeafPage> = Vec::new();
+        leaf_pages.push(tree_leaf_page);
+        leaf_pages.push(tree_leaf_page1);
+
+                
+        let mut tree_dir_page = TreeDirPage::new(page_size as u64, 0, 0);
+
+        let mut new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, leaf_pages, page_size);
+        assert_eq!(new_pages.len(), 1);
+        tree_dir_page = new_pages.pop().unwrap().page;
+        assert_eq!(tree_dir_page.get_page_to_left(), 21);
+        assert_eq!(tree_dir_page.get_dir_left_key(page_size).unwrap(), b"h".to_vec());
+
+        let tuple3: Tuple = Tuple::new(b"a".to_vec(), b"a_value".to_vec(), 345);
+        tree_leaf_page = TreeLeafPage::new(page_size as u64, 0);
+        tree_leaf_page.store_tuple(tuple3, page_size);
+        tree_leaf_page.set_page_number(79);
+        leaf_pages = Vec::new();
+        leaf_pages.push(tree_leaf_page);
+        new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, leaf_pages, page_size);
+        assert_eq!(new_pages.len(), 1);
+        tree_dir_page = new_pages.pop().unwrap().page;
+        assert_eq!(tree_dir_page.get_page_to_left(), 79);
+    }
+
+    
+}
