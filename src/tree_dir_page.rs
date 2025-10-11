@@ -378,7 +378,7 @@ mod tests {
     }
 
 
-        #[test]
+    #[test]
     fn test_add_entries_1() {
         // Split root page to create two child pages.
         let tree_dir_entry_1 = TreeDirEntry::new(b"d".to_vec(), 45);
@@ -415,5 +415,43 @@ mod tests {
         tree_dir_page.add_entries(entries,4096);
         assert_eq!(tree_dir_page.get_next_page(b"e".to_vec(), 4096), 185);
 
+    }
+
+
+    #[test]
+    fn test_add_entries_2() {
+        // Split root page to create two child pages.
+        let tree_dir_entry_1 = TreeDirEntry::new(b"d".to_vec(), 45);
+        let tree_dir_entry_2 = TreeDirEntry::new(b"p".to_vec(), 75);
+        let tree_dir_entry_3 = TreeDirEntry::new(b"t".to_vec(), 175);
+        let mut entries: Vec<TreeDirEntry> = Vec::new();
+        entries.push(tree_dir_entry_1);
+        entries.push(tree_dir_entry_2);
+        entries.push(tree_dir_entry_3);
+        let mut tree_dir_page = TreeDirPage::new(4096, 3, 567);
+        tree_dir_page.add_entries(entries,4096);
+        assert_eq!(tree_dir_page.get_entries(), 2);
+        assert_eq!(tree_dir_page.get_all_dir_entries(4096).get(0).unwrap().get_key(), b"p".to_vec());
+        assert_eq!(tree_dir_page.get_all_dir_entries(4096).get(1).unwrap().get_key(), b"t".to_vec());
+
+
+        // The page wih p will split. The first key in this page could be q as it may not have
+        // the lowest key
+        let tree_dir_entry_4 = TreeDirEntry::new(b"q".to_vec(), 245);
+        let tree_dir_entry_5 = TreeDirEntry::new(b"r".to_vec(), 275);
+        entries = Vec::new();
+        entries.push(tree_dir_entry_4);
+        entries.push(tree_dir_entry_5);
+        tree_dir_page.add_entries(entries,4096);
+        assert_eq!(tree_dir_page.get_entries(), 3);
+        assert_eq!(tree_dir_page.get_all_dir_entries(4096).get(0).unwrap().get_key(), b"p".to_vec());
+        assert_eq!(tree_dir_page.get_all_dir_entries(4096).get(1).unwrap().get_key(), b"r".to_vec());
+        assert_eq!(tree_dir_page.get_all_dir_entries(4096).get(2).unwrap().get_key(), b"t".to_vec());
+
+        assert_eq!(tree_dir_page.get_next_page(b"f".to_vec(), 4096), 45);
+        assert_eq!(tree_dir_page.get_next_page(b"p".to_vec(), 4096), 245);
+        assert_eq!(tree_dir_page.get_next_page(b"q".to_vec(), 4096), 245);
+        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec(), 4096), 275);
+        assert_eq!(tree_dir_page.get_next_page(b"u".to_vec(), 4096), 175);
     }
 }
