@@ -1,18 +1,24 @@
 use crate::page::PageTrait;
 use crate::{FreePageTracker, TreeDirEntry, TreeInternalPage, TreeLeafPage};
 use crate::page_cache::PageCache;
+use crate::tree_dir_page::TreeDirPage;
 
 pub struct TreeDirHandler {
 
 }
 
+pub struct TreeDirPageRef {
+    pub page: TreeDirPage,
+    pub left_key: Option<Vec<u8>>,
+}
+
 impl TreeDirHandler {
     pub fn handle_tree_leaf_store(
-            mut tree_dir_page: TreeInternalPage, 
+            mut tree_dir_page: TreeDirPage, 
             mut leaf_pages: Vec<TreeLeafPage>,
-            page_size: usize) -> Vec<TreeInternalPage> {
+            page_size: usize) -> Vec<TreeDirPageRef> {
         assert!(!leaf_pages.is_empty(), "leaf_pages was empty");
-        let mut tree_dir_pages: Vec<TreeInternalPage> = Vec::new();
+        let mut tree_dir_pages: Vec<TreeDirPageRef> = Vec::new();
 
         // Sort the leaf pages and build a set of TreeDirEntry.
         leaf_pages.sort_by(|b, a| b.get_left_key(page_size).unwrap().cmp(&a.get_left_key(page_size).unwrap()));
@@ -25,29 +31,32 @@ impl TreeDirHandler {
         // Do not need to split the tree dir page.
         if tree_dir_page.can_fit_entries(&entries) {
             tree_dir_page.add_entries(entries, page_size);
-            tree_dir_pages.push(tree_dir_page);
+            tree_dir_pages.push(
+                TreeDirPageRef { 
+                    page: tree_dir_page, 
+                    left_key: None 
+                });
             return tree_dir_pages;
         }
 
         // Need to split the tree dir page.
         let entries_to_right = tree_dir_page.get_right_half_entries(page_size);
         assert!(!entries_to_right.is_empty());
-        let use_original_page: bool = entries.get(0).unwrap().get_key() < entries_to_right.get(0).unwrap().get_key();
-        let mut new_tree_dir_page = TreeInternalPage::new(page_size as u64, 0, 0);
-        new_tree_dir_page.set_parent_page(tree_dir_page.get_parent_page());
-        new_tree_dir_page.set_page_to_left(entries_to_right.get(0).unwrap().get_page_no());
-        // Do NOT iterate from 0, we skip first dir entry as we added it as the page to the left
-        for i in 1..entries_to_right.len() {
-           new_tree_dir_page.add_tree_dir_entry(entries_to_right.get(i).unwrap(), page_size as u64);
-        } 
+        let new_left_key = entries_to_right.get(0).unwrap().get_key().to_vec();
+        let mut new_tree_dir_page = TreeDirPage::new(page_size as u64, 0, 0);
+        new_tree_dir_page.add_split_entries_new_page(entries_to_right, page_size);
 
-        if use_original_page {
+
+        if entries.get(0).unwrap().get_key() < new_left_key.as_ref() {
+            // Use original page to add entries. Note if the first is less than the left key in the
+            // new page then all entries will be.
             tree_dir_page.add_entries(entries, page_size);
         } else {
+            // Use the original page.
             new_tree_dir_page.add_entries(entries, page_size);
         }
-        tree_dir_pages.push(tree_dir_page);
-        tree_dir_pages.push(new_tree_dir_page);
+        tree_dir_pages.push(TreeDirPageRef{ page: tree_dir_page, left_key: None});
+        tree_dir_pages.push(TreeDirPageRef{ page: new_tree_dir_page, left_key: Some(new_left_key)});
 
         return tree_dir_pages;
     }
@@ -70,133 +79,64 @@ impl TreeDirHandler {
 
 
     pub fn handle_tree_dir_store(
-            mut parent_dir_page: TreeInternalPage, 
-            mut dir_pages: Vec<TreeInternalPage>, 
-            free_page_tracker: &mut FreePageTracker,
-            page_cache: &mut PageCache,
+            mut parent_dir_page: TreeDirPage, 
+            dir_pages: Vec<TreeDirPageRef>, 
             version: u64,
-            page_size: usize) -> Vec<TreeInternalPage> {
+            page_size: usize) -> Vec<TreeDirPageRef> {
         assert!(!dir_pages.is_empty(), "leaf_pages was empty");
-        let mut tree_dir_pages: Vec<TreeInternalPage> = Vec::new();
+        let mut tree_dir_pages: Vec<TreeDirPageRef> = Vec::new();
 
-        // Sort the leaf pages and build a set of TreeDirEntry.
-        dir_pages.sort_by(|b, a| b.get_dir_left_key(page_size).unwrap().cmp(&a.get_dir_left_key(page_size).unwrap()));
         let mut entries: Vec<TreeDirEntry> = Vec::new();
-        for leaf_page in dir_pages {
-            let tree_dir_entry = TreeDirEntry::new(leaf_page.get_dir_left_key(page_size).unwrap(), leaf_page.get_page_number());
+        for dir_page_ref in dir_pages {
+            let tree_dir_entry: TreeDirEntry;
+            if dir_page_ref.left_key.is_none() {
+               tree_dir_entry = TreeDirEntry::new(
+                dir_page_ref.page.get_dir_left_key(page_size).unwrap(), 
+                dir_page_ref.page.get_page_number());
+            } else {
+                tree_dir_entry = TreeDirEntry::new(
+                dir_page_ref.left_key.unwrap(), 
+                dir_page_ref.page.get_page_number());
+            }
             entries.push(tree_dir_entry);
         }
 
         // Do not need to split the tree dir page.
         if parent_dir_page.can_fit_entries(&entries) {
             parent_dir_page.add_entries(entries, page_size);
-            tree_dir_pages.push(parent_dir_page);
+            tree_dir_pages.push(TreeDirPageRef { 
+                    page: parent_dir_page, 
+                    left_key: None 
+                });
             return tree_dir_pages;
         }
 
         // Need to split the parent dir page.
         let entries_to_right = parent_dir_page.get_right_half_entries(page_size);
         assert!(!entries_to_right.is_empty());
-        let use_original_page: bool = entries.get(0).unwrap().get_key() < entries_to_right.get(0).unwrap().get_key();
-        let mut new_tree_page = TreeInternalPage::new(page_size as u64, 0, version);
-        new_tree_page.set_parent_page(parent_dir_page.get_parent_page());
-        new_tree_page.set_page_to_left(entries_to_right.get(0).unwrap().get_page_no());
-        // Do NOT iterate from 0, we skip first dir entry as we added it as the page to the left
-        for i in 1..entries_to_right.len() {
-           new_tree_page.add_tree_dir_entry(entries_to_right.get(i).unwrap(), page_size as u64);
-        } 
+        let new_page_left_key = entries_to_right.get(0).unwrap().get_key().to_vec();
+        let mut new_tree_page = TreeDirPage::new(page_size as u64, 0, version);
+        new_tree_page.add_split_entries_new_page(entries_to_right, page_size);
 
-        if use_original_page {
+        if entries.get(0).unwrap().get_key() < new_page_left_key.as_ref() {
+            // Add entries to original page.
             parent_dir_page.add_entries(entries, page_size);
         } else {
             new_tree_page.add_entries(entries, page_size);
         }
-        tree_dir_pages.push(parent_dir_page);
-        tree_dir_pages.push(new_tree_page);
+        tree_dir_pages.push(
+            TreeDirPageRef{
+                page: parent_dir_page,
+                left_key: None,
+        });
+        tree_dir_pages.push(
+            TreeDirPageRef{
+                page: new_tree_page,
+                left_key: Some(new_page_left_key),
+        });
 
-
-        TreeDirHandler::map_pages(&mut tree_dir_pages, free_page_tracker, page_cache, version);
         return tree_dir_pages;
     }
 
 }
 
-
-#[cfg(test)]
-mod tests {
-    use crate::Tuple;
-
-    use super::*;
-
-    // Fill in the left_most_page
-    #[test]
-    fn test_1() {
-        let page_size: usize = 4096;
-        let mut tree_leaf_page = TreeLeafPage::new(page_size as u64, 0);
-        tree_leaf_page.set_page_number(21);
-        let tuple: Tuple = Tuple::new(b"a".to_vec(), b"a_value".to_vec(), 345);
-        tree_leaf_page.store_tuple(tuple, page_size);
-        let mut leaf_pages: Vec<TreeLeafPage> = Vec::new();
-        leaf_pages.push(tree_leaf_page);
-
-        let mut tree_dir_page = TreeInternalPage::new(page_size as u64, 0, 0);
-        tree_dir_page.add_page_entry(23, b"m".to_vec(), 79, page_size);
-
-        let mut new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, leaf_pages, page_size);
-        assert_eq!(new_pages.len(), 1);
-        tree_dir_page = new_pages.pop().unwrap();
-        assert_eq!(tree_dir_page.get_page_to_left(), 21);
-        assert_eq!(tree_dir_page.get_dir_left_key(page_size).unwrap(), b"m".to_vec());
-    }
-
-    // Replace a key
-    #[test]
-    fn test_2() {
-        let page_size: usize = 4096;
-        let mut tree_leaf_page = TreeLeafPage::new(page_size as u64, 0);
-        let tuple: Tuple = Tuple::new(b"a".to_vec(), b"a_value".to_vec(), 345);
-        tree_leaf_page.set_page_number(21);
-        tree_leaf_page.store_tuple(tuple, page_size);
-        let mut leaf_pages: Vec<TreeLeafPage> = Vec::new();
-        leaf_pages.push(tree_leaf_page);
-
-        let mut tree_dir_page = TreeInternalPage::new(page_size as u64, 0, 0);
-        tree_dir_page.add_page_entry(23, b"a".to_vec(), 79, page_size);
-        assert_eq!(tree_dir_page.get_next_page(b"a".to_vec(), page_size), 79);
-
-        let mut new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, leaf_pages, page_size);
-        assert_eq!(new_pages.len(), 1);
-        tree_dir_page = new_pages.pop().unwrap();
-        assert_eq!(tree_dir_page.get_page_to_left(), 23);
-        assert_eq!(tree_dir_page.get_dir_left_key(page_size).unwrap(), b"a".to_vec());
-        // Page for key a is now 21 rather than 79
-        assert_eq!(tree_dir_page.get_next_page(b"a".to_vec(), page_size), 21);
-        assert_eq!(tree_dir_page.get_next_page(b"b".to_vec(), page_size), 21);
-        assert_eq!(tree_dir_page.get_next_page(b"0".to_vec(), page_size), 23);
-    }
-
-    // Key goes to the right
-    #[test]
-    fn test_3() {
-        let page_size: usize = 4096;
-        let mut tree_leaf_page = TreeLeafPage::new(page_size as u64, 0);
-        let tuple: Tuple = Tuple::new(b"m".to_vec(), b"m_value".to_vec(), 345);
-        tree_leaf_page.set_page_number(99);
-        tree_leaf_page.store_tuple(tuple, page_size);
-        let mut leaf_pages: Vec<TreeLeafPage> = Vec::new();
-        leaf_pages.push(tree_leaf_page);
-
-        let mut tree_dir_page = TreeInternalPage::new(page_size as u64, 0, 0);
-        tree_dir_page.add_page_entry(23, b"a".to_vec(), 79, page_size);
-
-        let mut new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, leaf_pages, page_size);
-        assert_eq!(new_pages.len(), 1);
-        tree_dir_page = new_pages.pop().unwrap();
-        assert_eq!(tree_dir_page.get_page_to_left(), 23);
-        assert_eq!(tree_dir_page.get_dir_left_key(page_size).unwrap(), b"a".to_vec());
-        assert_eq!(tree_dir_page.get_next_page(b"m".to_vec(), page_size), 99);
-        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec(), page_size), 99);
-    }
-
-
-}

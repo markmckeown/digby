@@ -136,6 +136,17 @@ pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
     }
 
 
+
+    pub fn add_first_key(&mut self, page_no_left: u32, key: Vec<u8>, page_to_right: u32, page_size: usize) {
+        assert!(self.get_entries() == 0);
+        let table_dir_entry = TreeDirEntry::new(key, page_to_right);
+        assert!(self.can_fit(table_dir_entry.get_byte_size()), "Cannot fit first tree_dir_entry in page");
+        self.set_page_to_left(page_no_left);
+
+        // Store page.
+        self.add_tree_dir_entry(&table_dir_entry, page_size as u64);
+    }
+
     pub fn add_page_entry(&mut self, page_no_left: u32, key: Vec<u8>, page_to_right: u32, page_size: usize) {
         let key_copy = key[..].to_vec();
         let table_dir_entry = TreeDirEntry::new(key, page_to_right);
@@ -158,11 +169,11 @@ pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
     }
 
 
+    // Note this does not deal with updating the leftmost entry.
     pub fn store_tree_dir_in_page(&mut self, table_dir_entry: TreeDirEntry, page_size: usize) -> () {
-        let table_dir_entry_size: usize = table_dir_entry.get_byte_size();
-        assert!(self.can_fit(table_dir_entry_size), "Cannot fit tree_dir_entry in page");
-    
-
+        assert!(self.can_fit(table_dir_entry.get_byte_size()), "Cannot fit tree_dir_entry in page");
+        
+        // TODO wildly inefficent way to do this.
         let sorted = self.build_sorted_tree_dir_entries(table_dir_entry, page_size);
         // Clear the page and re-add all tree_dir_entries
         self.set_entries(0);
@@ -172,7 +183,6 @@ pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
             self.add_tree_dir_entry(&entry, page_size as u64);
         }
     }
-
 
 
     pub fn add_tree_dir_entry(&mut self, tree_dir_entry: &TreeDirEntry, page_size: u64) -> () {
@@ -241,8 +251,8 @@ pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
         let tree_dir_index = cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
         
         let mut tree_dir_cursor = Cursor::new(&self.page.get_bytes()[tree_dir_index..]);
-        let key_len = tree_dir_cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
         let _page_no = tree_dir_cursor.read_u32::<byteorder::LittleEndian>().unwrap();
+        let key_len = tree_dir_cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
         let tree_dir_entry_size = key_len + 4 + 2;
         TreeDirEntry::from_bytes(self.page.get_bytes()[tree_dir_index..tree_dir_index + tree_dir_entry_size].to_vec())
     }

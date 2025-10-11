@@ -185,6 +185,22 @@ impl TreeDirPage {
         }
     }
 
+
+    pub fn add_split_entries_new_page(&mut self, split_enties: Vec<TreeDirEntry>, page_size: usize) {
+        assert!(self.get_entries() == 0);
+        assert!(!split_enties.is_empty());
+
+        // First entry is set as left page - the key is not recorded here, it will be in the 
+        // parent tree_dir_page
+        let first_entry = split_enties.get(0).unwrap();
+        self.set_page_to_left(first_entry.get_page_no());
+
+        // Append all the rest of the entries.
+        for i in 1..split_enties.len() {
+            self.append_tree_dir_entry(split_enties.get(i).unwrap(), page_size as u64);
+        }
+    }
+
     // Add a directory entry to the top of the stack of entries. This should be called from 
     // store_tree_dir_in_page which sorts the entries before adding them.
     fn append_tree_dir_entry(&mut self, tree_dir_entry: &TreeDirEntry, page_size: u64) -> () {
@@ -259,7 +275,7 @@ impl TreeDirPage {
     }
 
     // Get the left sided key in the page.
-    fn get_dir_left_key(&self, page_size: usize) -> Option<Vec<u8>> {
+    pub fn get_dir_left_key(&self, page_size: usize) -> Option<Vec<u8>> {
         if self.get_entries() == 0 {
             return None;
         }
