@@ -1,5 +1,5 @@
 use crate::page::PageTrait;
-use crate::{FreePageTracker, TreeDirEntry, TreeInternalPage, TreeLeafPage};
+use crate::{FreePageTracker, TreeDirEntry, TreeLeafPage};
 use crate::page_cache::PageCache;
 use crate::tree_dir_page::TreeDirPage;
 
@@ -62,7 +62,7 @@ impl TreeDirHandler {
     }
 
 
-    pub fn map_pages(pages: &mut Vec<TreeInternalPage>, 
+    pub fn map_pages(pages: &mut Vec<TreeDirPage>, 
                     free_page_tracker: &mut FreePageTracker, 
                     page_cache: &mut PageCache, 
                     version: u64) -> () {
@@ -185,5 +185,4 @@ mod tests {
         assert_eq!(tree_dir_page.get_page_to_left(), 79);
     }
 
-    
 }
