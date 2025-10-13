@@ -151,7 +151,7 @@ impl Db {
     }
 
 
-    pub fn get_value(&mut self, key: Vec<u8>) -> Option<Tuple> {
+    pub fn get(&mut self, key: Vec<u8>) -> Option<Tuple> {
         assert!(key.len() < 1024, "Cannot handle big keys yet.");
         let master_page = self.get_master_page();
         let tree_page_no = master_page.get_global_tree_root_page_no();
@@ -219,7 +219,7 @@ impl Db {
         self.page_cache.sync_data();
         // Put the master page.
         self.page_cache.put_page(master_page.get_page());
-        // Noow sync the master
+        // Now sync the master
         self.page_cache.sync_data();          
 
     }
@@ -271,7 +271,7 @@ mod tests {
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap());
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
-            let tuple = db.get_value(b"the_key".to_vec()).unwrap();
+            let tuple = db.get(b"the_key".to_vec()).unwrap();
             assert!(tuple.get_value() == b"the_value".to_vec());
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
