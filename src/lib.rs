@@ -44,3 +44,5 @@ pub mod tree_dir_handler;
 pub use tree_dir_handler::TreeDirHandler;
 pub mod tree_dir_page;
 pub use tree_dir_page::TreeDirPage;
+pub mod store_tuple_processor;
+pub use store_tuple_processor::StoreTupleProcessor;
