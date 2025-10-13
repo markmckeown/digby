@@ -80,26 +80,12 @@ impl TreeDirHandler {
 
     pub fn handle_tree_dir_store(
             mut parent_dir_page: TreeDirPage, 
-            dir_pages: Vec<TreeDirPageRef>, 
+            entries: Vec<TreeDirEntry>, 
             version: u64,
             page_size: usize) -> Vec<TreeDirPageRef> {
-        assert!(!dir_pages.is_empty(), "leaf_pages was empty");
+        assert!(!entries.is_empty(), "dir entries was empty");
         let mut tree_dir_pages: Vec<TreeDirPageRef> = Vec::new();
 
-        let mut entries: Vec<TreeDirEntry> = Vec::new();
-        for dir_page_ref in dir_pages {
-            let tree_dir_entry: TreeDirEntry;
-            if dir_page_ref.left_key.is_none() {
-               tree_dir_entry = TreeDirEntry::new(
-                dir_page_ref.page.get_dir_left_key(page_size).unwrap(), 
-                dir_page_ref.page.get_page_number());
-            } else {
-                tree_dir_entry = TreeDirEntry::new(
-                dir_page_ref.left_key.unwrap(), 
-                dir_page_ref.page.get_page_number());
-            }
-            entries.push(tree_dir_entry);
-        }
 
         // Do not need to split the tree dir page.
         if parent_dir_page.can_fit_entries(&entries) {

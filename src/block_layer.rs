@@ -77,7 +77,7 @@ impl BlockLayer {
         let stored_checksum = self.get_checksum(page);
         let calculated_checksum = self.generate_checksum(page);
         assert!(stored_checksum == calculated_checksum, 
-            "Generated checksum does not match stored checksum for page {}", page.get_page_number());
+            "CalcultedChecksum does not match stored checksum for page {}", page.get_page_number());
     }
 
     pub fn sync_data(&mut self) -> () {

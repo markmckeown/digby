@@ -288,15 +288,15 @@ impl TreeDirPage {
     //   Between two keys so use the first key in the pair of keys
     //   Greater than the right most key so use it.
     //
-    pub fn get_next_page(&self, key: Vec<u8>, page_size: usize) -> u32 {
+    pub fn get_next_page(&self, key: &Vec<u8>, page_size: usize) -> u32 {
         let entries = self.get_entries();
         assert!(entries != 0);
-        if key < self.get_dir_entry_index(0, page_size).get_key().to_vec() {
+        if key < self.get_dir_entry_index(0, page_size).get_key().to_vec().as_ref() {
             return self.get_page_to_left()
         }
 
         let last_entry = self.get_dir_entry_index(entries - 1, page_size);
-        if key > last_entry.get_key().to_vec() { 
+        if key > last_entry.get_key().to_vec().as_ref() { 
             return last_entry.get_page_no()
         }
 
@@ -308,7 +308,7 @@ impl TreeDirPage {
             let entry: TreeDirEntry = self.get_dir_entry_index(mid, page_size);
             if entry.get_key() == key {
                 return entry.get_page_no()
-            } else if entry.get_key().to_vec() < key {
+            } else if key > entry.get_key().to_vec().as_ref() {
                 left = mid + 1;
             } else {
                 right = mid - 1;
@@ -370,11 +370,11 @@ mod tests {
 
         assert_eq!(tree_dir_page.get_page_to_left(), 45);
         assert_eq!(tree_dir_page.get_entries(), 1);
-        assert_eq!(tree_dir_page.get_next_page(b"a".to_vec(), 4096), 45);
-        assert_eq!(tree_dir_page.get_next_page(b"f".to_vec(), 4096), 45);
-        assert_eq!(tree_dir_page.get_next_page(b"d".to_vec(), 4096), 45);
-        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec(), 4096), 75);
-        assert_eq!(tree_dir_page.get_next_page(b"u".to_vec(), 4096), 75);
+        assert_eq!(tree_dir_page.get_next_page(b"a".to_vec().as_ref(), 4096), 45);
+        assert_eq!(tree_dir_page.get_next_page(b"f".to_vec().as_ref(), 4096), 45);
+        assert_eq!(tree_dir_page.get_next_page(b"d".to_vec().as_ref(), 4096), 45);
+        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec().as_ref(), 4096), 75);
+        assert_eq!(tree_dir_page.get_next_page(b"u".to_vec().as_ref(), 4096), 75);
 
         let tree_dir_entry_3 = TreeDirEntry::new(b"a".to_vec(), 23);
         entries = Vec::new();
@@ -382,7 +382,7 @@ mod tests {
         tree_dir_page.add_entries(entries,4096);
         assert_eq!(tree_dir_page.get_page_to_left(), 23);
         assert_eq!(tree_dir_page.get_entries(), 1);
-        assert_eq!(tree_dir_page.get_next_page(b"a".to_vec(), 4096), 23);
+        assert_eq!(tree_dir_page.get_next_page(b"a".to_vec().as_ref(), 4096), 23);
 
         let tree_dir_entry_4 = TreeDirEntry::new(b"t".to_vec(), 99);
         entries = Vec::new();
@@ -390,7 +390,7 @@ mod tests {
         tree_dir_page.add_entries(entries,4096);
         assert_eq!(tree_dir_page.get_page_to_left(), 23);
         assert_eq!(tree_dir_page.get_entries(), 1);
-        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec(), 4096), 99);
+        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec().as_ref(), 4096), 99);
     }
 
 
@@ -421,15 +421,15 @@ mod tests {
 
         assert_eq!(tree_dir_page.get_page_to_left(), 25);
         assert_eq!(tree_dir_page.get_entries(), 2);
-        assert_eq!(tree_dir_page.get_next_page(b"f".to_vec(), 4096), 85);
-        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec(), 4096), 75);
+        assert_eq!(tree_dir_page.get_next_page(b"f".to_vec().as_ref(), 4096), 85);
+        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec().as_ref(), 4096), 75);
 
         
         let tree_dir_entry_5 = TreeDirEntry::new(b"f".to_vec(), 185);
         entries = Vec::new();
         entries.push(tree_dir_entry_5);
         tree_dir_page.add_entries(entries,4096);
-        assert_eq!(tree_dir_page.get_next_page(b"e".to_vec(), 4096), 185);
+        assert_eq!(tree_dir_page.get_next_page(b"e".to_vec().as_ref(), 4096), 185);
 
     }
 
@@ -464,10 +464,10 @@ mod tests {
         assert_eq!(tree_dir_page.get_all_dir_entries(4096).get(1).unwrap().get_key(), b"r".to_vec());
         assert_eq!(tree_dir_page.get_all_dir_entries(4096).get(2).unwrap().get_key(), b"t".to_vec());
 
-        assert_eq!(tree_dir_page.get_next_page(b"f".to_vec(), 4096), 45);
-        assert_eq!(tree_dir_page.get_next_page(b"p".to_vec(), 4096), 245);
-        assert_eq!(tree_dir_page.get_next_page(b"q".to_vec(), 4096), 245);
-        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec(), 4096), 275);
-        assert_eq!(tree_dir_page.get_next_page(b"u".to_vec(), 4096), 175);
+        assert_eq!(tree_dir_page.get_next_page(b"f".to_vec().as_ref(), 4096), 45);
+        assert_eq!(tree_dir_page.get_next_page(b"p".to_vec().as_ref(), 4096), 245);
+        assert_eq!(tree_dir_page.get_next_page(b"q".to_vec().as_ref(), 4096), 245);
+        assert_eq!(tree_dir_page.get_next_page(b"s".to_vec().as_ref(), 4096), 275);
+        assert_eq!(tree_dir_page.get_next_page(b"u".to_vec().as_ref(), 4096), 175);
     }
 }

@@ -1,5 +1,5 @@
 use crate::free_page_tracker::FreePageTracker;
-use crate::{ page, FreeDirPage, TableDirPage, TreeRootSinglePage};
+use crate::{FreeDirPage, StoreTupleProcessor, TableDirPage, TreeLeafPage};
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
@@ -85,7 +85,7 @@ impl Db {
         assert!(free_pages.len() == 10);
         
         // Write the Global Tree Root Page.
-        let mut global_tree_root_page = TreeRootSinglePage::new(Db::PAGE_SIZE, 5, 0);
+        let mut global_tree_root_page = TreeLeafPage::new(Db::PAGE_SIZE, 5);
         // remove it from the free list
         free_pages.retain(|&x| x != 5);
         self.page_cache.put_page(&mut global_tree_root_page.get_page());
@@ -157,12 +157,7 @@ impl Db {
         let tree_page_no = master_page.get_global_tree_root_page_no();
         let page = self.page_cache.get_page(tree_page_no);
 
-        if page.get_type() == page::PageType::TreeRootSingle {
-            let tree_root_page = TreeRootSinglePage::from_page(page);
-            tree_root_page.get_tuple(key, Db::PAGE_SIZE as usize)
-        } else {
-            panic!("Can only handle TreeRootSingle at the minute.")
-        }
+        return StoreTupleProcessor::get_tuple(key, page, &mut self.page_cache, Db::PAGE_SIZE as usize);
     }
 
     pub fn store_key_value(&mut self, key: Vec<u8>, value: Vec<u8>) -> () {
@@ -177,6 +172,9 @@ impl Db {
         let old_version = master_page.get_version();
         let new_version = old_version + 1;
 
+        // Create the tuple we want to add. 
+        let tuple = Tuple::new(key, value, new_version);
+
         // Find the free page directory that has the free page numbers. Make sure
         // it has free pages - cannot handle the case it does not yet.
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
@@ -190,23 +188,10 @@ impl Db {
         // a leaf node ATM.
         let tree_root_page_no = master_page.get_global_tree_root_page_no();
 
-        // Get the Global Treee Root Page
-        assert!(self.page_cache.get_page(tree_root_page_no).get_type() == page::PageType::TreeRootSingle, "Only handle root node if it is also a leaf node");
-        let mut tree_root_page = TreeRootSinglePage::from_page(self.page_cache.get_page(tree_root_page_no));
-        // Cannot handle the versions being out of date ATM.
-        assert!(tree_root_page.get_version() <= old_version, "Versions out of date, cannot handle.");
+        let page =  self.page_cache.get_page(tree_root_page_no);   
 
-        // Create the tuple we want to add. 
-        let tuple = Tuple::new(key, value, new_version);
-
-        // Store the tuple in the root node - there is a check above to make sure it fits.        
-        tree_root_page.store_tuple(tuple, Db::PAGE_SIZE as usize);
-        tree_root_page.set_version(new_version);
-        // Need a place to store this version of this page.
-        let new_tree_free_page_no = free_page_tracker.get_free_page(&mut self.page_cache);
-        tree_root_page.set_page_number(new_tree_free_page_no);
-        // Write the tree node back through the page cache.
-        self.page_cache.put_page(tree_root_page.get_page());
+        let new_tree_free_page_no = StoreTupleProcessor::store_tuple(tuple, page, &mut free_page_tracker, 
+            &mut self.page_cache, new_version, Db::PAGE_SIZE as usize);
 
         
         free_page_tracker.return_free_page_no(tree_root_page_no);
@@ -217,7 +202,8 @@ impl Db {
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
             self.page_cache.put_page(free_dir_page.get_page());
         }
-            
+
+
         // Now need to update the master - tell it were the 
         // the globale tree root page is and where the free page
         // directory is now.
