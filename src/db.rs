@@ -160,7 +160,7 @@ impl Db {
         return StoreTupleProcessor::get_tuple(key, page, &mut self.page_cache, Db::PAGE_SIZE as usize);
     }
 
-    pub fn store_key_value(&mut self, key: Vec<u8>, value: Vec<u8>) -> () {
+    pub fn put(&mut self, key: Vec<u8>, value: Vec<u8>) -> () {
         // Assert on the things that cannot be handled yet.
         assert!(key.len() < 1024, "Cannot handle big keys yet.");
         assert!(value.len() < 1024, "Cannot handle big values yet.");
@@ -264,7 +264,7 @@ mod tests {
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap());
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
-            db.store_key_value(b"the_key".to_vec(), b"the_value".to_vec());
+            db.put(b"the_key".to_vec(), b"the_value".to_vec());
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
