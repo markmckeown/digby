@@ -12,7 +12,7 @@ impl TupleProcessor {
         free_page_tracker: &mut FreePageTracker,
         version: u64,
         page_size: usize) -> Tuple {
-        if key.len() < u8::MAX as usize && value.len() < 2048 {
+        if key.len() <= (u8::MAX as usize - 32) && value.len() < 2048 {
             return Tuple::new(key, value, version);
         }    
         assert!(key.len() < u32::MAX as usize, "key is too large");
@@ -31,7 +31,7 @@ impl TupleProcessor {
         let overflow_page_no = OverflowPageHandler::store_overflow_tuple(overflow_tuple, page_cache, 
             free_page_tracker, version, page_size);
 
-        if key.len() > u8::MAX as usize {
+        if key.len() > u8::MAX as usize - 32 {
             // Generate a short key - first (256 - 32) bytes plus the SHA256 of the key.
             let key_hash = Sha256::digest(key);
             let mut new_key = key[0 .. u8::MAX as usize - 32].to_vec();
@@ -44,13 +44,14 @@ impl TupleProcessor {
     }
 
     pub fn is_oversized_key(key: &Vec<u8>) -> bool {
-        if key.len() > u8::MAX as usize {
+        if key.len() > u8::MAX as usize - 32 {
             return true;
         }
         return false;
     }
 
     pub fn generate_short_key(key: &Vec<u8>) -> Vec<u8> {
+        assert!(key.len() > u8::MAX as usize - 32);
         let key_hash = Sha256::digest(key);
         let mut new_key = key[0 .. u8::MAX as usize - 32].to_vec();
         new_key.append(&mut key_hash.to_vec());

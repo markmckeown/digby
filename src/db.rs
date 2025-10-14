@@ -168,9 +168,16 @@ impl Db {
         }
 
         // Oversized key - get short version
+        // TODO - if the key already exists and points to an overflow page then
+        // we will leak the original overflow pages. So need to get the key first
+        // and add the overflow pages to the free pages - could do that here
+        // or at a lower level.
         let short_key = TupleProcessor::generate_short_key(key);
+        // This tuple will have a page number as the value, the page will be an overflow page
+        // that forms a linked list of pages that will hold the tuple.
         let tuple =  StoreTupleProcessor::get_tuple(&short_key, page, 
             &mut self.page_cache, Db::PAGE_SIZE as usize);
+        // Do not have this key.
         if tuple.is_none() {
             return None;
         }
