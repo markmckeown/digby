@@ -14,7 +14,7 @@ pub struct StoreTupleProcessor {
 
 impl StoreTupleProcessor{
     pub fn get_tuple(
-        key: Vec<u8>,
+        key: &Vec<u8>,
         first: Page,
         page_cache: &mut PageCache,
         page_size: usize
@@ -26,7 +26,7 @@ impl StoreTupleProcessor{
             // then it will be in this leaf page.
             if page.get_type() == PageType::TreeLeaf {
                 let tree_leaf = TreeLeafPage::from_page(page);
-                return tree_leaf.get_tuple(&key, page_size); 
+                return tree_leaf.get_tuple(key, page_size); 
             }
             // If its a tree dir page then descend to the next
             // level.
@@ -371,7 +371,7 @@ mod tests {
         let root_dir_page = TreeDirPage::from_page(page_cache.get_page(root_tree_page_no));
         // There should be 42 entries.
         assert_eq!(root_dir_page.get_entries(), 2);
-        let tuple = StoreTupleProcessor::get_tuple(23000u64.to_be_bytes().to_vec(), root_page, &mut page_cache, crate::Db::PAGE_SIZE as usize);
+        let tuple = StoreTupleProcessor::get_tuple(23000u64.to_be_bytes().to_vec().as_ref(), root_page, &mut page_cache, crate::Db::PAGE_SIZE as usize);
         assert!(!tuple.is_none());
         assert!(tuple.unwrap().get_value() == 23000u64.to_be_bytes().to_vec());
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");

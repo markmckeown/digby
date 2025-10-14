@@ -7,6 +7,7 @@ use crate::block_layer::BlockLayer;
 use crate::db_root_page::DbRootPage;
 use crate::page::PageTrait;
 use crate::tuple::{Tuple};
+use crate::tuple::TupleTrait;
 
 pub struct Db {
     path: String, 
@@ -151,7 +152,7 @@ impl Db {
     }
 
 
-    pub fn get(&mut self, key: Vec<u8>) -> Option<Tuple> {
+    pub fn get(&mut self, key: &Vec<u8>) -> Option<impl TupleTrait> {
         assert!(key.len() < 256, "Cannot handle big keys yet.");
         let master_page = self.get_master_page();
         let tree_page_no = master_page.get_global_tree_root_page_no();
@@ -161,7 +162,7 @@ impl Db {
         return StoreTupleProcessor::get_tuple(key, page, &mut self.page_cache, Db::PAGE_SIZE as usize);
     }
 
-    pub fn put(&mut self, key: Vec<u8>, value: Vec<u8>) -> () {
+    pub fn put(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> () {
         // Assert on the things that cannot be handled yet.
         assert!(key.len() < 1024, "Cannot handle big keys yet.");
         assert!(value.len() < 1024, "Cannot handle big values yet.");
@@ -257,18 +258,20 @@ mod tests {
     #[test]
     fn test_db_store_value() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let key = b"the_key".to_vec();
+        let value = b"the_value".to_vec();
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap());
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
-            db.put(b"the_key".to_vec(), b"the_value".to_vec());
+            db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap());
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
-            let tuple = db.get(b"the_key".to_vec()).unwrap();
-            assert!(tuple.get_value() == b"the_value".to_vec());
+            let tuple = db.get(&key).unwrap();
+            assert!(tuple.get_value() == value);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }

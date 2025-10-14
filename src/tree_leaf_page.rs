@@ -227,9 +227,8 @@ impl TreeLeafPage {
             } else if tuple.get_key().to_vec() < *key {
                 left = mid + 1;
             } else {
-                    right = mid - 1;
-                }
-            
+                right = mid - 1;
+            }
         }
         None
     }
