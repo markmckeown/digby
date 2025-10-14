@@ -172,9 +172,6 @@ impl Db {
         let old_version = master_page.get_version();
         let new_version = old_version + 1;
 
-        // Create the tuple we want to add. 
-        let tuple = Tuple::new(key, value, new_version);
-
         // Find the free page directory that has the free page numbers. Make sure
         // it has free pages - cannot handle the case it does not yet.
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
@@ -182,18 +179,19 @@ impl Db {
             self.page_cache.get_page(free_page_dir_page_no), 
             new_version, Db::PAGE_SIZE as usize);
 
-        
+        // Create the tuple we want to add. 
+        let tuple = Tuple::new(key, value, new_version);
+
+
         // Now get the page number of the root of the global tree. Then get the page,
         // this is a copy of the page. Only handle the case when the root is also 
         // a leaf node ATM.
         let tree_root_page_no = master_page.get_global_tree_root_page_no();
-
         let page =  self.page_cache.get_page(tree_root_page_no);   
-
         let new_tree_free_page_no = StoreTupleProcessor::store_tuple(tuple, page, &mut free_page_tracker, 
             &mut self.page_cache, new_version, Db::PAGE_SIZE as usize);
-
-        
+       
+        // Write out the free pages.
         free_page_tracker.return_free_page_no(tree_root_page_no);
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
@@ -202,7 +200,6 @@ impl Db {
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
             self.page_cache.put_page(free_dir_page.get_page());
         }
-
 
         // Now need to update the master - tell it were the 
         // the globale tree root page is and where the free page
@@ -220,8 +217,7 @@ impl Db {
         // Put the master page.
         self.page_cache.put_page(master_page.get_page());
         // Now sync the master
-        self.page_cache.sync_data();          
-
+        self.page_cache.sync_data();
     }
 
 }

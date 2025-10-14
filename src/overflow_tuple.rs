@@ -46,7 +46,7 @@ impl TupleTrait for OverflowTuple {
 
 
 impl OverflowTuple {
-    pub fn new(key: Vec<u8>, value: Vec<u8>, version: u64, overflow: Overflow) -> Self {
+    pub fn new(key: &Vec<u8>, value: &Vec<u8>, version: u64, overflow: Overflow) -> Self {
         assert!(key.len() < u32::MAX as usize, "Key size larger than u32 can hold.");
         assert!(value.len() < u32::MAX as usize, "Value size larger than u32 can hold.");
         assert!(overflow != Overflow::None, "Cannot create a OverflowTuple when its not an Overflow.");
@@ -59,8 +59,10 @@ impl OverflowTuple {
         serialized.extend_from_slice(&value);
 
         OverflowTuple {
-            key,
-            value,
+            // TODO - these are duplicated in the serialized version, drop them and extract from
+            // serialised version
+            key: key.to_vec(),
+            value: value.to_vec(),
             version,
             overflow,
             serialized,
@@ -104,7 +106,7 @@ mod tests {
         let value = b"value".to_vec();
         let version = 1;
 
-        let tuple = OverflowTuple::new(key.clone(), value.clone(), version, Overflow::ValueOverflow);
+        let tuple = OverflowTuple::new(&key.clone(), &value.clone(), version, Overflow::ValueOverflow);
         assert_eq!(tuple.get_key(), &key);
         assert_eq!(tuple.get_value(), &value);
         assert_eq!(tuple.get_version(), version);
@@ -117,7 +119,7 @@ mod tests {
         let value = b"value".to_vec();
         let version = 1;
 
-        let tuple = OverflowTuple::new(key.clone(), value.clone(), version, Overflow::ValueOverflow);
+        let tuple = OverflowTuple::new(&key.clone(), &value.clone(), version, Overflow::ValueOverflow);
         let deserialized = OverflowTuple::from_bytes(tuple.get_serialized().to_vec());
 
         assert_eq!(deserialized.get_key(), &key);

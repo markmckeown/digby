@@ -66,8 +66,8 @@ impl OverflowPage {
         overflow_page
     }
 
-    pub fn get_next_page(&mut self) -> u32 {
-        let mut cursor = std::io::Cursor::new(&mut self.page.get_bytes_mut()[..]);
+    pub fn get_next_page(&self) -> u32 {
+        let mut cursor = std::io::Cursor::new(&self.page.get_bytes()[..]);
         cursor.set_position(16);
         cursor.read_u32::<byteorder::LittleEndian>().unwrap()
     }
@@ -91,7 +91,7 @@ impl OverflowPage {
     }
 
     pub fn get_free_space(&self, page_size: usize) -> usize {
-        page_size - self.get_used_size() as usize
+        page_size - (self.get_used_size() as usize + OverflowPage::HEADER_SIZE)
     }
 
     pub fn add_bytes(&mut self, bytes: &[u8], size: usize) {
@@ -99,7 +99,7 @@ impl OverflowPage {
         self.set_used_size(size as u16);
     }
 
-    pub fn get_tuple_bytes(&mut self) -> Vec<u8> {
+    pub fn get_tuple_bytes(&self) -> Vec<u8> {
         let size = self.get_used_size();
         let bytes = 
         self.get_bytes()[OverflowPage::HEADER_SIZE .. OverflowPage::HEADER_SIZE + size as usize].to_vec();
