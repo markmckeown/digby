@@ -1,12 +1,12 @@
 use crate::free_page_tracker::FreePageTracker;
-use crate::{FreeDirPage, StoreTupleProcessor, TableDirPage, TreeLeafPage, TupleProcessor};
+use crate::{FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TableDirPage, TreeLeafPage, TupleProcessor};
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
 use crate::block_layer::BlockLayer;
 use crate::db_root_page::DbRootPage;
 use crate::page::PageTrait;
-use crate::tuple::{Tuple};
+use crate::overflow_tuple::OverflowTuple;
 use crate::tuple::TupleTrait;
 
 pub struct Db {
@@ -152,20 +152,41 @@ impl Db {
     }
 
 
-    pub fn get(&mut self, key: &Vec<u8>) -> Option<impl TupleTrait> {
-        assert!(key.len() < 256, "Cannot handle big keys yet.");
+    pub fn get(&mut self, key: &Vec<u8>) -> Option<Vec<u8>> {
+        assert!(key.len() < u32::MAX as usize, "Cannot handle keys larger than u32::MAX.");
         let master_page = self.get_master_page();
         let tree_page_no = master_page.get_global_tree_root_page_no();
         // TODO need to check versions.
         let page = self.page_cache.get_page(tree_page_no);
+        // If not an oversized key...
+        if !TupleProcessor::is_oversized_key(key) {
+            if let Some(tuple) = StoreTupleProcessor::get_tuple(key, page, &mut self.page_cache, Db::PAGE_SIZE as usize) {
+                return Some(tuple.get_value().to_vec());
+            } else {
+                return None;
+            }
+        }
 
-        return StoreTupleProcessor::get_tuple(key, page, &mut self.page_cache, Db::PAGE_SIZE as usize);
+        // Oversized key - get short version
+        let short_key = TupleProcessor::generate_short_key(key);
+        let tuple =  StoreTupleProcessor::get_tuple(&short_key, page, 
+            &mut self.page_cache, Db::PAGE_SIZE as usize);
+        if tuple.is_none() {
+            return None;
+        }
+        let overflow_page_no = u32::from_le_bytes(tuple.unwrap().get_value()[0 .. 4].try_into().unwrap());
+        let overflow_tuple: OverflowTuple = OverflowPageHandler::get_overflow_tuple(overflow_page_no, &mut self.page_cache);
+        // Confirm the key is the same - would require a SHA256 clash to fail
+        if key != overflow_tuple.get_key() {
+            return None;
+        }
+        return Some(overflow_tuple.get_value().to_vec());
     }
 
     pub fn put(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> () {
         // Assert on the things that cannot be handled yet.
-        assert!(key.len() < 1024, "Cannot handle big keys yet.");
-        assert!(value.len() < 1024, "Cannot handle big values yet.");
+        assert!(key.len() < u32::MAX as usize, "Cannot handle keys larger than u32::MAX.");
+        assert!(value.len() < u32::MAX as usize, "Cannot handle values larger than u32::MAX.");
         
         // Get the current master page. Note this is a copy of the page 
         let mut master_page = self.get_master_page();
@@ -184,8 +205,7 @@ impl Db {
         // Create the tuple we want to add. 
         let tuple = TupleProcessor::generate_tuple(&key, &value, &mut self.page_cache, &mut free_page_tracker, 
             new_version, Db::PAGE_SIZE as usize);  
-        //Tuple::new(&key, &value, new_version);
-
+        
         // Now get the page number of the root of the global tree. Then get the page,
         // this is a copy of the page. Only handle the case when the root is also 
         // a leaf node ATM.
@@ -236,7 +256,6 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::NamedTempFile; 
-    use crate::tuple::{TupleTrait};
 
     #[test]
     fn test_db_creation() {
@@ -272,12 +291,32 @@ mod tests {
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap());
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
-            let tuple = db.get(&key).unwrap();
-            assert!(tuple.get_value() == value);
+            let returned_value = db.get(&key).unwrap();
+            assert!(returned_value == value);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
+    #[test]
+    fn test_db_store_large_value() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let key: Vec<u8> = vec![111u8; 8192];
+        let value: Vec<u8> = vec![56u8; 18192];
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap());
+            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            db.put(&key, &value);
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then 
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap());
+            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            let returned_value = db.get(&key).unwrap();
+            assert!(returned_value == value);
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
 
 
 }
