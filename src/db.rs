@@ -152,9 +152,10 @@ impl Db {
 
 
     pub fn get(&mut self, key: Vec<u8>) -> Option<Tuple> {
-        assert!(key.len() < 1024, "Cannot handle big keys yet.");
+        assert!(key.len() < 256, "Cannot handle big keys yet.");
         let master_page = self.get_master_page();
         let tree_page_no = master_page.get_global_tree_root_page_no();
+        // TODO need to check versions.
         let page = self.page_cache.get_page(tree_page_no);
 
         return StoreTupleProcessor::get_tuple(key, page, &mut self.page_cache, Db::PAGE_SIZE as usize);
@@ -180,8 +181,7 @@ impl Db {
             new_version, Db::PAGE_SIZE as usize);
 
         // Create the tuple we want to add. 
-        let tuple = Tuple::new(key, value, new_version);
-
+        let tuple = Tuple::new(&key, &value, new_version);
 
         // Now get the page number of the root of the global tree. Then get the page,
         // this is a copy of the page. Only handle the case when the root is also 

@@ -265,7 +265,7 @@ mod tests {
 
         let reloaded_page = page_cache.get_page(root_tree_page_no);
 
-        let tuple = Tuple::new(b"key_1".to_vec(), b"value_1".to_vec(), version + 1);
+        let tuple = Tuple::new(b"key_1".to_vec().as_ref(), b"value_1".to_vec().as_ref(), version + 1);
         let new_root_tree_no = StoreTupleProcessor::store_tuple(tuple, reloaded_page, &mut free_page_tracker, 
             &mut page_cache, version + 1, crate::Db::PAGE_SIZE as usize);
         assert_eq!(new_root_tree_no, 2);
@@ -305,7 +305,7 @@ mod tests {
             let mut free_page_tracker = FreePageTracker::new(
                 page_cache.get_page(free_dir_page_no), version, crate::Db::PAGE_SIZE as usize);   
             let reloaded_page = page_cache.get_page(root_tree_page_no);
-            let tuple = Tuple::new(i.to_be_bytes().to_vec(), i.to_be_bytes().to_vec(), version);
+            let tuple = Tuple::new(i.to_be_bytes().to_vec().as_ref(), i.to_be_bytes().to_vec().as_ref(), version);
             root_tree_page_no = StoreTupleProcessor::store_tuple(tuple, reloaded_page, &mut free_page_tracker, 
                 &mut page_cache, version + 1, crate::Db::PAGE_SIZE as usize);
             let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
@@ -355,7 +355,7 @@ mod tests {
             let mut free_page_tracker = FreePageTracker::new(
                 page_cache.get_page(free_dir_page_no), version, crate::Db::PAGE_SIZE as usize);   
             let reloaded_page = page_cache.get_page(root_tree_page_no);
-            let tuple = Tuple::new(i.to_be_bytes().to_vec(), i.to_be_bytes().to_vec(), version);
+            let tuple = Tuple::new(i.to_be_bytes().to_vec().as_ref(), i.to_be_bytes().to_vec().as_ref(), version);
             root_tree_page_no = StoreTupleProcessor::store_tuple(tuple, reloaded_page, &mut free_page_tracker, 
                 &mut page_cache, version + 1, crate::Db::PAGE_SIZE as usize);
             let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);

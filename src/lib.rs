@@ -44,3 +44,5 @@ pub mod store_tuple_processor;
 pub use store_tuple_processor::StoreTupleProcessor;
 pub mod overflow_page_handler;
 pub use overflow_page_handler::OverflowPageHandler;
+pub mod tuple_processor;
+pub use tuple_processor::TupleProcessor;

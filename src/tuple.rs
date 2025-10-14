@@ -107,7 +107,7 @@ impl TupleTrait for Tuple {
 }
 
 impl Tuple {
-    pub fn new(key: Vec<u8>, value: Vec<u8>, version: u64) -> Self {
+    pub fn new(key: &Vec<u8>, value: &Vec<u8>, version: u64) -> Self {
         assert!(key.len() < u16::MAX as usize, "Key size larger than u16 can hold.");
         assert!(value.len() < u16::MAX as usize, "Value size larger than u16 can hold.");
         let mut serialized = Vec::new();
@@ -119,15 +119,15 @@ impl Tuple {
         serialized.extend_from_slice(&value);
 
         Tuple {
-            key,
-            value,
+            key: key.to_vec(),
+            value: value.to_vec(),
             version,
             overflow: Overflow::None,
             serialized,
         }
     }
 
-    pub fn new_with_overflow(key: Vec<u8>, value: Vec<u8>, version: u64, overflow: Overflow) -> Self {
+    pub fn new_with_overflow(key: &Vec<u8>, value: &Vec<u8>, version: u64, overflow: Overflow) -> Self {
         assert!(key.len() < u16::MAX as usize, "Key size larger than u16 can hold.");
         assert!(value.len() < u16::MAX as usize, "Value size larger than u16 can hold.");
         let mut serialized = Vec::new();
@@ -139,8 +139,8 @@ impl Tuple {
         serialized.extend_from_slice(&value);
 
         Tuple {
-            key,
-            value,
+            key: key.to_vec(),
+            value: value.to_vec(),
             version,
             overflow,
             serialized,
@@ -180,7 +180,7 @@ mod tests {
         let value = b"value".to_vec();
         let version = 1;
 
-        let tuple = Tuple::new(key.clone(), value.clone(), version);
+        let tuple = Tuple::new(&key.clone(), &value.clone(), version);
         assert_eq!(tuple.get_key(), &key);
         assert_eq!(tuple.get_value(), &value);
         assert_eq!(tuple.get_version(), version);
@@ -193,7 +193,7 @@ mod tests {
         let value = b"value".to_vec();
         let version = 1;
 
-        let tuple = Tuple::new(key.clone(), value.clone(), version);
+        let tuple = Tuple::new(&key.clone(), &value.clone(), version);
         let deserialized = Tuple::from_bytes(tuple.get_serialized().to_vec());
 
         assert_eq!(deserialized.get_key(), &key);

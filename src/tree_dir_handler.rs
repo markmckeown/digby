@@ -138,12 +138,12 @@ mod tests {
         let page_size: usize = 4096;
         let mut tree_leaf_page = TreeLeafPage::new(page_size as u64, 0);
         tree_leaf_page.set_page_number(21);
-        let tuple: Tuple = Tuple::new(b"f".to_vec(), b"f_value".to_vec(), 345);
+        let tuple: Tuple = Tuple::new(b"f".to_vec().as_ref(), b"f_value".to_vec().as_ref(), 345);
         tree_leaf_page.store_tuple(tuple, page_size);
         
         let mut tree_leaf_page1 = TreeLeafPage::new(page_size as u64, 0);
         tree_leaf_page1.set_page_number(27);
-        let tuple1: Tuple = Tuple::new(b"h".to_vec(), b"h_value".to_vec(), 345);
+        let tuple1: Tuple = Tuple::new(b"h".to_vec().as_ref(), b"h_value".to_vec().as_ref(), 345);
         tree_leaf_page1.store_tuple(tuple1, page_size);
 
         
@@ -166,7 +166,7 @@ mod tests {
         assert_eq!(tree_dir_page.get_page_to_left(), 21);
         assert_eq!(tree_dir_page.get_dir_left_key(page_size).unwrap(), b"h".to_vec());
 
-        let tuple3: Tuple = Tuple::new(b"a".to_vec(), b"a_value".to_vec(), 345);
+        let tuple3: Tuple = Tuple::new(b"a".to_vec().as_ref(), b"a_value".to_vec().as_ref(), 345);
         tree_leaf_page = TreeLeafPage::new(page_size as u64, 0);
         tree_leaf_page.store_tuple(tuple3, page_size);
         tree_leaf_page.set_page_number(79);

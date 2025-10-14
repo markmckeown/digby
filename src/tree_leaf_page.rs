@@ -273,7 +273,7 @@ mod tests {
         let value = b"value".to_vec();
         let version = 1;
 
-        let tuple = Tuple::new(key, value, version);
+        let tuple = Tuple::new(&key, &value, version);
         data_page.add_tuple(&tuple, 4096);
         assert_eq!(data_page.get_entries(), 1);
         let retrieved_tuple = data_page.get_tuple_index(0, 4096);
@@ -287,11 +287,11 @@ mod tests {
         let mut data_page = TreeLeafPage::new(4096, 1);
         
 
-        data_page.store_tuple(Tuple::new(b"a".to_vec(), b"value-a".to_vec(), 1), 4096);
-        data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
-        data_page.store_tuple(Tuple::new(b"c".to_vec(), b"value-c".to_vec(), 3), 4096);
-        data_page.store_tuple(Tuple::new(b"d".to_vec(), b"value-d".to_vec(), 4), 4096);
-        data_page.store_tuple(Tuple::new(b"e".to_vec(), b"value-e".to_vec(), 5), 4096);
+        data_page.store_tuple(Tuple::new(b"a".to_vec().as_ref(), b"value-a".to_vec().as_ref(), 1), 4096);
+        data_page.store_tuple(Tuple::new(b"b".to_vec().as_ref(), b"value-b".to_vec().as_ref(), 2), 4096);
+        data_page.store_tuple(Tuple::new(b"c".to_vec().as_ref(), b"value-c".to_vec().as_ref(), 3), 4096);
+        data_page.store_tuple(Tuple::new(b"d".to_vec().as_ref(), b"value-d".to_vec().as_ref(), 4), 4096);
+        data_page.store_tuple(Tuple::new(b"e".to_vec().as_ref(), b"value-e".to_vec().as_ref(), 5), 4096);
 
         assert_eq!(data_page.get_entries(), 5);
         let key_to_find = b"a".to_vec();
@@ -332,13 +332,13 @@ mod tests {
     fn test_get_right_half() {
         let mut data_page = TreeLeafPage::new(4096, 1);
         
-        data_page.store_tuple(Tuple::new(b"a".to_vec(), b"value-a".to_vec(), 1), 4096);
+        data_page.store_tuple(Tuple::new(b"a".to_vec().as_ref(), b"value-a".to_vec().as_ref(), 1), 4096);
         let tuples: Vec<Tuple> = data_page.get_right_half_tuples(4096);
         assert!(tuples.is_empty());
         assert!(data_page.get_entries() == 1);
         data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
 
-        data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
+        data_page.store_tuple(Tuple::new(b"b".to_vec().as_ref(), b"value-b".to_vec().as_ref(), 2), 4096);
         data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
         let tuples: Vec<Tuple> = data_page.get_right_half_tuples(4096);
         assert!(tuples.len() == 1);
@@ -347,11 +347,11 @@ mod tests {
         data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
 
         
-        data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
+        data_page.store_tuple(Tuple::new(b"b".to_vec().as_ref(), b"value-b".to_vec().as_ref(), 2), 4096);
         assert!(data_page.get_entries() == 2);
         data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
         data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
-        data_page.store_tuple(Tuple::new(b"c".to_vec(), b"value-c".to_vec(), 3), 4096);
+        data_page.store_tuple(Tuple::new(b"c".to_vec().as_ref(), b"value-c".to_vec().as_ref(), 3), 4096);
         assert!(data_page.get_entries() == 3);
         let tuples: Vec<Tuple> = data_page.get_right_half_tuples(4096);
         assert!(tuples.len() == 1);
@@ -369,11 +369,11 @@ mod tests {
 
         assert!(data_page.get_left_key(4096).is_none());
         
-        data_page.store_tuple(Tuple::new(b"a".to_vec(), b"value-a".to_vec(), 1), 4096);
-        data_page.store_tuple(Tuple::new(b"b".to_vec(), b"value-b".to_vec(), 2), 4096);
-        data_page.store_tuple(Tuple::new(b"c".to_vec(), b"value-c".to_vec(), 3), 4096);
-        data_page.store_tuple(Tuple::new(b"d".to_vec(), b"value-d".to_vec(), 4), 4096);
-        data_page.store_tuple(Tuple::new(b"e".to_vec(), b"value-e".to_vec(), 5), 4096);
+        data_page.store_tuple(Tuple::new(b"a".to_vec().as_ref(), b"value-a".to_vec().as_ref(), 1), 4096);
+        data_page.store_tuple(Tuple::new(b"b".to_vec().as_ref(), b"value-b".to_vec().as_ref(), 2), 4096);
+        data_page.store_tuple(Tuple::new(b"c".to_vec().as_ref(), b"value-c".to_vec().as_ref(), 3), 4096);
+        data_page.store_tuple(Tuple::new(b"d".to_vec().as_ref(), b"value-d".to_vec().as_ref(), 4), 4096);
+        data_page.store_tuple(Tuple::new(b"e".to_vec().as_ref(), b"value-e".to_vec().as_ref(), 5), 4096);
 
         data_page.get_tuple(&b"a".to_vec(), 4096).unwrap();
         assert_eq!(b"a".to_vec(), data_page.get_left_key(4096).unwrap());
@@ -388,7 +388,7 @@ mod tests {
         data_page.get_tuple(&b"e".to_vec(), 4096).unwrap();
 
         data_page.delete_key(&b"a".to_vec(), 4096);
-         data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
+        data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
         data_page.get_tuple(&b"b".to_vec(), 4096).unwrap();
         data_page.get_tuple(&b"d".to_vec(), 4096).unwrap();
         data_page.get_tuple(&b"e".to_vec(), 4096).unwrap();

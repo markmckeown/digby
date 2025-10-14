@@ -122,7 +122,7 @@ mod tests {
         for i in 1u32..1024 {
             j = i;
             new_version = new_version + 1;
-            tuple = Tuple::new(i.to_le_bytes().to_vec(), i.to_le_bytes().to_vec(), new_version);
+            tuple = Tuple::new(i.to_le_bytes().to_vec().as_ref(), i.to_le_bytes().to_vec().as_ref(), new_version);
 
             // Fill page, but don't split.
             if !tree_leaf_page.can_fit(tuple.get_byte_size()) {
@@ -135,7 +135,7 @@ mod tests {
 
 
         // Original page is full now - next input will require a split
-        tuple = Tuple::new(j.to_le_bytes().to_vec(), j.to_le_bytes().to_vec(), new_version);
+        tuple = Tuple::new(j.to_le_bytes().to_vec().as_ref(), j.to_le_bytes().to_vec().as_ref(), new_version);
         let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, crate::Db::PAGE_SIZE as usize);
         assert!(pages.len() == 2);
         let tree_leaf_page1 = pages.pop().unwrap();
@@ -158,7 +158,7 @@ mod tests {
             new_version = new_version + 1;
             let value = vec![0u8; 2048];
             // Same key used
-            tuple = Tuple::new(1u32.to_le_bytes().to_vec(), value, new_version);
+            tuple = Tuple::new(1u32.to_le_bytes().to_vec().as_ref(), value.as_ref(), new_version);
 
             let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple,  crate::Db::PAGE_SIZE as usize);
             tree_leaf_page_count = pages.len();
@@ -182,7 +182,7 @@ mod tests {
         for i in 0u32..2 {
             new_version = new_version + 1;
             let value = vec![0u8; 2048];
-            tuple = Tuple::new(i.to_le_bytes().to_vec(), value, new_version);
+            tuple = Tuple::new(i.to_le_bytes().to_vec().as_ref(), value.as_ref(), new_version);
             
             let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple,  crate::Db::PAGE_SIZE as usize);
             tree_leaf_page_count = pages.len();    
@@ -214,7 +214,7 @@ mod tests {
                 value = vec![0u8; 2048];
             }
             // Use the same key
-            tuple = Tuple::new(i.to_le_bytes().to_vec(), value, new_version);
+            tuple = Tuple::new(i.to_le_bytes().to_vec().as_ref(), value.as_ref(), new_version);
             let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, crate::Db::PAGE_SIZE as usize);
             tree_leaf_page_count = pages.len();    
             tree_leaf_page = pages.pop().unwrap();
@@ -241,7 +241,7 @@ mod tests {
                 value = vec![0u8; 2048];
             }
             // Use the same key
-            tuple = Tuple::new(i.to_le_bytes().to_vec(), value, new_version);
+            tuple = Tuple::new(i.to_le_bytes().to_vec().as_ref(), value.as_ref(), new_version);
             
 
             let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple,  crate::Db::PAGE_SIZE as usize);
@@ -273,7 +273,7 @@ mod tests {
                 value = vec![0u8; 2048];
             }
             // Use the same key
-            tuple = Tuple::new(j.to_le_bytes().to_vec(), value, new_version);
+            tuple = Tuple::new(j.to_le_bytes().to_vec().as_ref(), value.as_ref(), new_version);
             let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple,  crate::Db::PAGE_SIZE as usize);
             tree_leaf_page_count = pages.len();    
             tree_leaf_page = pages.pop().unwrap();
