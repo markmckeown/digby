@@ -1,5 +1,5 @@
 use crate::free_page_tracker::FreePageTracker;
-use crate::{FreeDirPage, StoreTupleProcessor, TableDirPage, TreeLeafPage};
+use crate::{FreeDirPage, StoreTupleProcessor, TableDirPage, TreeLeafPage, TupleProcessor};
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
@@ -182,7 +182,9 @@ impl Db {
             new_version, Db::PAGE_SIZE as usize);
 
         // Create the tuple we want to add. 
-        let tuple = Tuple::new(&key, &value, new_version);
+        let tuple = TupleProcessor::generate_tuple(&key, &value, &mut self.page_cache, &mut free_page_tracker, 
+            new_version, Db::PAGE_SIZE as usize);  
+        //Tuple::new(&key, &value, new_version);
 
         // Now get the page number of the root of the global tree. Then get the page,
         // this is a copy of the page. Only handle the case when the root is also 
