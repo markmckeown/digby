@@ -7,6 +7,7 @@ use crate::tree_leaf_page::TreeLeafPage;
 use crate::leaf_page_handler::LeafPageHandler;
 use crate::tree_dir_page::TreeDirPage;
 use crate::tree_dir_entry::TreeDirEntry;
+use crate::OverflowPageHandler;
 
 pub struct StoreTupleProcessor {
 
@@ -94,9 +95,14 @@ impl StoreTupleProcessor{
         // Now have a leaf_page and a stack of dir pages.
         // Add to leaf page, remap leaf page or leaf pages if it split.
         // A leaf page can split into three depending on the size of tuples it holds.
-        let leaf_pages = LeafPageHandler::add_tuple(leaf_page, tuple, page_size);
+        let update_result = LeafPageHandler::add_tuple(leaf_page, tuple, page_size);
+
+        // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
+        OverflowPageHandler::delete_overflow_pages(update_result.deleted_tuple, page_cache, free_page_tracker);
+
+
         // Remap leaf page or pages if it split and write to disk - get a set of dir entries back for the leadf pages.
-        let leaf_dir_entries = StoreTupleProcessor::write_leaf_pages(leaf_pages, free_page_tracker, page_cache, new_version, page_size);
+        let leaf_dir_entries = StoreTupleProcessor::write_leaf_pages(update_result.tree_leaf_pages, free_page_tracker, page_cache, new_version, page_size);
 
         // Add the leaf pages to the tree_dir_page on the top of the stack.
         dir_page = dir_pages.pop().unwrap();
@@ -198,14 +204,18 @@ impl StoreTupleProcessor{
         page_size: usize) -> u32 {
 
         // Add the tuple to the leaf page.
-        let mut leaf_pages = LeafPageHandler::add_tuple(tree_root_single, tuple, page_size);
+        let mut update_result = LeafPageHandler::add_tuple(tree_root_single, tuple, page_size);
+
+        // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
+        OverflowPageHandler::delete_overflow_pages(update_result.deleted_tuple, page_cache, free_page_tracker);
+
         // Update the leaf page numbers so they are write over free pages and also set the version.
-        LeafPageHandler::map_pages(&mut leaf_pages, free_page_tracker, page_cache, new_version);
-        if leaf_pages.len() == 1 {
+        LeafPageHandler::map_pages(&mut update_result.tree_leaf_pages, free_page_tracker, page_cache, new_version);
+        if update_result.tree_leaf_pages.len() == 1 {
             // The root leaf page has not split - grab the new page number for the root leaf page.
-            let page_number = leaf_pages.get(0).unwrap().get_page_number();
+            let page_number = update_result.tree_leaf_pages.get(0).unwrap().get_page_number();
             // Write the new root leaf page to disk
-            page_cache.put_page(leaf_pages.pop().unwrap().get_page());
+            page_cache.put_page(update_result.tree_leaf_pages.pop().unwrap().get_page());
             // Return the new root page_number
             return page_number;
         }
@@ -213,7 +223,7 @@ impl StoreTupleProcessor{
         // The root leaf page has split. Need a new TreeDirPage that will act as the root and hold the 
         // the new leaf pages. There could be up to three leaf pages if the entries are large.
         let mut entries: Vec<TreeDirEntry> = Vec::new();
-        for mut leaf_page in  leaf_pages {
+        for mut leaf_page in  update_result.tree_leaf_pages {
             // Create a TreeDirEntry for the leaf page to add to the TreeDirPage
             let tree_dir_entry = TreeDirEntry::new(leaf_page.get_left_key(page_size).unwrap(), leaf_page.get_page_number());
             entries.push(tree_dir_entry);

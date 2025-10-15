@@ -1,9 +1,11 @@
 use crate::page::PageTrait;
 use crate::tuple::TupleTrait;
+use crate::tuple::Tuple;
 use crate::FreePageTracker;
 use crate::OverflowPage;
 use crate::OverflowTuple;
 use crate::PageCache;
+use crate::tuple::Overflow;
 
 pub struct OverflowPageHandler {
 
@@ -65,6 +67,35 @@ impl OverflowPageHandler {
             }
         }
         return OverflowTuple::from_bytes(buffer);
+    }
+
+    pub fn delete_overflow_pages(
+        tuple_option: Option<Tuple>,
+        page_cache: &mut PageCache,
+        free_page_tracker: &mut FreePageTracker
+    ) -> u32 {
+        if tuple_option.is_none() {
+            return 0;
+        }
+        let tuple = tuple_option.unwrap();
+        if *tuple.get_overflow() == Overflow::None {
+            return 0;
+        }
+        // A tuple has been deleted that points to a overflow page.
+        let mut page_no = u32::from_le_bytes(tuple.get_value().to_vec().try_into().unwrap());
+        free_page_tracker.return_free_page_no(page_no);
+        let mut count:u32 = 1;
+        loop {
+            let page = OverflowPage::from_page(page_cache.get_page(page_no));
+            page_no = page.get_next_page();
+            if page_no == 0 {
+                break;
+            }
+            free_page_tracker.return_free_page_no(page_no);
+            count = count + 1;
+        }
+
+        return count;
     }
 }
 
