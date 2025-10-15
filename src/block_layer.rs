@@ -6,16 +6,48 @@ use byteorder::LittleEndian;
 use std::io::Cursor;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
+
+#[derive(PartialEq, Eq)]
+pub enum BlockSanity {
+    XxH32Checksum = 1,
+}
+
+impl TryFrom<u8> for BlockSanity {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(BlockSanity::XxH32Checksum),
+            _ => Err(()),
+        }
+    }
+}
+
+impl BlockSanity {
+    pub fn get_bytes_used(block_sanity_type: BlockSanity) -> usize {
+        match block_sanity_type {
+            BlockSanity::XxH32Checksum => 4
+        }
+    }
+}
+
+
+
+
 pub struct BlockLayer {
     file_layer: FileLayer,
-    block_size: usize
+    block_size: usize,
+    _page_size: usize,
+    _block_sanity: BlockSanity,
 }
 
 impl BlockLayer {
     pub fn new(file_layer: FileLayer, block_size: usize) -> Self {
         BlockLayer { 
             file_layer, 
-            block_size: block_size 
+            block_size: block_size,
+            _block_sanity: BlockSanity::XxH32Checksum,
+            _page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
         }
     }
 
