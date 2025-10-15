@@ -166,7 +166,7 @@ mod tests {
 
         let version = 0;
         let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE);
-        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE);
+        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
         let mut page_cache: PageCache = PageCache::new(block_layer, crate::Db::PAGE_SIZE);
 
         let free_dir_page_no = *page_cache.create_new_pages(1).get(0).unwrap();

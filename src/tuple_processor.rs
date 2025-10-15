@@ -5,6 +5,9 @@ pub struct TupleProcessor {
 
 }
 
+// We store keys up to 224 bytes without change. If longer than that 
+// we store the first 224 bytes with the 32 bytes of the SHA256 of the
+// key.
 impl TupleProcessor {
     pub fn generate_tuple(key: &Vec<u8>, 
         value: &Vec<u8>, 

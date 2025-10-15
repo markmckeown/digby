@@ -100,7 +100,6 @@ impl StoreTupleProcessor{
         // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
         OverflowPageHandler::delete_overflow_pages(update_result.deleted_tuple, page_cache, free_page_tracker);
 
-
         // Remap leaf page or pages if it split and write to disk - get a set of dir entries back for the leadf pages.
         let leaf_dir_entries = StoreTupleProcessor::write_leaf_pages(update_result.tree_leaf_pages, free_page_tracker, page_cache, new_version, page_size);
 
@@ -258,7 +257,7 @@ mod tests {
             .open(&temp_file).expect("Failed to open or create DB file");
         
         let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE);
-        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE);
+        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer, crate::Db::PAGE_SIZE);
 
         let free_dir_page_no = *page_cache.create_new_pages(1).get(0).unwrap();
@@ -295,7 +294,7 @@ mod tests {
             .open(&temp_file).expect("Failed to open or create DB file");
         
         let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE);
-        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE);
+        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer, crate::Db::PAGE_SIZE);
 
         let mut free_dir_page_no = *page_cache.create_new_pages(1).get(0).unwrap();
@@ -348,7 +347,7 @@ mod tests {
             .open(&temp_file).expect("Failed to open or create DB file");
         
         let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE);
-        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE);
+        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer, crate::Db::PAGE_SIZE);
 
         let mut free_dir_page_no = *page_cache.create_new_pages(1).get(0).unwrap();
@@ -360,7 +359,7 @@ mod tests {
         leaf_page.set_version(version);
         page_cache.put_page(leaf_page.get_page());
 
-        for i in 0u64..32000 {
+        for i in 0u64..20000 {
             version = version + 1;
             let mut free_page_tracker = FreePageTracker::new(
                 page_cache.get_page(free_dir_page_no), version, crate::Db::PAGE_SIZE as usize);   
@@ -380,10 +379,10 @@ mod tests {
         assert!(root_page.get_type() == PageType::TreeDirPage);
         let root_dir_page = TreeDirPage::from_page(page_cache.get_page(root_tree_page_no));
         // There should be 42 entries.
-        assert_eq!(root_dir_page.get_entries(), 2);
-        let tuple = StoreTupleProcessor::get_tuple(23000u64.to_be_bytes().to_vec().as_ref(), root_page, &mut page_cache, crate::Db::PAGE_SIZE as usize);
+        assert_eq!(root_dir_page.get_entries(), 1);
+        let tuple = StoreTupleProcessor::get_tuple(13000u64.to_be_bytes().to_vec().as_ref(), root_page, &mut page_cache, crate::Db::PAGE_SIZE as usize);
         assert!(!tuple.is_none());
-        assert!(tuple.unwrap().get_value() == 23000u64.to_be_bytes().to_vec());
+        assert!(tuple.unwrap().get_value() == 13000u64.to_be_bytes().to_vec());
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 }

@@ -64,7 +64,7 @@ mod tests {
     fn test_page_cache_read_write() {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, PAGE_SIZE);
-        let block_layer = BlockLayer::new(file_layer, PAGE_SIZE);
+        let block_layer = BlockLayer::new(file_layer, PAGE_SIZE as usize);
         let mut page_cache = PageCache::new(block_layer, PAGE_SIZE);
         let page_number = 0;
 

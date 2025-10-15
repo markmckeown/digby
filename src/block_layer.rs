@@ -8,14 +8,14 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 
 pub struct BlockLayer {
     file_layer: FileLayer,
-    page_size: u64
+    block_size: usize
 }
 
 impl BlockLayer {
-    pub fn new(file_layer: FileLayer, page_size: u64) -> Self {
+    pub fn new(file_layer: FileLayer, block_size: usize) -> Self {
         BlockLayer { 
             file_layer, 
-            page_size 
+            block_size: block_size 
         }
     }
 
@@ -42,7 +42,7 @@ impl BlockLayer {
         let existing_page_count = self.file_layer.get_page_count();
         let mut created_page_nos: Vec<u32> = Vec::new();
         for new_page_no in existing_page_count..existing_page_count + no_new_pages {
-            let mut page = Page::new(self.page_size);
+            let mut page = Page::new(self.block_size as u64);
             page.set_page_number(new_page_no);
             page.set_type(crate::page::PageType::Free);
             self.set_checksum(&mut page);
@@ -101,13 +101,13 @@ mod tests {
 
     #[test]
     fn test_block_layer_put_get() {
-        let page_size = 4096;
+        let page_size: usize = 4096;
         let temp_file = tempfile().expect("Failed to create temp file");
-        let file_layer = FileLayer::new(temp_file, page_size);
+        let file_layer = FileLayer::new(temp_file, page_size as u64);
         let mut block_layer = BlockLayer::new(file_layer, page_size);
         let page_number = 0;
         block_layer.create_new_pages(10);
-        let mut page = Page::new(page_size);
+        let mut page = Page::new(page_size as u64);
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
         page.get_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
@@ -119,9 +119,9 @@ mod tests {
 
     #[test]
     fn test_create_new_pages() {
-        let page_size = 4096;
+        let page_size: usize = 4096;
         let temp_file = tempfile().expect("Failed to create temp file");
-        let file_layer = FileLayer::new(temp_file, page_size);
+        let file_layer = FileLayer::new(temp_file, page_size as u64);
         let mut block_layer = BlockLayer::new(file_layer, page_size);
         let mut free_pages = block_layer.create_new_pages(1);
         assert!(free_pages.len() == 1);
@@ -133,11 +133,11 @@ mod tests {
 
     #[test]
     fn test_create_header_page() {
-        let page_size = 4096;
+        let page_size: usize = 4096;
         let temp_file = tempfile().expect("Failed to create temp file");
-        let file_layer = FileLayer::new(temp_file, page_size);
+        let file_layer = FileLayer::new(temp_file, page_size as u64);
         let mut block_layer = BlockLayer::new(file_layer, page_size);
-        let mut page = DbMasterPage::new(page_size, 0, 0);
+        let mut page = DbMasterPage::new(page_size as u64, 0, 0);
         block_layer.create_new_pages(1);
         block_layer.write_page(page.get_page());
     }
