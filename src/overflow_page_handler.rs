@@ -119,7 +119,7 @@ mod tests {
         let new_version: u64 = 90;
 
         // Set up the page_cache
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE as usize);
         let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer, crate::Db::PAGE_SIZE);
 

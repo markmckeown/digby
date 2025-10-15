@@ -42,7 +42,7 @@ impl Db {
             is_new = true;
         }
 
-        let file_layer: FileLayer = FileLayer::new(db_file, Db::PAGE_SIZE);
+        let file_layer: FileLayer = FileLayer::new(db_file, Db::PAGE_SIZE as usize);
         let block_layer: BlockLayer = BlockLayer::new(file_layer, Db::PAGE_SIZE as usize);
         let page_cache: PageCache = PageCache::new(block_layer, Self::PAGE_SIZE);
 

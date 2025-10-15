@@ -165,7 +165,7 @@ mod tests {
             .open(&temp_file).expect("Failed to open or create DB file");
 
         let version = 0;
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE as usize);
         let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
         let mut page_cache: PageCache = PageCache::new(block_layer, crate::Db::PAGE_SIZE);
 
