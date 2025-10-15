@@ -17,7 +17,8 @@ impl PageCache {
         PageCache { block_layer }
     }
 
-
+    // Generate free pages on disk that can be written back to. Returns
+    // a list of page numbers.
     pub fn generate_free_pages(&mut self, no_new_pages: u32) -> Vec<u32> {
         self.block_layer.generate_free_pages(no_new_pages)
     }
@@ -38,7 +39,6 @@ impl PageCache {
     pub fn get_total_page_count(&self) -> u32 {
         self.block_layer.get_total_page_count()
     }
-
 
     pub fn sync_data(&mut self) -> () {
         self.block_layer.sync_data()
