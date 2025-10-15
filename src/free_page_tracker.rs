@@ -78,7 +78,7 @@ impl FreePageTracker {
         // The current free_dir_page has no free pages, it has no links
         // to other free_dir_pages - so have the page_cache generate
         // new free pages.
-        let mut new_free_pages: Vec<u32> = page_cache.create_new_pages(16);
+        let mut new_free_pages: Vec<u32> = page_cache.generate_free_pages(16);
         // Reverse the free pages or we add at end of file first.
         new_free_pages.reverse();
         // Grab a free page number to return to the commit before adding to free_dir_page
@@ -128,7 +128,7 @@ impl FreePageTracker {
         while !self.returned_pages.is_empty() {
             // We create a new free page for the new free_page_dir page we need - we do not want to use a returned page no
             // as that could cause corruption. Returned pages are still in use until the commit is complete.
-            let next_free_page_no = *page_cache.create_new_pages(1).get(0).unwrap();
+            let next_free_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
             let mut next_free_dir_page = FreeDirPage::new(self.page_size as u64, next_free_page_no, self.new_version);
             next_free_dir_page.set_next(last.get_page_number());
             last.set_previous(next_free_dir_page.get_page_number());
@@ -167,9 +167,9 @@ mod tests {
         let version = 0;
         let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE as usize);
         let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
-        let mut page_cache: PageCache = PageCache::new(block_layer, crate::Db::PAGE_SIZE);
+        let mut page_cache: PageCache = PageCache::new(block_layer);
 
-        let free_dir_page_no = *page_cache.create_new_pages(1).get(0).unwrap();
+        let free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
         let mut free_dir_page = FreeDirPage::new(crate::Db::PAGE_SIZE, free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 

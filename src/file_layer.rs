@@ -3,7 +3,7 @@ use crate::page::Page;
 pub struct FileLayer {
     file: std::fs::File,
     block_size: usize,
-    page_count: u32,
+    block_count: u32,
 }
 
 
@@ -16,21 +16,21 @@ impl FileLayer {
         FileLayer { 
             file,
             block_size: page_size,
-            page_count
+            block_count: page_count
         }
     }
 
     pub fn get_page_count(&self) -> u32 {
-        self.page_count
+        self.block_count
     }
 
     pub fn append_new_page(&mut self, page: &mut Page, page_number: u32) -> () {
         use std::io::{Seek, SeekFrom, Write};
-        assert!(page_number == self.page_count, "page_number should match page_count");
+        assert!(page_number == self.block_count, "page_number should match page_count");
         let offset = page_number as u64 * self.block_size as u64;
         self.file.seek(SeekFrom::Start(offset)).expect("Failed to seek for append_new_page");
         self.file.write_all(&page.get_bytes_mut()).expect("Failed to write for append_new_page");
-        self.page_count = self.page_count + 1;
+        self.block_count = self.block_count + 1;
     }
 
 
@@ -58,12 +58,6 @@ impl FileLayer {
 
     pub fn sync_data(&mut self) {
         self.file.sync_data().expect("Failed to sync data")
-    }
-}
-
-impl Drop for FileLayer {
-    fn drop(&mut self) {
-        self.sync_all();
     }
 }
 

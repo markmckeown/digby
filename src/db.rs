@@ -44,7 +44,7 @@ impl Db {
 
         let file_layer: FileLayer = FileLayer::new(db_file, Db::PAGE_SIZE as usize);
         let block_layer: BlockLayer = BlockLayer::new(file_layer, Db::PAGE_SIZE as usize);
-        let page_cache: PageCache = PageCache::new(block_layer, Self::PAGE_SIZE);
+        let page_cache: PageCache = PageCache::new(block_layer);
 
         let mut db = Db {
             path: path.to_string(),
@@ -82,7 +82,7 @@ impl Db {
     pub fn init_db_file(&mut self) -> std::io::Result<()> {
         // Get some free pages and make space in the file.
         // Will trigger a file sync.
-        let mut free_pages: Vec<u32> = self.page_cache.create_new_pages(10);
+        let mut free_pages: Vec<u32> = self.page_cache.generate_free_pages(10);
         assert!(free_pages.len() == 10);
         
         // Write the Global Tree Root Page.

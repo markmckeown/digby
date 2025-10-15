@@ -4,7 +4,6 @@ use crate::page::Page;
 
 pub struct PageCache {
     block_layer: BlockLayer,
-    page_size: u64,
 }
 
 // PageCache does not cache any pages - any gets are retrieved from
@@ -14,13 +13,13 @@ pub struct PageCache {
 // reference to a page, any client looking to make changes can get a 
 // copy of the page.
 impl PageCache {
-    pub fn new(block_layer: BlockLayer, page_size: u64) -> Self {
-        PageCache { block_layer, page_size }
+    pub fn new(block_layer: BlockLayer) -> Self {
+        PageCache { block_layer }
     }
 
 
-    pub fn create_new_pages(&mut self, no_new_pages: u32) -> Vec<u32> {
-        self.block_layer.create_new_pages(no_new_pages)
+    pub fn generate_free_pages(&mut self, no_new_pages: u32) -> Vec<u32> {
+        self.block_layer.generate_free_pages(no_new_pages)
     }
 
     // This returns a newly created page at the block layer. So each
@@ -29,7 +28,7 @@ impl PageCache {
     // immutable refernce to a page that is shared, and a version
     // that returns a copy of the page.
     pub fn get_page(&mut self, page_number: u32) -> Page {
-        self.block_layer.read_page(page_number, self.page_size)
+        self.block_layer.read_page(page_number)
     }
 
     pub fn put_page(&mut self, page: &mut Page) -> () {
@@ -65,12 +64,12 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, PAGE_SIZE as usize);
         let block_layer = BlockLayer::new(file_layer, PAGE_SIZE as usize);
-        let mut page_cache = PageCache::new(block_layer, PAGE_SIZE);
+        let mut page_cache = PageCache::new(block_layer);
         let page_number = 0;
 
         // Write a page to the cache
         let mut page = Page::new(PAGE_SIZE);
-        page_cache.create_new_pages(10);
+        page_cache.generate_free_pages(10);
         page.set_page_number(page_number);
         page.set_type(page::PageType::Free);
         page_cache.put_page(&mut page);
