@@ -51,7 +51,7 @@ pub trait PageTrait {
 pub struct Page {
     bytes: Vec<u8>,
     pub page_size: usize,
-    _block_size: usize,
+    pub block_size: usize,
 }
 
 impl PageTrait for Page {
@@ -90,7 +90,7 @@ impl Page {
     pub fn create_new(page_meta: &PageConfig) -> Self {
         Page {
             bytes: vec![0u8; page_meta.block_size],
-            _block_size: page_meta.block_size,
+            block_size: page_meta.block_size,
             page_size: page_meta.page_size,
         }
     }
@@ -98,7 +98,7 @@ impl Page {
     pub fn new(block_size: usize, page_size: usize) -> Self {
         Page {
             bytes: vec![0u8; block_size as usize],
-            _block_size: block_size,
+            block_size: block_size,
             page_size: page_size,
         }
     }
@@ -106,7 +106,7 @@ impl Page {
     pub fn from_bytes(bytes: Vec<u8>, block_size: usize, page_size: usize) -> Self {
         Page {
             bytes,
-            _block_size: block_size,
+            block_size: block_size,
             page_size: page_size,
         }
     }
