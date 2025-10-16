@@ -5,7 +5,7 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
 
-// | Checksum(u32) | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | Data(4084 bytes)
+// | Page No (u32) | Version (u64) | Type(u8) | Reserved(3 bytes) | Data |
 // | Magic Number(u32) | DbVersionMajor (u16) | DbVersionMinor (u16) |
 pub struct DbRootPage {
     page: Page
@@ -77,37 +77,37 @@ impl DbRootPage {
 
     pub fn get_magic_number(&mut self) -> u32 {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(20);
+        cursor.set_position(16);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
 
     pub fn set_magic_number(&mut self) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(20);
+        cursor.set_position(16);
         cursor.write_u32::<LittleEndian>(Self::MAGIC_NUMBER).expect("Failed to write magic number");
     }
 
     pub fn get_db_major_version(&mut self) -> u16 {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(24);
+        cursor.set_position(20);
         cursor.read_u16::<LittleEndian>().unwrap()
     }
 
     pub fn set_db_major_version(&mut self) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(24);
+        cursor.set_position(20);
         cursor.write_u16::<LittleEndian>(Self::VERSION_MAJOR).expect("Failed to write major version number");
     }
 
     pub fn get_db_minor_version(&mut self) -> u16 {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(26);
+        cursor.set_position(22);
         cursor.read_u16::<LittleEndian>().unwrap()
     }
 
     pub fn set_db_minor_version(&mut self) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(26);
+        cursor.set_position(22);
         cursor.write_u16::<LittleEndian>(Self::VERSION_MINOR).expect("Failed to write minor version number");
     }
 }   

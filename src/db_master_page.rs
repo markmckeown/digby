@@ -5,7 +5,7 @@ use crate::page::PageTrait;
 use std::io::Cursor;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-// | Checksum(u32) | Page No (u32) | VersionHolder (8 bytes) | Pad (4 bytes) | 
+// | Page No (u32) | VersionHolder (8 bytes) | Pad (4 bytes) | 
 // Allow for more TableDirPages in Future
 // | GlobalTreeRootPage (u32) | TableDirPage(u32) | Pad (4 bytes) | Pad (4 bytes) | Pad (4 bytes) | FreePageDir (u32) |
 // Could have more FreePageDir in future.
@@ -56,14 +56,14 @@ impl DbMasterPage {
 
     pub fn from_page(page: Page) -> Self {
         if page.get_type() != PageType::DbMaster {
-            panic!("Invalid page type for HeadPage");
+            panic!("Invalid page type for DbMasterPage");
         }
 
         let head_page = DbMasterPage { page };
         head_page
     }
 
-    const GLOBAL_TREE_OFFSET: u64 = 20;
+    const GLOBAL_TREE_OFFSET: u64 = 16;
     pub fn get_global_tree_root_page_no(&self) -> u32 {
         self.get_u32_at_offset(DbMasterPage::GLOBAL_TREE_OFFSET)
     }
@@ -72,7 +72,7 @@ impl DbMasterPage {
         self.set_u32_at_offset(DbMasterPage::GLOBAL_TREE_OFFSET, page_no);
     }
 
-    const FREE_PAGE_DIR_OFFSET: u64 = 36;
+    const FREE_PAGE_DIR_OFFSET: u64 = 32;
     pub fn get_free_page_dir_page_no(&self) -> u32 {
         self.get_u32_at_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET)
     }
@@ -81,7 +81,7 @@ impl DbMasterPage {
         self.set_u32_at_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET, page_no);
     }
 
-    const TABLE_DIR_PAGE: u64 = 24;
+    const TABLE_DIR_PAGE: u64 = 20;
     pub fn get_table_dir_page_no(&self) -> u32 {
         self.get_u32_at_offset(DbMasterPage::TABLE_DIR_PAGE)
     }

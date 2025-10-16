@@ -11,7 +11,7 @@ pub struct XxHashSanity {
 
 impl XxHashSanity {
     pub fn set_checksum(page: &mut Page) {
-        let checksum = xxh32(&page.get_page_bytes()[4..], 0);
+        let checksum = xxh32(&page.get_page_bytes()[0..], 0);
         let offset = page.block_size as u64 - 4;
         let mut cursor = Cursor::new(page.get_block_bytes_mut());
         cursor.set_position(offset);
@@ -19,7 +19,7 @@ impl XxHashSanity {
     }   
 
     pub fn verify_checksum(page: &mut Page) -> () {
-        let calculated_checksum = xxh32(&page.get_page_bytes()[4..], 0);
+        let calculated_checksum = xxh32(&page.get_page_bytes()[0..], 0);
         let offset = page.block_size as u64 - 4;
         let mut cursor = std::io::Cursor::new(page.get_block_bytes());
         cursor.set_position(offset);

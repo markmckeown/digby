@@ -8,8 +8,8 @@ use std::collections::VecDeque;
 
 
 
-// Header 24 bytes.
-// | Checksum(u32)   | Page No (u32) | VersionHolder (8 bytes)  | Entries (u16) | FreeSpace (u16) | 
+// Header 20 bytes.
+// | Page No (u32) | VersionHolder (8 bytes)  | Entries (u16) | FreeSpace (u16) | 
 // | LeftLeafPage (u32) |
 //
 // | TreeDirEntry | TreeDirEntry ...|
@@ -46,7 +46,7 @@ impl PageTrait for TreeDirPage {
 }
 
 impl TreeDirPage {
-    const HEADER_SIZE: u16 =  24;
+    const HEADER_SIZE: u16 =  20;
     pub fn create_new(page_config: &PageConfig, page_number: u32, version: u64) -> Self {
         TreeDirPage::new(page_config.block_size, page_config.page_size, page_number, version)
     }
@@ -77,38 +77,38 @@ impl TreeDirPage {
     }
 
     pub fn get_page_to_left(&self) -> u32 {
-        let index = 20;
+        let index = 16;
         let slice = &self.page.get_page_bytes()[index..index + 4];
         let array: [u8; 4] = slice.try_into().unwrap();
         u32::from_le_bytes(array)
     }
 
     pub fn set_page_to_left(&mut self, page_no: u32) -> () {
-        let index = 20;
+        let index = 16;
         self.page.get_page_bytes_mut()[index..index+4].copy_from_slice(&page_no.to_le_bytes());
     }
 
  pub fn get_entries(&self) -> u16 {
-        let index = 16;
+        let index = 12;
         let slice = &self.page.get_page_bytes()[index..index + 2];
         let array: [u8; 2] = slice.try_into().unwrap();
         u16::from_le_bytes(array)
     }
 
     pub fn set_entries(&mut self, entries: u16) -> () {
-        let index = 16;
+        let index = 12;
         self.page.get_page_bytes_mut()[index..index+2].copy_from_slice(&entries.to_le_bytes());
     }
 
     pub fn get_free_space(&self) -> u16 {
-        let index = 18;
+        let index = 14;
         let slice = &self.page.get_page_bytes()[index..index + 2];
         let array: [u8; 2] = slice.try_into().unwrap();
         u16::from_le_bytes(array)
     }
 
     pub fn set_free_space(&mut self, entries: u16) -> () {
-        let index = 18;
+        let index = 14;
         self.page.get_page_bytes_mut()[index..index+2].copy_from_slice(&entries.to_le_bytes());
     }
 

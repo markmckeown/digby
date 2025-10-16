@@ -7,8 +7,8 @@ use crate::tuple::TupleTrait;
 
 // TreeLeafPage structure
 //
-// Header is 20 bytes:
-// | Checksum(u32) | Page No (u32) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) | 
+// Header is 16 bytes:
+// | Page No (u32) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) | 
 //
 // TreeLeafPage body is of the format:
 //
@@ -79,25 +79,25 @@ impl TreeLeafPage {
 
     fn get_entries(&self) -> u16 {
         let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
-        cursor.set_position(16);
+        cursor.set_position(12);
         cursor.read_u16::<byteorder::LittleEndian>().unwrap()
     }
 
     fn set_entries(&mut self, entries: u16) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(16);
+        cursor.set_position(12);
         cursor.write_u16::<byteorder::LittleEndian>(entries).expect("Failed to write entries");
     }
 
     fn get_free_space(&self) -> u16 {
         let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
-        cursor.set_position(18);
+        cursor.set_position(14);
         cursor.read_u16::<byteorder::LittleEndian>().unwrap()
     }
 
     fn set_free_space(&mut self, free_space: u16) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(18);
+        cursor.set_position(14);
         cursor.write_u16::<byteorder::LittleEndian>(free_space).expect("Failed to write free space");
     }
 

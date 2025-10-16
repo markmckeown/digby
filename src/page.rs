@@ -47,7 +47,7 @@ pub trait PageTrait {
 }
 
 
-// | Checksum(u32) | Page No (u32) | VersionHolder (8 bytes) | Data(4084 bytes)
+// | Page No (u32) | VersionHolder (8 bytes) | Body | )
 pub struct Page {
     bytes: Vec<u8>,
     pub page_size: usize,
@@ -61,12 +61,12 @@ impl PageTrait for Page {
 
     fn get_page_number(&self) -> u32 {
         let mut cursor = Cursor::new(&self.bytes[..]);
-        cursor.set_position(4);
+        cursor.set_position(0);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
 
     fn set_page_number(&mut self, page_no: u32) -> () {
-        self.bytes[4..4+4].copy_from_slice(&page_no.to_le_bytes());
+        self.bytes[0..0+4].copy_from_slice(&page_no.to_le_bytes());
     }
 
 
@@ -75,13 +75,13 @@ impl PageTrait for Page {
     }
 
     fn get_version(& self) -> u64 {
-        VersionHolder::from_bytes(self.bytes[8..8+8].to_vec()).get_version()
+        VersionHolder::from_bytes(self.bytes[4..4+8].to_vec()).get_version()
     }
 
     fn set_version(&mut self, version: u64) -> () {
-        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8+8].to_vec());
+        let mut version_holder = VersionHolder::from_bytes(self.bytes[4..4+8].to_vec());
         version_holder.set_version(version);
-        self.bytes[8..8+8].copy_from_slice(&version_holder.get_bytes());
+        self.bytes[4..4+8].copy_from_slice(&version_holder.get_bytes());
     }
 }
 
@@ -126,18 +126,18 @@ impl Page {
     
     pub fn set_page_number(&mut self, page_number: u32) {
         let mut cursor = Cursor::new(&mut self.bytes[..]);
-        cursor.set_position(4);
+        cursor.set_position(0);
         cursor.write_u32::<LittleEndian>(page_number as u32).expect("Failed to write page number");
     }
 
     pub fn get_type(&self) -> PageType {
-        PageType::try_from(VersionHolder::from_bytes(self.bytes[8..8+8].to_vec()).get_flags()).unwrap()
+        PageType::try_from(VersionHolder::from_bytes(self.bytes[4..4+8].to_vec()).get_flags()).unwrap()
      }
 
     pub fn set_type(&mut self, page_type: PageType) {
-        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8+8].to_vec());
+        let mut version_holder = VersionHolder::from_bytes(self.bytes[4..4+8].to_vec());
         version_holder.set_flags(page_type as u8);
-        self.bytes[8..8+8].copy_from_slice(&version_holder.get_bytes());
+        self.bytes[4..4+8].copy_from_slice(&version_holder.get_bytes());
     }
 }
 
