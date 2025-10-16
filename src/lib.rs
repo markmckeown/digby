@@ -46,3 +46,5 @@ pub mod overflow_page_handler;
 pub use overflow_page_handler::OverflowPageHandler;
 pub mod tuple_processor;
 pub use tuple_processor::TupleProcessor;
+pub mod xxhash_sanity;
+pub use xxhash_sanity::XxHashSanity;

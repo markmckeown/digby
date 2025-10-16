@@ -1,10 +1,8 @@
 use crate::file_layer::FileLayer;
 use crate::page::Page; 
 use crate::page::PageTrait;
-use xxhash_rust::xxh32::xxh32;
-use byteorder::LittleEndian;
-use std::io::Cursor;
-use byteorder::{ReadBytesExt, WriteBytesExt};
+use crate::XxHashSanity;
+
 
 
 #[derive(PartialEq, Eq)]
@@ -32,13 +30,11 @@ impl BlockSanity {
 }
 
 
-
-
 pub struct BlockLayer {
     file_layer: FileLayer,
     block_size: usize,
     _page_size: usize,
-    _block_sanity: BlockSanity,
+    block_sanity: BlockSanity,
 }
 
 impl BlockLayer {
@@ -46,7 +42,7 @@ impl BlockLayer {
         BlockLayer { 
             file_layer, 
             block_size: block_size,
-            _block_sanity: BlockSanity::XxH32Checksum,
+            block_sanity: BlockSanity::XxH32Checksum,
             _page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
         }
     }
@@ -54,7 +50,7 @@ impl BlockLayer {
     pub fn read_page(&mut self, page_number: u32) -> Page {
         let mut page = Page::new(self.block_size as u64);
         self.file_layer.read_page_from_disk(&mut page, page_number).expect("Failed to read page");
-        self.verify_checksum(&mut page);
+        self.check_sanity(&mut page);
         page
     }
 
@@ -66,7 +62,7 @@ impl BlockLayer {
         let page_number = page.get_page_number();
         assert!(page_number < self.file_layer.get_page_count(), "Writing page outside the file.");
 
-        self.set_checksum(page);
+        self.set_sanity(page);
         self.file_layer.write_page_to_disk(page, page_number).expect("Failed to write page");
     }
 
@@ -77,7 +73,7 @@ impl BlockLayer {
             let mut page = Page::new(self.block_size as u64);
             page.set_page_number(new_page_no);
             page.set_type(crate::page::PageType::Free);
-            self.set_checksum(&mut page);
+            self.set_sanity(&mut page);
             created_page_nos.push(new_page_no);
             self.file_layer.append_new_page(&mut page, new_page_no);
         }
@@ -86,31 +82,19 @@ impl BlockLayer {
         created_page_nos
     }
 
+    fn set_sanity(&mut self, page: &mut Page) -> () {
+        match self.block_sanity {
+            BlockSanity::XxH32Checksum => XxHashSanity::set_checksum(page)
+        }
 
-    fn set_checksum(&mut self, page: &mut Page) {
-        let checksum = self.generate_checksum(page);
-        let mut cursor = Cursor::new(page.get_bytes_mut());
-        cursor.set_position(0);
-        cursor.write_u32::<LittleEndian>(checksum as u32).expect("Failed to write checksum");
-    }   
-
-    fn generate_checksum(&self, page: &Page) -> u32 {
-        xxh32(&page.get_bytes()[4..], 0)
     }
 
-
-    fn get_checksum(&self, page: &Page) -> u32 {
-        let mut cursor = std::io::Cursor::new(page.get_bytes());
-        cursor.set_position(0);
-        cursor.read_u32::<LittleEndian>().unwrap()
+    fn check_sanity(&self, page: &mut Page) -> () {
+        match self.block_sanity {
+            BlockSanity::XxH32Checksum => XxHashSanity::verify_checksum(page)
+        }
     }
 
-    fn verify_checksum(&self, page: &mut Page) -> () {
-        let stored_checksum = self.get_checksum(page);
-        let calculated_checksum = self.generate_checksum(page);
-        assert!(stored_checksum == calculated_checksum, 
-            "CalcultedChecksum does not match stored checksum for page {}", page.get_page_number());
-    }
 
     pub fn sync_data(&mut self) -> () {
         self.file_layer.sync_data();
