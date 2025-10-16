@@ -13,8 +13,7 @@ impl TupleProcessor {
         value: &Vec<u8>, 
         page_cache: &mut PageCache, 
         free_page_tracker: &mut FreePageTracker,
-        version: u64,
-        page_size: usize) -> Tuple {
+        version: u64) -> Tuple {
         if key.len() <= (u8::MAX as usize - 32) && value.len() < 2048 {
             return Tuple::new(key, value, version);
         }    
@@ -32,7 +31,7 @@ impl TupleProcessor {
 
         let overflow_tuple = OverflowTuple::new(key, value, version, overflow_type);
         let overflow_page_no = OverflowPageHandler::store_overflow_tuple(overflow_tuple, page_cache, 
-            free_page_tracker, version, page_size);
+            free_page_tracker, version);
 
         if key.len() > u8::MAX as usize - 32 {
             // Generate a short key - first (256 - 32) bytes plus the SHA256 of the key.

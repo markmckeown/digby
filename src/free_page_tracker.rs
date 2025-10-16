@@ -1,3 +1,4 @@
+use crate::block_layer::PageConfig;
 use crate::free_dir_page::FreeDirPage;
 use crate::page::Page; 
 use crate::page::PageTrait;
@@ -21,7 +22,7 @@ pub struct FreePageTracker {
     free_dir_page_list: Vec<FreeDirPage>,
     returned_pages: Vec<u32>,
     new_version: u64,
-    page_size: usize,
+    page_config: PageConfig,
 }
 
 impl FreePageTracker {
@@ -33,7 +34,7 @@ impl FreePageTracker {
     // After we provide the free_dir_pages the list is empty - this object
     // has completed its role and should not be used again. We test this
     // in methods by asserting the list is not empty.
-    pub fn new(page: Page, new_version: u64, page_size: usize) -> Self {
+    pub fn new(page: Page, new_version: u64, page_config: PageConfig) -> Self {
         let free_dir_page = FreeDirPage::from_page(page);
         assert!(free_dir_page.get_version() < new_version);
         let mut list = Vec::new();
@@ -42,7 +43,7 @@ impl FreePageTracker {
             free_dir_page_list: list,
             returned_pages:  Vec::new(),
             new_version: new_version,
-            page_size: page_size,
+            page_config: page_config,
         }
     }
 
@@ -129,7 +130,7 @@ impl FreePageTracker {
             // We create a new free page for the new free_page_dir page we need - we do not want to use a returned page no
             // as that could cause corruption. Returned pages are still in use until the commit is complete.
             let next_free_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
-            let mut next_free_dir_page = FreeDirPage::new(self.page_size as u64, next_free_page_no, self.new_version);
+            let mut next_free_dir_page = FreeDirPage::create_new(&self.page_config, next_free_page_no, self.new_version);
             next_free_dir_page.set_next(last.get_page_number());
             last.set_previous(next_free_dir_page.get_page_number());
             while let Some(page_no) = self.returned_pages.pop()  {
@@ -165,16 +166,20 @@ mod tests {
             .open(&temp_file).expect("Failed to open or create DB file");
 
         let version = 0;
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE as usize);
-        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE as usize);
+        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE as usize);
         let mut page_cache: PageCache = PageCache::new(block_layer);
 
         let free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
-        let mut free_dir_page = FreeDirPage::new(crate::Db::PAGE_SIZE, free_dir_page_no, version);
+        let mut free_dir_page = FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
         let mut free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_dir_page_no), version + 1, crate::Db::PAGE_SIZE as usize);
+            page_cache.get_page(free_dir_page_no), version + 1, 
+            PageConfig{
+                block_size: page_cache.get_page_config().block_size,
+                page_size: page_cache.get_page_config().page_size
+            });
 
         let new_free_page = free_page_tracker.get_free_page(&mut page_cache);
         assert!(new_free_page == 1);
@@ -194,7 +199,11 @@ mod tests {
         }
 
         free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_page_dir_no), version + 2, crate::Db::PAGE_SIZE as usize);
+            page_cache.get_page(free_page_dir_no), version + 2, 
+            PageConfig{
+                block_size: page_cache.get_page_config().block_size,
+                page_size: page_cache.get_page_config().page_size
+            });
 
         // Thre are five pages of free page numbers - going to use 2100 of them
         for _number in 1u32..=2100 {

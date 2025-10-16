@@ -1,6 +1,7 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::{Cursor};
 use std::convert::TryFrom;
+use crate::block_layer::PageConfig;
 use crate::version_holder::VersionHolder;
 
 
@@ -37,7 +38,7 @@ impl TryFrom<u8> for PageType {
 }
 
 pub trait PageTrait {
-    fn get_bytes(&self) -> &[u8];
+    fn get_page_bytes(&self) -> &[u8];
     fn get_page_number(& self) -> u32;
     fn set_page_number(&mut self, page_no: u32) -> (); 
     fn get_page(&mut self) -> &mut Page;
@@ -48,12 +49,14 @@ pub trait PageTrait {
 
 // | Checksum(u32) | Page No (u32) | VersionHolder (8 bytes) | Data(4084 bytes)
 pub struct Page {
-    bytes: Vec<u8>
+    bytes: Vec<u8>,
+    pub page_size: usize,
+    _block_size: usize,
 }
 
 impl PageTrait for Page {
-    fn get_bytes(&self) -> &[u8] {
-        &self.bytes
+    fn get_page_bytes(&self) -> &[u8] {
+        &self.bytes[0..self.page_size]
     }
 
     fn get_page_number(&self) -> u32 {
@@ -84,26 +87,42 @@ impl PageTrait for Page {
 
 
 impl Page {
-    pub fn new(page_size: u64) -> Self {
+    pub fn create_new(page_meta: &PageConfig) -> Self {
         Page {
-            bytes: vec![0u8; page_size as usize],
+            bytes: vec![0u8; page_meta.block_size],
+            _block_size: page_meta.block_size,
+            page_size: page_meta.page_size,
         }
     }
 
-    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+    pub fn new(block_size: usize, page_size: usize) -> Self {
+        Page {
+            bytes: vec![0u8; block_size as usize],
+            _block_size: block_size,
+            page_size: page_size,
+        }
+    }
+
+    pub fn from_bytes(bytes: Vec<u8>, block_size: usize, page_size: usize) -> Self {
         Page {
             bytes,
+            _block_size: block_size,
+            page_size: page_size,
         }
     }
 
-
-    pub fn copy_page_body(&mut self, from: impl PageTrait, page_size: u64) -> () {
-        self.bytes[8..page_size as usize].copy_from_slice(&from.get_bytes()[8..4096]);
+    pub fn get_page_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.bytes[0 .. self.page_size]
     }
 
-    pub fn get_bytes_mut(&mut self) -> &mut [u8] {
+    pub fn get_block_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub fn get_block_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes
     }
+
     
     pub fn set_page_number(&mut self, page_number: u32) {
         let mut cursor = Cursor::new(&mut self.bytes[..]);
@@ -129,8 +148,8 @@ mod tests {
 
     #[test]
     fn test_page_creation() {
-        let mut page = Page::new(4096);
-        assert_eq!(page.get_bytes().len(), 4096);
+        let mut page = Page::new(4096, 4092);
+        assert_eq!(page.get_page_bytes().len(), 4092);
         assert_eq!(page.get_page_number(), 0);
         page.set_page_number(42);
         page.set_type(PageType::TreeLeaf);

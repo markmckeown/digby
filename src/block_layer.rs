@@ -30,10 +30,14 @@ impl BlockSanity {
 }
 
 
+pub struct PageConfig {
+    pub block_size: usize,
+    pub page_size: usize,
+}
+
 pub struct BlockLayer {
     file_layer: FileLayer,
-    block_size: usize,
-    _page_size: usize,
+    page_config: PageConfig,
     block_sanity: BlockSanity,
 }
 
@@ -41,14 +45,20 @@ impl BlockLayer {
     pub fn new(file_layer: FileLayer, block_size: usize) -> Self {
         BlockLayer { 
             file_layer, 
-            block_size: block_size,
             block_sanity: BlockSanity::XxH32Checksum,
-            _page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
+            page_config: PageConfig { 
+                block_size: block_size, 
+                page_size:  block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum)
+            }
         }
     }
 
+    pub fn get_page_config(&self) -> &PageConfig {
+        return &self.page_config
+    }
+
     pub fn read_page(&mut self, page_number: u32) -> Page {
-        let mut page = Page::new(self.block_size as u64);
+        let mut page = Page::create_new(&self.page_config);
         self.file_layer.read_page_from_disk(&mut page, page_number).expect("Failed to read page");
         self.check_sanity(&mut page);
         page
@@ -70,7 +80,7 @@ impl BlockLayer {
         let existing_page_count = self.file_layer.get_page_count();
         let mut created_page_nos: Vec<u32> = Vec::new();
         for new_page_no in existing_page_count..existing_page_count + no_new_pages {
-            let mut page = Page::new(self.block_size as u64);
+            let mut page = Page::create_new(&self.page_config);
             page.set_page_number(new_page_no);
             page.set_type(crate::page::PageType::Free);
             self.set_sanity(&mut page);
@@ -123,13 +133,13 @@ mod tests {
         let mut block_layer = BlockLayer::new(file_layer, block_size);
         let page_number = 0;
         block_layer.generate_free_pages(10);
-        let mut page = Page::new(block_size as u64);
+        let mut page = Page::create_new(block_layer.get_page_config());
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
-        page.get_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
+        page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
         block_layer.write_page(&mut page);
         let retrieved_page = block_layer.read_page(page_number);
-        assert_eq!(&retrieved_page.get_bytes()[40..44], &[1, 2, 3, 4]);
+        assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
 
 
@@ -153,7 +163,7 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, block_size);
         let mut block_layer = BlockLayer::new(file_layer, block_size);
-        let mut page = DbMasterPage::new(block_size as u64, 0, 0);
+        let mut page = DbMasterPage::create_new(block_layer.get_page_config(), 0, 0);
         block_layer.generate_free_pages(1);
         block_layer.write_page(page.get_page());
     }

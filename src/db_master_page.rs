@@ -1,3 +1,4 @@
+use crate::block_layer::PageConfig;
 use crate::page::PageType;
 use crate::page::Page;
 use crate::page::PageTrait;
@@ -13,8 +14,8 @@ pub struct DbMasterPage {
 }
 
 impl PageTrait for DbMasterPage {
-    fn get_bytes(&self) -> &[u8] {
-        self.page.get_bytes()
+    fn get_page_bytes(&self) -> &[u8] {
+        self.page.get_page_bytes()
     }
 
     fn get_page_number(&self) -> u32 {
@@ -39,19 +40,18 @@ impl PageTrait for DbMasterPage {
 }
 
 impl DbMasterPage {
-    pub fn new(page_size: u64, page_number: u32, version: u64) -> Self {
+    pub fn create_new(page_config: &PageConfig, page_number: u32, version: u64) -> Self {
+        DbMasterPage::new(page_config.block_size, page_config.page_size, page_number, version)
+    }
+
+    fn new(block_size: usize, page_size: usize, page_number: u32, version: u64) -> Self {
         let mut head_page = DbMasterPage {
-            page: Page::new(page_size),
+            page: Page::new(block_size, page_size),
         };
         head_page.page.set_type(PageType::DbMaster);
         head_page.page.set_page_number(page_number);
         head_page.set_version(version);
         head_page
-    }
-
-    pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        let page = Page::from_bytes(bytes);
-        return Self::from_page(page);
     }
 
     pub fn from_page(page: Page) -> Self {
@@ -92,13 +92,13 @@ impl DbMasterPage {
 
 
     fn set_u32_at_offset(&mut self, offset: u64, value: u32) {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(offset);
         cursor.write_u32::<LittleEndian>(value).expect("Failed to write table dir page number");
     }
 
     fn get_u32_at_offset(&self, offset: u64) -> u32 {
-        let mut cursor = Cursor::new(&self.page.get_bytes()[..]);
+        let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
         cursor.set_position(offset);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn test_head_page() {
-        let mut master_page = DbMasterPage::new(4096, 0, 1);
+        let mut master_page = DbMasterPage::new(4096, 4092, 0, 1);
         assert_eq!(master_page.get_version(), 1);
         master_page.set_version(2);
         assert_eq!(master_page.get_version(), 2);

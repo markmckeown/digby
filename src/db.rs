@@ -3,7 +3,7 @@ use crate::{FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TableDirPage,
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
-use crate::block_layer::BlockLayer;
+use crate::block_layer::{BlockLayer, PageConfig};
 use crate::db_root_page::DbRootPage;
 use crate::page::PageTrait;
 use crate::overflow_tuple::OverflowTuple;
@@ -16,7 +16,7 @@ pub struct Db {
 
 
 impl Db {
-    pub const PAGE_SIZE: u64 = 4096;
+    pub const BLOCK_SIZE: usize = 4096;
 
     pub fn new(path: &str) -> Self {        
         use std::fs::OpenOptions;
@@ -42,8 +42,8 @@ impl Db {
             is_new = true;
         }
 
-        let file_layer: FileLayer = FileLayer::new(db_file, Db::PAGE_SIZE as usize);
-        let block_layer: BlockLayer = BlockLayer::new(file_layer, Db::PAGE_SIZE as usize);
+        let file_layer: FileLayer = FileLayer::new(db_file, Db::BLOCK_SIZE);
+        let block_layer: BlockLayer = BlockLayer::new(file_layer, Db::BLOCK_SIZE);
         let page_cache: PageCache = PageCache::new(block_layer);
 
         let mut db = Db {
@@ -86,19 +86,19 @@ impl Db {
         assert!(free_pages.len() == 10);
         
         // Write the Global Tree Root Page.
-        let mut global_tree_root_page = TreeLeafPage::new(Db::PAGE_SIZE, 5);
+        let mut global_tree_root_page = TreeLeafPage::create_new(self.page_cache.get_page_config(), 5);
         // remove it from the free list
         free_pages.retain(|&x| x != 5);
         self.page_cache.put_page(&mut global_tree_root_page.get_page());
 
         // Write the table directoru page.
-        let mut table_dir_page = TableDirPage::new(Db::PAGE_SIZE, 4, 0);
+        let mut table_dir_page = TableDirPage::create_new(self.page_cache.get_page_config(), 4, 0);
         // remove from the free page list
         free_pages.retain(|&x| x != 4);
         self.page_cache.put_page(&mut table_dir_page.get_page());
 
         // Write first master page
-        let mut master_page1: DbMasterPage = DbMasterPage::new(Db::PAGE_SIZE, 1, 0);
+        let mut master_page1: DbMasterPage = DbMasterPage::create_new(self.page_cache.get_page_config(), 1, 0);
         // remove from free page list
         free_pages.retain(|&x| x != 1);
         master_page1.set_free_page_dir_page_no(3);
@@ -107,7 +107,7 @@ impl Db {
         self.page_cache.put_page(&mut master_page1.get_page());
 
         // Write second master page.
-        let mut master_page2: DbMasterPage = DbMasterPage::new(Db::PAGE_SIZE, 2, 1);
+        let mut master_page2: DbMasterPage = DbMasterPage::create_new(self.page_cache.get_page_config(), 2, 1);
         // remove from free page list
         free_pages.retain(|&x| x != 2);
         master_page2.set_free_page_dir_page_no(3);
@@ -116,7 +116,7 @@ impl Db {
         self.page_cache.put_page(&mut master_page2.get_page());
         
         // Now write the free page directory
-        let mut free_dir_page = FreeDirPage::new(Db::PAGE_SIZE, 3, 0);
+        let mut free_dir_page = FreeDirPage::create_new(self.page_cache.get_page_config(), 3, 0);
         // The free_dir_page is no longer free, and also the root db page won't be free.
         free_pages.retain(|&x| x != 0);
         free_pages.retain(|&x| x != 3);
@@ -127,7 +127,7 @@ impl Db {
         self.page_cache.sync_data();
 
         // Write the root page as last step to make the DB sane.
-        let mut db_root_page: DbRootPage = DbRootPage::new(Db::PAGE_SIZE);
+        let mut db_root_page: DbRootPage = DbRootPage::create_new(self.page_cache.get_page_config());
         self.page_cache.put_page(&mut db_root_page.get_page());
 
         assert!(free_pages.len() == 4, "There should be 4 free pages");
@@ -160,7 +160,7 @@ impl Db {
         let page = self.page_cache.get_page(tree_page_no);
         // If not an oversized key...
         if !TupleProcessor::is_oversized_key(key) {
-            if let Some(tuple) = StoreTupleProcessor::get_tuple(key, page, &mut self.page_cache, Db::PAGE_SIZE as usize) {
+            if let Some(tuple) = StoreTupleProcessor::get_tuple(key, page, &mut self.page_cache) {
                 return Some(tuple.get_value().to_vec());
             } else {
                 return None;
@@ -176,7 +176,7 @@ impl Db {
         // This tuple will have a page number as the value, the page will be an overflow page
         // that forms a linked list of pages that will hold the tuple.
         let tuple =  StoreTupleProcessor::get_tuple(&short_key, page, 
-            &mut self.page_cache, Db::PAGE_SIZE as usize);
+            &mut self.page_cache);
         // Do not have this key.
         if tuple.is_none() {
             return None;
@@ -207,11 +207,14 @@ impl Db {
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
         let mut free_page_tracker = FreePageTracker::new(
             self.page_cache.get_page(free_page_dir_page_no), 
-            new_version, Db::PAGE_SIZE as usize);
+            new_version, PageConfig {
+                block_size: self.page_cache.get_page_config().block_size,
+                page_size: self.page_cache.get_page_config().page_size
+            });
 
         // Create the tuple we want to add. 
         let tuple = TupleProcessor::generate_tuple(&key, &value, &mut self.page_cache, &mut free_page_tracker, 
-            new_version, Db::PAGE_SIZE as usize);  
+            new_version);  
         
         // Now get the page number of the root of the global tree. Then get the page,
         // this is a copy of the page. Only handle the case when the root is also 
@@ -219,7 +222,7 @@ impl Db {
         let tree_root_page_no = master_page.get_global_tree_root_page_no();
         let page =  self.page_cache.get_page(tree_root_page_no);   
         let new_tree_free_page_no = StoreTupleProcessor::store_tuple(tuple, page, &mut free_page_tracker, 
-            &mut self.page_cache, new_version, Db::PAGE_SIZE as usize);
+            &mut self.page_cache, new_version);
        
         // Write out the free pages.
         free_page_tracker.return_free_page_no(tree_root_page_no);

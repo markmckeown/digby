@@ -1,4 +1,4 @@
-use crate::block_layer::BlockLayer;
+use crate::block_layer::{BlockLayer, PageConfig};
 use crate::page::Page;
 
 
@@ -15,6 +15,10 @@ pub struct PageCache {
 impl PageCache {
     pub fn new(block_layer: BlockLayer) -> Self {
         PageCache { block_layer }
+    }
+
+    pub fn get_page_config(&self) -> &PageConfig {
+        self.block_layer.get_page_config()
     }
 
     // Generate free pages on disk that can be written back to. Returns
@@ -56,7 +60,7 @@ mod tests {
     use super::*;
     use crate::{file_layer::FileLayer, page::{self, PageTrait}};
     use tempfile::tempfile;
-    const PAGE_SIZE: u64 = 4096;
+    const PAGE_SIZE: usize = 4096;
     
 
     #[test]
@@ -68,7 +72,7 @@ mod tests {
         let page_number = 0;
 
         // Write a page to the cache
-        let mut page = Page::new(PAGE_SIZE);
+        let mut page = Page::create_new(page_cache.get_page_config());
         page_cache.generate_free_pages(10);
         page.set_page_number(page_number);
         page.set_type(page::PageType::Free);
@@ -77,7 +81,7 @@ mod tests {
         // Read the page back from the cache
         let read_page = page_cache.get_page(page_number);
         assert_eq!(read_page.get_page_number(), page_number);
-        assert_eq!(read_page.get_bytes(), page.get_bytes());
+        assert_eq!(read_page.get_page_bytes(), page.get_page_bytes());
     }
     
 }

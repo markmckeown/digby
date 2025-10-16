@@ -1,5 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
+use crate::block_layer::PageConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
@@ -11,8 +12,8 @@ pub struct DbRootPage {
 }
 
 impl PageTrait for DbRootPage {
-    fn get_bytes(&self) -> &[u8] {
-        self.page.get_bytes()
+    fn get_page_bytes(&self) -> &[u8] {
+        self.page.get_page_bytes()
     }
 
     fn get_page_number(& self) -> u32 {
@@ -41,9 +42,13 @@ impl DbRootPage {
     const VERSION_MAJOR: u16 = 0;
     const VERSION_MINOR: u16 = 1;
 
-    pub fn new(page_size: u64) -> Self {
+    pub fn create_new(page_config: &PageConfig) -> Self {
+        DbRootPage::new(page_config.block_size, page_config.page_size)
+    }
+
+    fn new(block_size: usize, page_size: usize) -> Self {
         let mut db_root_page = DbRootPage {
-            page: Page::new(page_size),
+            page: Page::new(block_size, page_size),
         };
         db_root_page.page.set_type(PageType::DbRoot);
         db_root_page.page.set_page_number(0);
@@ -53,10 +58,7 @@ impl DbRootPage {
         db_root_page
     }
 
-    pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        let page = Page::from_bytes(bytes);
-        return Self::from_page(page);
-    }
+
 
     pub fn from_page(page: Page) -> Self {
         if page.get_type() != PageType::DbRoot {
@@ -74,37 +76,37 @@ impl DbRootPage {
     }
 
     pub fn get_magic_number(&mut self) -> u32 {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(20);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
 
     pub fn set_magic_number(&mut self) {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(20);
         cursor.write_u32::<LittleEndian>(Self::MAGIC_NUMBER).expect("Failed to write magic number");
     }
 
     pub fn get_db_major_version(&mut self) -> u16 {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(24);
         cursor.read_u16::<LittleEndian>().unwrap()
     }
 
     pub fn set_db_major_version(&mut self) {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(24);
         cursor.write_u16::<LittleEndian>(Self::VERSION_MAJOR).expect("Failed to write major version number");
     }
 
     pub fn get_db_minor_version(&mut self) -> u16 {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(26);
         cursor.read_u16::<LittleEndian>().unwrap()
     }
 
     pub fn set_db_minor_version(&mut self) {
-        let mut cursor = Cursor::new(&mut self.page.get_bytes_mut()[..]);
+        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(26);
         cursor.write_u16::<LittleEndian>(Self::VERSION_MINOR).expect("Failed to write minor version number");
     }

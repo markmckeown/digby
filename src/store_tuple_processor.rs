@@ -17,8 +17,7 @@ impl StoreTupleProcessor{
     pub fn get_tuple(
         key: &Vec<u8>,
         first: Page,
-        page_cache: &mut PageCache,
-        page_size: usize
+        page_cache: &mut PageCache
     ) -> Option<Tuple> {
         // Set the page to be the first page, the root page.
         let mut page = first;
@@ -27,12 +26,12 @@ impl StoreTupleProcessor{
             // then it will be in this leaf page.
             if page.get_type() == PageType::TreeLeaf {
                 let tree_leaf = TreeLeafPage::from_page(page);
-                return tree_leaf.get_tuple(key, page_size); 
+                return tree_leaf.get_tuple(key); 
             }
             // If its a tree dir page then descend to the next
             // level.
             let dir_page = TreeDirPage::from_page(page);
-            page = page_cache.get_page(dir_page.get_next_page(&key, page_size))
+            page = page_cache.get_page(dir_page.get_next_page(&key))
         }
     }
 
@@ -45,19 +44,18 @@ impl StoreTupleProcessor{
         first: Page,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
-        new_version: u64,
-     page_size: usize) -> u32 {
+        new_version: u64) -> u32 {
         
         if first.get_type() == PageType::TreeLeaf {
            // The root of the tree is actually a leaf page - requires special handling.
             let tree_root_single = TreeLeafPage::from_page(first);
             return StoreTupleProcessor::store_tuple_tree_root_single(tuple, tree_root_single, free_page_tracker, 
-                page_cache, new_version, page_size);
+                page_cache, new_version);
         }
 
         // The root page is a tree dir page.
         let root_dir_page = TreeDirPage::from_page(first);
-        return StoreTupleProcessor::store_tuple_tree(tuple, root_dir_page, free_page_tracker, page_cache, new_version, page_size);
+        return StoreTupleProcessor::store_tuple_tree(tuple, root_dir_page, free_page_tracker, page_cache, new_version);
     }
 
     // The root page of the tree is a tree dir then descend into the tree
@@ -69,9 +67,7 @@ impl StoreTupleProcessor{
         root_dir_page: TreeDirPage,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
-        new_version: u64,
-        page_size: usize) -> u32 {
-
+        new_version: u64) -> u32 {
         let mut dir_page = root_dir_page;
         // This is the stack for storing the tree dir as we descend into
         // the tree.  
@@ -82,7 +78,7 @@ impl StoreTupleProcessor{
         // loop down until we hit the leaf page keeping a track of the
         // the dir pages as we go.
         loop {
-            next_page = dir_page.get_next_page(&key, page_size);
+            next_page = dir_page.get_next_page(&key);
             dir_pages.push(dir_page);
             let page = page_cache.get_page(next_page);
             if page.get_type() == PageType::TreeLeaf {
@@ -95,27 +91,28 @@ impl StoreTupleProcessor{
         // Now have a leaf_page and a stack of dir pages.
         // Add to leaf page, remap leaf page or leaf pages if it split.
         // A leaf page can split into three depending on the size of tuples it holds.
-        let update_result = LeafPageHandler::add_tuple(leaf_page, tuple, page_size);
+        let update_result = LeafPageHandler::add_tuple(leaf_page, tuple, page_cache.get_page_config());
 
         // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
         OverflowPageHandler::delete_overflow_pages(update_result.deleted_tuple, page_cache, free_page_tracker);
 
         // Remap leaf page or pages if it split and write to disk - get a set of dir entries back for the leadf pages.
-        let leaf_dir_entries = StoreTupleProcessor::write_leaf_pages(update_result.tree_leaf_pages, free_page_tracker, page_cache, new_version, page_size);
+        let leaf_dir_entries = StoreTupleProcessor::write_leaf_pages(update_result.tree_leaf_pages, 
+            free_page_tracker, page_cache, new_version);
 
         // Add the leaf pages to the tree_dir_page on the top of the stack.
         dir_page = dir_pages.pop().unwrap();
         // Get a set of TreeDirEntryRefs back when updating the tree dir entry with the lead page details.
         // There could be more than one TreeDirEntryRef if the dir page had to split.
-        let mut dir_refs = TreeDirHandler::handle_tree_leaf_store(dir_page, leaf_dir_entries, page_size);
+        let mut dir_refs = TreeDirHandler::handle_tree_leaf_store(dir_page, leaf_dir_entries, page_cache.get_page_config());
         // Write the dir entries out to disk and get back a set of directory entries back. 
-        let mut dir_entries = StoreTupleProcessor::write_tree_dir_pages(dir_refs, free_page_tracker, page_cache, new_version, page_size);
+        let mut dir_entries = StoreTupleProcessor::write_tree_dir_pages(dir_refs, free_page_tracker, page_cache, new_version);
 
         // Need to walk back up the directory stack adding the pages.
         while !dir_pages.is_empty() {
             dir_page = dir_pages.pop().unwrap();
-            dir_refs = TreeDirHandler::handle_tree_dir_store(dir_page, dir_entries, new_version, page_size);
-            dir_entries = StoreTupleProcessor::write_tree_dir_pages(dir_refs, free_page_tracker, page_cache, new_version, page_size);
+            dir_refs = TreeDirHandler::handle_tree_dir_store(dir_page, dir_entries, new_version, page_cache.get_page_config());
+            dir_entries = StoreTupleProcessor::write_tree_dir_pages(dir_refs, free_page_tracker, page_cache, new_version);
         }
 
         // If after walking the stack there is only one dir_entry then the root has not split - we can just return its page number.
@@ -126,11 +123,11 @@ impl StoreTupleProcessor{
         // We have hit the top of the stack but have two dir entries, the root has split.
         // Need to create a new root, register the entries and return the reference to the root.
         // Need a new TreeDirPage.
-        let new_tree_dir_page = TreeDirPage::new(page_size as u64, 0, 0);
+        let new_tree_dir_page = TreeDirPage::create_new(page_cache.get_page_config(), 0, 0);
         // Add the entries to the new root page.
-        dir_refs = TreeDirHandler::handle_tree_dir_store(new_tree_dir_page, dir_entries, new_version, page_size);
+        dir_refs = TreeDirHandler::handle_tree_dir_store(new_tree_dir_page, dir_entries, new_version, page_cache.get_page_config());
         // The new root page cannot split - so there should only be one page in the dir_refs now.
-        dir_entries = StoreTupleProcessor::write_tree_dir_pages(dir_refs, free_page_tracker, page_cache, new_version, page_size);
+        dir_entries = StoreTupleProcessor::write_tree_dir_pages(dir_refs, free_page_tracker, page_cache, new_version);
         assert!(dir_entries.len() == 1);
         return dir_entries.get(0).unwrap().get_page_no();   
     }
@@ -142,8 +139,7 @@ impl StoreTupleProcessor{
     fn write_tree_dir_pages(mut dir_pages: Vec<TreeDirPageRef>,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
-        new_version: u64,
-        page_size: usize) -> Vec<TreeDirEntry> {
+        new_version: u64) -> Vec<TreeDirEntry> {
         // Change the page numbers to free pages and return the old page numbers to 
         // be recycled in future commits.
         TreeDirHandler::map_pages(&mut dir_pages, free_page_tracker, page_cache, new_version);
@@ -154,7 +150,7 @@ impl StoreTupleProcessor{
             if dir_page.left_key.is_none() {
                // If key is none then this was the old page that was split.
                tree_dir_entry = TreeDirEntry::new(
-                dir_page.page.get_dir_left_key(page_size).unwrap(), 
+                dir_page.page.get_dir_left_key().unwrap(), 
                 dir_page.page.get_page_number());
             } else {
                 // This is a new dir page that came from a split.
@@ -175,14 +171,13 @@ impl StoreTupleProcessor{
     fn write_leaf_pages(mut leaf_pages: Vec<TreeLeafPage>, 
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
-        new_version: u64,
-        page_size: usize) -> Vec<TreeDirEntry> {
+        new_version: u64) -> Vec<TreeDirEntry> {
         LeafPageHandler::map_pages(&mut leaf_pages, free_page_tracker, page_cache, new_version);
         // We return a set do dir entries for the next phase.
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut leaf_page in  leaf_pages {
             // Create a TreeDirEntry for the leaf page to add to the TreeDirPage
-            let tree_dir_entry = TreeDirEntry::new(leaf_page.get_left_key(page_size).unwrap(), leaf_page.get_page_number());
+            let tree_dir_entry = TreeDirEntry::new(leaf_page.get_left_key().unwrap(), leaf_page.get_page_number());
             entries.push(tree_dir_entry);
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
             page_cache.put_page(leaf_page.get_page());
@@ -199,11 +194,9 @@ impl StoreTupleProcessor{
         tree_root_single: TreeLeafPage,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
-        new_version: u64,
-        page_size: usize) -> u32 {
-
+        new_version: u64) -> u32 {
         // Add the tuple to the leaf page.
-        let mut update_result = LeafPageHandler::add_tuple(tree_root_single, tuple, page_size);
+        let mut update_result = LeafPageHandler::add_tuple(tree_root_single, tuple, page_cache.get_page_config());
 
         // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
         OverflowPageHandler::delete_overflow_pages(update_result.deleted_tuple, page_cache, free_page_tracker);
@@ -224,18 +217,18 @@ impl StoreTupleProcessor{
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut leaf_page in  update_result.tree_leaf_pages {
             // Create a TreeDirEntry for the leaf page to add to the TreeDirPage
-            let tree_dir_entry = TreeDirEntry::new(leaf_page.get_left_key(page_size).unwrap(), leaf_page.get_page_number());
+            let tree_dir_entry = TreeDirEntry::new(leaf_page.get_left_key().unwrap(), leaf_page.get_page_number());
             entries.push(tree_dir_entry);
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
             page_cache.put_page(leaf_page.get_page());
         }
         // Need a new TreeDirPage.
-        let new_tree_dir_page = TreeDirPage::new(page_size as u64, 0, 0);
+        let new_tree_dir_page = TreeDirPage::create_new(page_cache.get_page_config(), 0, 0);
         // Add the entries to the new root page.
-        let dir_refs = TreeDirHandler::handle_tree_leaf_store(new_tree_dir_page, entries, page_size);
+        let dir_refs = TreeDirHandler::handle_tree_leaf_store(new_tree_dir_page, entries, page_cache.get_page_config());
         // The new root page cannot split - there can be a most three entries added to it.
         assert!(dir_refs.len() == 1);
-        let dir_entries = StoreTupleProcessor::write_tree_dir_pages(dir_refs, free_page_tracker, page_cache, new_version, page_size);
+        let dir_entries = StoreTupleProcessor::write_tree_dir_pages(dir_refs, free_page_tracker, page_cache, new_version);
         assert!(dir_entries.len() == 1);
         return dir_entries.get(0).unwrap().get_page_no(); 
     }
@@ -244,6 +237,8 @@ impl StoreTupleProcessor{
 
 #[cfg(test)]
 mod tests {
+    use crate::block_layer::PageConfig;
+
     use super::*;
 
     #[test]
@@ -256,27 +251,31 @@ mod tests {
             .create(true)
             .open(&temp_file).expect("Failed to open or create DB file");
         
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE as usize);
-        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE as usize);
+        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE as usize);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
-        let mut free_dir_page = crate::FreeDirPage::new(crate::Db::PAGE_SIZE, free_dir_page_no, version);
+        let mut free_dir_page = crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
         
         let root_tree_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
-        let mut leaf_page = TreeLeafPage::new(crate::Db::PAGE_SIZE, root_tree_page_no);
+        let mut leaf_page = TreeLeafPage::create_new(page_cache.get_page_config(), root_tree_page_no);
         leaf_page.set_version(version);
         page_cache.put_page(leaf_page.get_page());
 
         let mut free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_dir_page_no), version + 1, crate::Db::PAGE_SIZE as usize);
+            page_cache.get_page(free_dir_page_no), version + 1, 
+            PageConfig{
+                block_size: page_cache.get_page_config().block_size,
+                page_size: page_cache.get_page_config().page_size
+            });
 
         let reloaded_page = page_cache.get_page(root_tree_page_no);
 
         let tuple = Tuple::new(b"key_1".to_vec().as_ref(), b"value_1".to_vec().as_ref(), version + 1);
         let new_root_tree_no = StoreTupleProcessor::store_tuple(tuple, reloaded_page, &mut free_page_tracker, 
-            &mut page_cache, version + 1, crate::Db::PAGE_SIZE as usize);
+            &mut page_cache, version + 1);
         assert_eq!(new_root_tree_no, 2);
 
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -293,16 +292,16 @@ mod tests {
             .create(true)
             .open(&temp_file).expect("Failed to open or create DB file");
         
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE as usize);
-        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE as usize);
+        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE as usize);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
-        let mut free_dir_page = crate::FreeDirPage::new(crate::Db::PAGE_SIZE, free_dir_page_no, version); 
-        page_cache.put_page(free_dir_page.get_page());
+        let mut free_dir_page = crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version); 
+            page_cache.put_page(free_dir_page.get_page());
         
         let mut root_tree_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
-        let mut leaf_page = TreeLeafPage::new(crate::Db::PAGE_SIZE, root_tree_page_no);
+        let mut leaf_page = TreeLeafPage::create_new( page_cache.get_page_config(), root_tree_page_no);
         leaf_page.set_version(version);
         page_cache.put_page(leaf_page.get_page());
 
@@ -312,11 +311,15 @@ mod tests {
             j = i;
             version = version + 1;
             let mut free_page_tracker = FreePageTracker::new(
-                page_cache.get_page(free_dir_page_no), version, crate::Db::PAGE_SIZE as usize);   
+                page_cache.get_page(free_dir_page_no), version, 
+                PageConfig{
+                block_size: page_cache.get_page_config().block_size,
+                page_size: page_cache.get_page_config().page_size
+            });   
             let reloaded_page = page_cache.get_page(root_tree_page_no);
             let tuple = Tuple::new(i.to_be_bytes().to_vec().as_ref(), i.to_be_bytes().to_vec().as_ref(), version);
             root_tree_page_no = StoreTupleProcessor::store_tuple(tuple, reloaded_page, &mut free_page_tracker, 
-                &mut page_cache, version + 1, crate::Db::PAGE_SIZE as usize);
+                &mut page_cache, version + 1);
             let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
             free_dir_page_no = free_pages.last().unwrap().get_page_number();
             for mut free_page in free_pages {
@@ -346,27 +349,30 @@ mod tests {
             .create(true)
             .open(&temp_file).expect("Failed to open or create DB file");
         
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE as usize);
-        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE as usize);
+        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE as usize);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
-        let mut free_dir_page = crate::FreeDirPage::new(crate::Db::PAGE_SIZE, free_dir_page_no, version); 
+        let mut free_dir_page = crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version); 
         page_cache.put_page(free_dir_page.get_page());
         
         let mut root_tree_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
-        let mut leaf_page = TreeLeafPage::new(crate::Db::PAGE_SIZE, root_tree_page_no);
+        let mut leaf_page = TreeLeafPage::create_new(page_cache.get_page_config(), root_tree_page_no);
         leaf_page.set_version(version);
         page_cache.put_page(leaf_page.get_page());
 
         for i in 0u64..20000 {
             version = version + 1;
             let mut free_page_tracker = FreePageTracker::new(
-                page_cache.get_page(free_dir_page_no), version, crate::Db::PAGE_SIZE as usize);   
+                page_cache.get_page(free_dir_page_no), version, PageConfig{
+                block_size: page_cache.get_page_config().block_size,
+                page_size: page_cache.get_page_config().page_size
+            });   
             let reloaded_page = page_cache.get_page(root_tree_page_no);
             let tuple = Tuple::new(i.to_be_bytes().to_vec().as_ref(), i.to_be_bytes().to_vec().as_ref(), version);
             root_tree_page_no = StoreTupleProcessor::store_tuple(tuple, reloaded_page, &mut free_page_tracker, 
-                &mut page_cache, version + 1, crate::Db::PAGE_SIZE as usize);
+                &mut page_cache, version + 1);
             let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
             free_dir_page_no = free_pages.last().unwrap().get_page_number();
             for mut free_page in free_pages {
@@ -380,7 +386,7 @@ mod tests {
         let root_dir_page = TreeDirPage::from_page(page_cache.get_page(root_tree_page_no));
         // There should be 42 entries.
         assert_eq!(root_dir_page.get_entries(), 1);
-        let tuple = StoreTupleProcessor::get_tuple(13000u64.to_be_bytes().to_vec().as_ref(), root_page, &mut page_cache, crate::Db::PAGE_SIZE as usize);
+        let tuple = StoreTupleProcessor::get_tuple(13000u64.to_be_bytes().to_vec().as_ref(), root_page, &mut page_cache);
         assert!(!tuple.is_none());
         assert!(tuple.unwrap().get_value() == 13000u64.to_be_bytes().to_vec());
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");

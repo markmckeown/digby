@@ -16,8 +16,7 @@ impl OverflowPageHandler {
         tuple: OverflowTuple,
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
-        version: u64,
-        page_size: usize
+        version: u64
     ) -> u32 {
         // We write the buffer backwards as we want to create a linked list
         // of pages. The last page we write will be the head of the list
@@ -29,10 +28,10 @@ impl OverflowPageHandler {
         let mut next_page: u32;
         loop {
             next_page = free_page_tracker.get_free_page(page_cache);
-            let mut page = OverflowPage::new(page_size as u64, next_page, version);
+            let mut page = OverflowPage::create_new(page_cache.get_page_config(), next_page, version);
             page.set_next_page(previous);
 
-            let free_space = page.get_free_space(page_size);
+            let free_space = page.get_free_space();
             let bytes_to_write: usize;
             if end < free_space {
                 bytes_to_write = end;
@@ -102,7 +101,7 @@ impl OverflowPageHandler {
 
 #[cfg(test)]
 mod tests {
-    use crate::tuple::Overflow;
+    use crate::{block_layer::PageConfig, tuple::Overflow};
     use super::*;
 
     #[test]
@@ -119,23 +118,26 @@ mod tests {
         let new_version: u64 = 90;
 
         // Set up the page_cache
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::PAGE_SIZE as usize);
-        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::PAGE_SIZE as usize);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE as usize);
+        let block_layer: crate::BlockLayer = crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE as usize);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         // Setup the free page infrastructure
         let free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
-        let mut free_dir_page = crate::FreeDirPage::new(crate::Db::PAGE_SIZE, free_dir_page_no, version);
+        let mut free_dir_page = crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
         let mut free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_dir_page_no), new_version, crate::Db::PAGE_SIZE as usize);
+            page_cache.get_page(free_dir_page_no), new_version, PageConfig {
+                block_size: page_cache.get_page_config().block_size,
+                page_size: page_cache.get_page_config().page_size
+            });
 
         let key: Vec<u8> = vec![111u8; 8192];
         let value: Vec<u8> = vec![56u8; 18192];
         let tuple = OverflowTuple::new(&key, &value, new_version, Overflow::KeyValueOverflow);
 
-        let overflow_tuple_page_no = OverflowPageHandler::store_overflow_tuple(tuple, &mut page_cache, &mut free_page_tracker, new_version, 
-            crate::Db::PAGE_SIZE as usize);
+        let overflow_tuple_page_no = OverflowPageHandler::store_overflow_tuple(tuple, &mut page_cache, 
+            &mut free_page_tracker, new_version);
         
         // Flush the free pages.
         let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
