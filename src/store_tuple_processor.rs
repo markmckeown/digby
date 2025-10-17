@@ -237,8 +237,6 @@ impl StoreTupleProcessor{
 
 #[cfg(test)]
 mod tests {
-    use crate::block_layer::PageConfig;
-
     use super::*;
 
     #[test]
@@ -266,10 +264,7 @@ mod tests {
 
         let mut free_page_tracker = FreePageTracker::new(
             page_cache.get_page(free_dir_page_no), version + 1, 
-            PageConfig{
-                block_size: page_cache.get_page_config().block_size,
-                page_size: page_cache.get_page_config().page_size
-            });
+            *page_cache.get_page_config());
 
         let reloaded_page = page_cache.get_page(root_tree_page_no);
 
@@ -311,11 +306,8 @@ mod tests {
             j = i;
             version = version + 1;
             let mut free_page_tracker = FreePageTracker::new(
-                page_cache.get_page(free_dir_page_no), version, 
-                PageConfig{
-                block_size: page_cache.get_page_config().block_size,
-                page_size: page_cache.get_page_config().page_size
-            });   
+                page_cache.get_page(free_dir_page_no), version,
+                *page_cache.get_page_config());   
             let reloaded_page = page_cache.get_page(root_tree_page_no);
             let tuple = Tuple::new(i.to_be_bytes().to_vec().as_ref(), i.to_be_bytes().to_vec().as_ref(), version);
             root_tree_page_no = StoreTupleProcessor::store_tuple(tuple, reloaded_page, &mut free_page_tracker, 
@@ -365,10 +357,8 @@ mod tests {
         for i in 0u64..20000 {
             version = version + 1;
             let mut free_page_tracker = FreePageTracker::new(
-                page_cache.get_page(free_dir_page_no), version, PageConfig{
-                block_size: page_cache.get_page_config().block_size,
-                page_size: page_cache.get_page_config().page_size
-            });   
+                page_cache.get_page(free_dir_page_no), version,
+                 *page_cache.get_page_config());   
             let reloaded_page = page_cache.get_page(root_tree_page_no);
             let tuple = Tuple::new(i.to_be_bytes().to_vec().as_ref(), i.to_be_bytes().to_vec().as_ref(), version);
             root_tree_page_no = StoreTupleProcessor::store_tuple(tuple, reloaded_page, &mut free_page_tracker, 

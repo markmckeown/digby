@@ -101,7 +101,6 @@ impl OverflowPageHandler {
 
 #[cfg(test)]
 mod tests {
-    use crate::{block_layer::PageConfig, tuple::Overflow};
     use super::*;
 
     #[test]
@@ -127,10 +126,7 @@ mod tests {
         let mut free_dir_page = crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
         let mut free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_dir_page_no), new_version, PageConfig {
-                block_size: page_cache.get_page_config().block_size,
-                page_size: page_cache.get_page_config().page_size
-            });
+            page_cache.get_page(free_dir_page_no), new_version, *page_cache.get_page_config());
 
         let key: Vec<u8> = vec![111u8; 8192];
         let value: Vec<u8> = vec![56u8; 18192];

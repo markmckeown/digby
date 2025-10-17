@@ -175,11 +175,8 @@ mod tests {
         page_cache.put_page(free_dir_page.get_page());
 
         let mut free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_dir_page_no), version + 1, 
-            PageConfig{
-                block_size: page_cache.get_page_config().block_size,
-                page_size: page_cache.get_page_config().page_size
-            });
+            page_cache.get_page(free_dir_page_no), version + 1,
+            *page_cache.get_page_config());
 
         let new_free_page = free_page_tracker.get_free_page(&mut page_cache);
         assert!(new_free_page == 1);
@@ -200,10 +197,7 @@ mod tests {
 
         free_page_tracker = FreePageTracker::new(
             page_cache.get_page(free_page_dir_no), version + 2, 
-            PageConfig{
-                block_size: page_cache.get_page_config().block_size,
-                page_size: page_cache.get_page_config().page_size
-            });
+            *page_cache.get_page_config());
 
         // Thre are five pages of free page numbers - going to use 2100 of them
         for _number in 1u32..=2100 {

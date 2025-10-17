@@ -29,7 +29,7 @@ impl BlockSanity {
     }
 }
 
-
+#[derive(Copy, Clone)]
 pub struct PageConfig {
     pub block_size: usize,
     pub page_size: usize,

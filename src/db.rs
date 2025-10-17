@@ -46,6 +46,7 @@ impl Db {
         let block_layer: BlockLayer = BlockLayer::new(file_layer, Db::BLOCK_SIZE);
         let page_cache: PageCache = PageCache::new(block_layer);
 
+
         let mut db = Db {
             path: path.to_string(),
             page_cache: page_cache,
