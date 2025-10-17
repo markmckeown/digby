@@ -18,7 +18,7 @@ pub struct Db {
 impl Db {
     pub const BLOCK_SIZE: usize = 4096;
 
-    pub fn new(path: &str) -> Self {        
+    pub fn new(path: &str, key: Option<Vec<u8>>) -> Self {        
         use std::fs::OpenOptions;
         use std::path::Path;
         
@@ -43,7 +43,12 @@ impl Db {
         }
 
         let file_layer: FileLayer = FileLayer::new(db_file, Db::BLOCK_SIZE);
-        let block_layer: BlockLayer = BlockLayer::new(file_layer, Db::BLOCK_SIZE);
+        let block_layer: BlockLayer;
+        if key.is_none() {
+            block_layer = BlockLayer::new(file_layer, Db::BLOCK_SIZE);
+        } else {
+            block_layer = BlockLayer::new_with_key(file_layer, Db::BLOCK_SIZE, key.unwrap());
+        }
         let page_cache: PageCache = PageCache::new(block_layer);
 
 
@@ -272,11 +277,11 @@ mod tests {
     fn test_db_creation() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
-            let db = Db::new(temp_file.path().to_str().unwrap());
+            let db = Db::new(temp_file.path().to_str().unwrap(), None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
         }
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap());
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(1));
             let head_page2 = DbMasterPage::from_page(db.page_cache.get_page(2));
@@ -293,14 +298,14 @@ mod tests {
         let key = b"the_key".to_vec();
         let value = b"the_value".to_vec();
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap());
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap());
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let returned_value = db.get(&key).unwrap();
             assert!(returned_value == value);
@@ -314,14 +319,14 @@ mod tests {
         let key: Vec<u8> = vec![111u8; 8192];
         let value: Vec<u8> = vec![56u8; 18192];
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap());
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap());
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let returned_value = db.get(&key).unwrap();
             assert!(returned_value == value);
@@ -329,5 +334,25 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
+     #[test]
+    fn test_db_store_value_with_encryption() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let key = b"the_key".to_vec();
+        let value = b"the_value".to_vec();
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), Some(b"the_key".to_vec()));
+            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            db.put(&key, &value);
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then 
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(),Some(b"the_key".to_vec()));
+            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            let returned_value = db.get(&key).unwrap();
+            assert!(returned_value == value);
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
 
 }

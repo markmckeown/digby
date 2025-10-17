@@ -11,7 +11,7 @@ use digby::Db;
 
 #[test]
 fn test_digby_db() {
-    let mut _db = Db::new("/tmp/test_db.db");
+    let mut _db = Db::new("/tmp/test_db.db", None);
     let _ = std::fs::remove_file("/tmp/test_db.db");
 }
 

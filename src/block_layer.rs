@@ -1,13 +1,14 @@
 use crate::file_layer::FileLayer;
 use crate::page::Page; 
 use crate::page::PageTrait;
+use crate::AesGcmSanity;
 use crate::XxHashSanity;
-
 
 
 #[derive(PartialEq, Eq)]
 pub enum BlockSanity {
     XxH32Checksum = 1,
+    AesGcm = 2,
 }
 
 impl TryFrom<u8> for BlockSanity {
@@ -16,6 +17,7 @@ impl TryFrom<u8> for BlockSanity {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             1 => Ok(BlockSanity::XxH32Checksum),
+            2 => Ok(BlockSanity::AesGcm),
             _ => Err(()),
         }
     }
@@ -24,7 +26,8 @@ impl TryFrom<u8> for BlockSanity {
 impl BlockSanity {
     pub fn get_bytes_used(block_sanity_type: BlockSanity) -> usize {
         match block_sanity_type {
-            BlockSanity::XxH32Checksum => 4
+            BlockSanity::XxH32Checksum => 4,
+            BlockSanity::AesGcm => 28,
         }
     }
 }
@@ -39,6 +42,7 @@ pub struct BlockLayer {
     file_layer: FileLayer,
     page_config: PageConfig,
     block_sanity: BlockSanity,
+    key: Vec<u8>,
 }
 
 impl BlockLayer {
@@ -49,9 +53,29 @@ impl BlockLayer {
             page_config: PageConfig { 
                 block_size: block_size, 
                 page_size:  block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum)
-            }
+            },
+            key: Vec::new(),
         }
     }
+
+    pub fn new_with_key(file_layer: FileLayer, block_size: usize, key: Vec<u8>) -> Self {
+        let mut enc_key = vec![0u8; 16];
+        if key.len() >= 16 {
+            enc_key.copy_from_slice(&key[0 .. 16]);
+        } else {
+            enc_key[0 .. key.len()].copy_from_slice(&key[..]);
+        }
+        BlockLayer { 
+            file_layer, 
+            block_sanity: BlockSanity::AesGcm,
+            page_config: PageConfig { 
+                block_size: block_size, 
+                page_size:  block_size - BlockSanity::get_bytes_used(BlockSanity::AesGcm)
+            },
+            key: enc_key,
+        }
+    }
+
 
     pub fn get_page_config(&self) -> &PageConfig {
         return &self.page_config
@@ -94,17 +118,18 @@ impl BlockLayer {
 
     fn set_sanity(&mut self, page: &mut Page) -> () {
         match self.block_sanity {
-            BlockSanity::XxH32Checksum => XxHashSanity::set_checksum(page)
+            BlockSanity::XxH32Checksum => XxHashSanity::set_checksum(page),
+            BlockSanity::AesGcm => AesGcmSanity::set(page, &self.key),
         }
 
     }
 
     fn check_sanity(&self, page: &mut Page) -> () {
         match self.block_sanity {
-            BlockSanity::XxH32Checksum => XxHashSanity::verify_checksum(page)
+            BlockSanity::XxH32Checksum => XxHashSanity::verify_checksum(page),
+            BlockSanity::AesGcm => AesGcmSanity::verify(page, &self.key),
         }
     }
-
 
     pub fn sync_data(&mut self) -> () {
         self.file_layer.sync_data();
