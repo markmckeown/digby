@@ -3,7 +3,7 @@ use crate::{FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TableDirPage,
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
-use crate::block_layer::{BlockLayer, BlockSanity, PageConfig};
+use crate::block_layer::{BlockLayer, BlockSanity};
 use crate::db_root_page::DbRootPage;
 use crate::page::PageTrait;
 use crate::overflow_tuple::OverflowTuple;
@@ -219,11 +219,8 @@ impl Db {
         // it has free pages - cannot handle the case it does not yet.
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
         let mut free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no), 
-            new_version, PageConfig {
-                block_size: self.page_cache.get_page_config().block_size,
-                page_size: self.page_cache.get_page_config().page_size
-            });
+                self.page_cache.get_page(free_page_dir_page_no), 
+                new_version, *self.page_cache.get_page_config());
 
         // Create the tuple we want to add. 
         let tuple = TupleProcessor::generate_tuple(&key, &value, &mut self.page_cache, &mut free_page_tracker, 
@@ -279,6 +276,7 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::NamedTempFile; 
+    use rand::RngCore; 
 
     #[test]
     fn test_db_creation() {
@@ -321,10 +319,34 @@ mod tests {
     }
 
     #[test]
-    fn test_db_store_large_value() {
+    fn test_db_store_large_key_value_compressible() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         let key: Vec<u8> = vec![111u8; 8192];
         let value: Vec<u8> = vec![56u8; 18192];
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
+            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            db.put(&key, &value);
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then 
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
+            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            let returned_value = db.get(&key).unwrap();
+            assert!(returned_value == value);
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
+     #[test]
+    fn test_db_store_large_key_value_incompressible() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let mut key: Vec<u8> = vec![0u8; 8192];
+        let mut value: Vec<u8> = vec![0u8; 18192];
+        let mut rng = rand::rng();
+        rng.fill_bytes(&mut key);
+        rng.fill_bytes(&mut value);
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
