@@ -3,7 +3,7 @@ use crate::{FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TableDirPage,
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
-use crate::block_layer::{BlockLayer, PageConfig};
+use crate::block_layer::{BlockLayer, BlockSanity, PageConfig};
 use crate::db_root_page::DbRootPage;
 use crate::page::PageTrait;
 use crate::overflow_tuple::OverflowTuple;
@@ -44,10 +44,13 @@ impl Db {
 
         let file_layer: FileLayer = FileLayer::new(db_file, Db::BLOCK_SIZE);
         let block_layer: BlockLayer;
+        let sanity_type: BlockSanity;
         if key.is_none() {
             block_layer = BlockLayer::new(file_layer, Db::BLOCK_SIZE);
+            sanity_type = BlockSanity::XxH32Checksum;
         } else {
             block_layer = BlockLayer::new_with_key(file_layer, Db::BLOCK_SIZE, key.unwrap());
+            sanity_type = BlockSanity::AesGcm;
         }
         let page_cache: PageCache = PageCache::new(block_layer);
 
@@ -58,15 +61,18 @@ impl Db {
         };
 
         if is_new {
-            db.init_db_file().expect("Failed to initialize DB file");
+            db.init_db_file(sanity_type).expect("Failed to initialize DB file");
         } else {
-            db.check_db_integrity().expect("DB integrity check failed");
+            db.check_db_integrity(sanity_type).expect("DB integrity check failed");
         }
         db
     }
 
-    pub fn check_db_integrity(&mut self) -> std::io::Result<()> {
-        let _root_page = DbRootPage::from_page(self.page_cache.get_page(0));
+    pub fn check_db_integrity(&mut self, sanity_type: BlockSanity) -> std::io::Result<()> {
+        let root_page = DbRootPage::from_page(self.page_cache.get_page(0));
+        if root_page.get_sanity_type() != sanity_type {
+            panic!("Db encryption mis-match, stored type is {:?}, requested type {:?}", root_page.get_sanity_type(), sanity_type);
+        }
         let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1)); 
         let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2)); 
         let current_master = if master_page1.get_version() > master_page2.get_version() {
@@ -85,7 +91,7 @@ impl Db {
         Ok(())
     }
 
-    pub fn init_db_file(&mut self) -> std::io::Result<()> {
+    pub fn init_db_file(&mut self, sanity_type: BlockSanity) -> std::io::Result<()> {
         // Get some free pages and make space in the file.
         // Will trigger a file sync.
         let mut free_pages: Vec<u32> = self.page_cache.generate_free_pages(10);
@@ -134,6 +140,7 @@ impl Db {
 
         // Write the root page as last step to make the DB sane.
         let mut db_root_page: DbRootPage = DbRootPage::create_new(self.page_cache.get_page_config());
+        db_root_page.set_sanity_type(sanity_type);
         self.page_cache.put_page(&mut db_root_page.get_page());
 
         assert!(free_pages.len() == 4, "There should be 4 free pages");

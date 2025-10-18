@@ -5,10 +5,10 @@ use crate::AesGcmSanity;
 use crate::XxHashSanity;
 
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum BlockSanity {
-    XxH32Checksum = 1,
-    AesGcm = 2,
+    XxH32Checksum = 0,
+    AesGcm = 1,
 }
 
 impl TryFrom<u8> for BlockSanity {
@@ -16,9 +16,18 @@ impl TryFrom<u8> for BlockSanity {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
-            1 => Ok(BlockSanity::XxH32Checksum),
-            2 => Ok(BlockSanity::AesGcm),
+            0 => Ok(BlockSanity::XxH32Checksum),
+            1 => Ok(BlockSanity::AesGcm),
             _ => Err(()),
+        }
+    }
+}
+
+impl From<BlockSanity> for u8 {
+    fn from(value: BlockSanity) -> Self {
+        match value {
+            BlockSanity::XxH32Checksum => 0,
+            BlockSanity::AesGcm => 1,
         }
     }
 }

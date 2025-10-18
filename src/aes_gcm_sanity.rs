@@ -2,7 +2,7 @@ use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes128Gcm, Nonce, Key 
 };
-use aes::cipher::generic_array::{typenum::U12, GenericArray};
+use aes::cipher::generic_array::{typenum::U12};
 use crate::Page;
 use crate::page::PageTrait;
 
