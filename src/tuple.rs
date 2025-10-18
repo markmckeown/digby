@@ -42,6 +42,8 @@ pub enum Overflow {
     ValueOverflow = 1,
     KeyOverflow = 2,
     KeyValueOverflow = 3,
+    ValueCompressed = 4,
+    KeyValueCompressed = 5,
 }
 
 impl TryFrom<u8> for Overflow {
@@ -53,6 +55,8 @@ impl TryFrom<u8> for Overflow {
             1 => Ok(Overflow::ValueOverflow),
             2 => Ok(Overflow::KeyOverflow),
             3 => Ok(Overflow::KeyValueOverflow),
+            4 => Ok(Overflow::ValueCompressed),
+            5 => Ok(Overflow::KeyValueCompressed),
             _ => Err(()),
         }
     }
@@ -157,14 +161,21 @@ impl Tuple {
         let mut key = vec![0u8; key_len];
         cursor.read_exact(&mut key).unwrap();
 
-        let mut value = vec![0u8; value_len];
-        cursor.read_exact(&mut value).unwrap();
+        let overflow =  Overflow::try_from(version_holder.get_flags()).unwrap();
+        let value: Vec<u8>;
+        let mut value_buffer = vec![0u8; value_len];
+        cursor.read_exact(&mut value_buffer).unwrap();
+        if overflow == Overflow::ValueCompressed {
+            value = lz4_flex::decompress_size_prepended(&value_buffer).unwrap();
+        } else {
+            value = value_buffer;
+        }
 
         Tuple {
             key,
             value,
             version: version_holder.get_version(),
-            overflow: Overflow::try_from(version_holder.get_flags()).unwrap(),
+            overflow: overflow,
             serialized: bytes,
         }
     }

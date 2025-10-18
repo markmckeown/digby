@@ -49,7 +49,6 @@ impl OverflowTuple {
     pub fn new(key: &Vec<u8>, value: &Vec<u8>, version: u64, overflow: Overflow) -> Self {
         assert!(key.len() < u32::MAX as usize, "Key size larger than u32 can hold.");
         assert!(value.len() < u32::MAX as usize, "Value size larger than u32 can hold.");
-        assert!(overflow != Overflow::None, "Cannot create a OverflowTuple when its not an Overflow.");
         let mut serialized = Vec::new();
         serialized.extend_from_slice(&(key.len() as u32).to_le_bytes());
         serialized.extend_from_slice(&(value.len() as u32).to_le_bytes());
@@ -78,13 +77,24 @@ impl OverflowTuple {
         cursor.read_exact(&mut version_bytes).unwrap();
         let version_holder = VersionHolder::from_bytes(version_bytes.to_vec());
         let overflow = Overflow::try_from(version_holder.get_flags()).unwrap();
-        assert!(overflow != Overflow::None);
         
-        let mut key = vec![0u8; key_len];
-        cursor.read_exact(&mut key).unwrap();
+        let key: Vec<u8>;
+        let mut key_buffer = vec![0u8; key_len];
+        cursor.read_exact(&mut key_buffer).unwrap();
+        if overflow == Overflow::KeyValueCompressed {
+            key = lz4_flex::decompress_size_prepended(&key_buffer).unwrap();
+        } else {
+            key = key_buffer;
+        }
 
-        let mut value = vec![0u8; value_len];
-        cursor.read_exact(&mut value).unwrap();
+        let value: Vec<u8>; 
+        let mut value_buffer= vec![0u8; value_len];
+        cursor.read_exact(&mut value_buffer).unwrap();
+        if overflow == Overflow::KeyValueCompressed {
+            value = lz4_flex::decompress_size_prepended(&value_buffer).unwrap();
+        } else {
+            value = value_buffer;
+        }
 
         OverflowTuple {
             key,
@@ -106,7 +116,7 @@ mod tests {
         let value = b"value".to_vec();
         let version = 1;
 
-        let tuple = OverflowTuple::new(&key.clone(), &value.clone(), version, Overflow::ValueOverflow);
+        let tuple = OverflowTuple::new(&key.clone(), &value.clone(), version, Overflow::None);
         assert_eq!(tuple.get_key(), &key);
         assert_eq!(tuple.get_value(), &value);
         assert_eq!(tuple.get_version(), version);
@@ -119,7 +129,7 @@ mod tests {
         let value = b"value".to_vec();
         let version = 1;
 
-        let tuple = OverflowTuple::new(&key.clone(), &value.clone(), version, Overflow::ValueOverflow);
+        let tuple = OverflowTuple::new(&key.clone(), &value.clone(), version, Overflow::None);
         let deserialized = OverflowTuple::from_bytes(tuple.get_serialized().to_vec());
 
         assert_eq!(deserialized.get_key(), &key);

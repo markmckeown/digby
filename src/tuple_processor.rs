@@ -20,6 +20,13 @@ impl TupleProcessor {
         assert!(key.len() < u32::MAX as usize, "key is too large");
         assert!(value.len() < u32::MAX as usize, "value is too large");
 
+        let compressed_value: Vec<u8> = lz4_flex::compress_prepend_size(value);
+
+        // We can store it with the value compressed.
+        if key.len() <= (u8::MAX as usize - 32) && compressed_value.len() < 2048 {
+            return Tuple::new_with_overflow(key, &compressed_value, version, Overflow::ValueCompressed);
+        }
+
         let overflow_type: Overflow;
         if key.len() > u8::MAX as usize && value.len() > 2048 {
             overflow_type = Overflow::KeyValueOverflow;
@@ -29,7 +36,8 @@ impl TupleProcessor {
             overflow_type = Overflow::ValueOverflow
         }
 
-        let overflow_tuple = OverflowTuple::new(key, value, version, overflow_type);
+        let compressed_key = lz4_flex::compress_prepend_size(key);
+        let overflow_tuple = OverflowTuple::new(&compressed_key, &compressed_value, version, Overflow::KeyValueCompressed);
         let overflow_page_no = OverflowPageHandler::store_overflow_tuple(overflow_tuple, page_cache, 
             free_page_tracker, version);
 
