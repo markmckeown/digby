@@ -77,7 +77,7 @@ impl Db {
         if root_page.get_sanity_type() != sanity_type {
             panic!("Db encryption mis-match, stored type is {:?}, requested type {:?}", root_page.get_sanity_type(), sanity_type);
         }
-        let stored_compressor_type = CompressorType::try_from(root_page.get_compression_type()).expect("Unknown compressor");
+        let stored_compressor_type = CompressorType::try_from(root_page.get_compression_type()).expect("Unknown compressoion");
         if stored_compressor_type != self.compressor.compressor_type {
             panic!("Db compression mis-match, stored type is {:?}, requested type {:?}", root_page.get_compression_type(), 
             self.compressor.compressor_type);
