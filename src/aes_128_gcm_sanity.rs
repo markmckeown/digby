@@ -12,7 +12,7 @@ pub struct Aes128GcmSanity {
 }
 
 impl Aes128GcmSanity {
-    pub fn set(page: &mut Page, input_key: &Vec<u8>) {
+    pub fn encrypt_page(page: &mut Page, input_key: &Vec<u8>) {
         assert!(input_key.len() == 16, "Key is incorrect size");
         let block_size = page.block_size;
         let key = Key::<Aes128Gcm>::from_slice(input_key);
@@ -23,7 +23,7 @@ impl Aes128GcmSanity {
         page.get_block_bytes_mut()[block_size - 12 .. block_size].copy_from_slice(&nonce);
     }
 
-    pub fn verify(page: &mut Page, input_key: &Vec<u8>) {
+    pub fn decrypt_page(page: &mut Page, input_key: &Vec<u8>) {
         assert!(input_key.len() == 16, "Key is incorrect size");
         let block_size = page.block_size;
         let key = Key::<Aes128Gcm>::from_slice(input_key);

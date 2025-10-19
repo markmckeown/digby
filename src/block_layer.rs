@@ -1,45 +1,9 @@
 use crate::file_layer::FileLayer;
 use crate::page::Page; 
 use crate::page::PageTrait;
-use crate::Aes128GcmSanity;
-use crate::XxHashSanity;
+use crate::block_sanity::BlockSanity;
 
 
-#[derive(PartialEq, Eq, Debug)]
-pub enum BlockSanity {
-    XxH32Checksum = 0,
-    Aes128Gcm = 1,
-}
-
-impl TryFrom<u8> for BlockSanity {
-    type Error = ();
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(BlockSanity::XxH32Checksum),
-            1 => Ok(BlockSanity::Aes128Gcm),
-            _ => Err(()),
-        }
-    }
-}
-
-impl From<BlockSanity> for u8 {
-    fn from(value: BlockSanity) -> Self {
-        match value {
-            BlockSanity::XxH32Checksum => 0,
-            BlockSanity::Aes128Gcm => 1,
-        }
-    }
-}
-
-impl BlockSanity {
-    pub fn get_bytes_used(block_sanity_type: BlockSanity) -> usize {
-        match block_sanity_type {
-            BlockSanity::XxH32Checksum => 4,
-            BlockSanity::Aes128Gcm => 28,
-        }
-    }
-}
 
 #[derive(Copy, Clone)]
 pub struct PageConfig {
@@ -69,9 +33,11 @@ impl BlockLayer {
 
     pub fn new_with_key(file_layer: FileLayer, block_size: usize, key: Vec<u8>) -> Self {
         let mut enc_key = vec![0u8; 16];
+        // Note we only use the first 16 bytes of the key for AES-128-GCM
         if key.len() >= 16 {
             enc_key.copy_from_slice(&key[0 .. 16]);
         } else {
+            // If the key is less than 16 bytes, pad with zeros
             enc_key[0 .. key.len()].copy_from_slice(&key[..]);
         }
         BlockLayer { 
@@ -125,19 +91,12 @@ impl BlockLayer {
         created_page_nos
     }
 
-    fn set_sanity(&mut self, page: &mut Page) -> () {
-        match self.block_sanity {
-            BlockSanity::XxH32Checksum => XxHashSanity::set_checksum(page),
-            BlockSanity::Aes128Gcm => Aes128GcmSanity::set(page, &self.key),
-        }
-
+    fn set_sanity(&self, page: &mut Page) -> () {
+        self.block_sanity.set_block_sanity(page, &self.key);
     }
 
     fn check_sanity(&self, page: &mut Page) -> () {
-        match self.block_sanity {
-            BlockSanity::XxH32Checksum => XxHashSanity::verify_checksum(page),
-            BlockSanity::Aes128Gcm => Aes128GcmSanity::verify(page, &self.key),
-        }
+        self.block_sanity.check_block_sanity(page, &self.key);
     }
 
     pub fn sync_data(&mut self) -> () {

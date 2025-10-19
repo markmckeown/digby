@@ -52,3 +52,5 @@ pub mod aes_128_gcm_sanity;
 pub use aes_128_gcm_sanity::Aes128GcmSanity;
 pub mod compressor;
 pub use compressor::Compressor;
+pub mod block_sanity;
+pub use block_sanity::BlockSanity;

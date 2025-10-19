@@ -4,7 +4,8 @@ use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, T
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
-use crate::block_layer::{BlockLayer, BlockSanity};
+use crate::block_layer::BlockLayer;
+use crate::block_sanity::BlockSanity;
 use crate::db_root_page::DbRootPage;
 use crate::page::PageTrait;
 use crate::overflow_tuple::OverflowTuple;

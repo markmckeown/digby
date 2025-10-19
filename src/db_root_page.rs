@@ -1,6 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
-use crate::block_layer::BlockSanity;
+use crate::block_sanity::BlockSanity;
 use crate::block_layer::PageConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
