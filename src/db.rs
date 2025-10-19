@@ -1,5 +1,6 @@
+use crate::compressor::CompressorType;
 use crate::free_page_tracker::FreePageTracker;
-use crate::{FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TableDirPage, TreeLeafPage, TupleProcessor};
+use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TableDirPage, TreeLeafPage, TupleProcessor};
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
@@ -7,18 +8,19 @@ use crate::block_layer::{BlockLayer, BlockSanity};
 use crate::db_root_page::DbRootPage;
 use crate::page::PageTrait;
 use crate::overflow_tuple::OverflowTuple;
-use crate::tuple::TupleTrait;
+use crate::tuple::{Overflow, TupleTrait};
 
 pub struct Db {
     path: String, 
     page_cache: PageCache,
+    compressor: Compressor,
 }
 
 
 impl Db {
     pub const BLOCK_SIZE: usize = 4096;
 
-    pub fn new(path: &str, key: Option<Vec<u8>>) -> Self {        
+    pub fn new(path: &str, key: Option<Vec<u8>>, compressor_type: CompressorType) -> Self {        
         use std::fs::OpenOptions;
         use std::path::Path;
         
@@ -58,6 +60,7 @@ impl Db {
         let mut db = Db {
             path: path.to_string(),
             page_cache: page_cache,
+            compressor: Compressor::new(compressor_type),
         };
 
         if is_new {
@@ -72,6 +75,11 @@ impl Db {
         let root_page = DbRootPage::from_page(self.page_cache.get_page(0));
         if root_page.get_sanity_type() != sanity_type {
             panic!("Db encryption mis-match, stored type is {:?}, requested type {:?}", root_page.get_sanity_type(), sanity_type);
+        }
+        let stored_compressor_type = CompressorType::try_from(root_page.get_compression_type()).expect("Unknown compressor");
+        if stored_compressor_type != self.compressor.compressor_type {
+            panic!("Db compression mis-match, stored type is {:?}, requested type {:?}", root_page.get_compression_type(), 
+            self.compressor.compressor_type);
         }
         let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1)); 
         let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2)); 
@@ -141,6 +149,7 @@ impl Db {
         // Write the root page as last step to make the DB sane.
         let mut db_root_page: DbRootPage = DbRootPage::create_new(self.page_cache.get_page_config());
         db_root_page.set_sanity_type(sanity_type);
+        db_root_page.set_compression_type(self.compressor.compressor_type.clone().into());
         self.page_cache.put_page(&mut db_root_page.get_page());
 
         assert!(free_pages.len() == 4, "There should be 4 free pages");
@@ -165,6 +174,23 @@ impl Db {
     }
 
 
+    pub fn get_tuple_value<T: TupleTrait>(&self, tuple: &T) -> Vec<u8> {
+        let overflow = tuple.get_overflow();
+        if overflow == Overflow::ValueCompressed || overflow == Overflow::KeyValueCompressed {
+            return self.compressor.decompress(tuple.get_value());
+        }
+        return tuple.get_value().to_vec();
+    }
+
+    pub fn get_tuple_key<T: TupleTrait>(&self, tuple: &T) -> Vec<u8> {
+        let overflow = tuple.get_overflow();
+        if overflow == Overflow::KeyValueCompressed {
+            return self.compressor.decompress(tuple.get_key());
+        }
+        return tuple.get_key().to_vec();
+    }
+
+
     pub fn get(&mut self, key: &Vec<u8>) -> Option<Vec<u8>> {
         assert!(key.len() < u32::MAX as usize, "Cannot handle keys larger than u32::MAX.");
         let master_page = self.get_master_page();
@@ -174,7 +200,7 @@ impl Db {
         // If not an oversized key...
         if !TupleProcessor::is_oversized_key(key) {
             if let Some(tuple) = StoreTupleProcessor::get_tuple(key, page, &mut self.page_cache) {
-                return Some(tuple.get_value().to_vec());
+                return Some(self.get_tuple_value(&tuple));
             } else {
                 return None;
             }
@@ -197,10 +223,10 @@ impl Db {
         let overflow_page_no = u32::from_le_bytes(tuple.unwrap().get_value()[0 .. 4].try_into().unwrap());
         let overflow_tuple: OverflowTuple = OverflowPageHandler::get_overflow_tuple(overflow_page_no, &mut self.page_cache);
         // Confirm the key is the same - would require a SHA256 clash to fail
-        if key != overflow_tuple.get_key() {
+        if *key != self.get_tuple_key(&overflow_tuple) {
             return None;
         }
-        return Some(overflow_tuple.get_value().to_vec());
+        return Some(self.get_tuple_value(&overflow_tuple));
     }
 
     pub fn put(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> () {
@@ -224,7 +250,7 @@ impl Db {
 
         // Create the tuple we want to add. 
         let tuple = TupleProcessor::generate_tuple(&key, &value, &mut self.page_cache, &mut free_page_tracker, 
-            new_version);  
+            new_version, &self.compressor);  
         
         // Now get the page number of the root of the global tree. Then get the page,
         // this is a copy of the page. Only handle the case when the root is also 
@@ -282,11 +308,11 @@ mod tests {
     fn test_db_creation() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
-            let db = Db::new(temp_file.path().to_str().unwrap(), None);
+            let db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
         }
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(1));
             let head_page2 = DbMasterPage::from_page(db.page_cache.get_page(2));
@@ -303,14 +329,14 @@ mod tests {
         let key = b"the_key".to_vec();
         let value = b"the_value".to_vec();
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let returned_value = db.get(&key).unwrap();
             assert!(returned_value == value);
@@ -324,14 +350,14 @@ mod tests {
         let key: Vec<u8> = vec![111u8; 8192];
         let value: Vec<u8> = vec![56u8; 18192];
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::LZ4);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::LZ4);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let returned_value = db.get(&key).unwrap();
             assert!(returned_value == value);
@@ -348,14 +374,14 @@ mod tests {
         rng.fill_bytes(&mut key);
         rng.fill_bytes(&mut value);
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::LZ4);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap(), None);
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::LZ4);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let returned_value = db.get(&key).unwrap();
             assert!(returned_value == value);
@@ -369,14 +395,14 @@ mod tests {
         let key = b"the_key".to_vec();
         let value = b"the_value".to_vec();
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap(), Some(b"the_key".to_vec()));
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), Some(b"the_key".to_vec()), CompressorType::None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new(temp_file.path().to_str().unwrap(),Some(b"the_key".to_vec()));
+            let mut db = Db::new(temp_file.path().to_str().unwrap(),Some(b"the_key".to_vec()), CompressorType::None);
             assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let returned_value = db.get(&key).unwrap();
             assert!(returned_value == value);

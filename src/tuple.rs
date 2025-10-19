@@ -1,5 +1,3 @@
-use byteorder::{LittleEndian, ReadBytesExt};
-use std::io::{Cursor, Read};
 use crate::version_holder::VersionHolder; 
 
 
@@ -69,31 +67,29 @@ pub trait  TupleTrait {
     fn get_version(&self) -> u64;
     fn get_serialized(&self) -> &[u8];
     fn get_byte_size(&self) -> usize;
-    fn get_overflow(&self) -> &Overflow;
+    fn get_overflow(&self) -> Overflow;
 }
 
 
 
 #[derive(Clone)]
 pub struct Tuple {
-    key: Vec<u8>,
-    value: Vec<u8>,
-    version: u64,
-    overflow: Overflow,
     serialized: Vec<u8>,
 } 
 
 impl TupleTrait for Tuple {
     fn get_key(&self) -> &[u8] {
-        &self.key
+        let key_len = u16::from_le_bytes(self.serialized[0 .. 2].try_into().unwrap()) as usize;
+        &self.serialized[12 .. 12 + key_len]
     }
 
     fn get_value(&self) -> &[u8] {
-        &self.value
+        let key_len = u16::from_le_bytes(self.serialized[0 .. 2].try_into().unwrap()) as usize;
+        &self.serialized[12 + key_len ..]
     }
 
     fn get_version(&self) -> u64 {
-        self.version
+        VersionHolder::from_bytes(self.serialized[4 .. 4 + 8].to_vec()).get_version()
     }
 
     fn get_serialized(&self) -> &[u8] {
@@ -104,8 +100,8 @@ impl TupleTrait for Tuple {
         self.serialized.len()
     }
 
-    fn get_overflow(&self) -> &Overflow {
-        &self.overflow
+    fn get_overflow(&self) -> Overflow {
+        Overflow::try_from(VersionHolder::from_bytes(self.serialized[4 .. 4 + 8].to_vec()).get_flags()).unwrap()
     }
 
 }
@@ -114,19 +110,14 @@ impl Tuple {
     pub fn new(key: &Vec<u8>, value: &Vec<u8>, version: u64) -> Self {
         assert!(key.len() < u16::MAX as usize, "Key size larger than u16 can hold.");
         assert!(value.len() < u16::MAX as usize, "Value size larger than u16 can hold.");
-        let mut serialized = Vec::new();
+        let mut serialized = Vec::with_capacity(2 + key.len() + 2 + value.len() + 8);
         serialized.extend_from_slice(&(key.len() as u16).to_le_bytes());
         serialized.extend_from_slice(&(value.len() as u16).to_le_bytes());
         let version_holder = VersionHolder::new(0, version);
         serialized.extend_from_slice(&version_holder.get_bytes()[0..8]);
         serialized.extend_from_slice(&key);
         serialized.extend_from_slice(&value);
-
         Tuple {
-            key: key.to_vec(),
-            value: value.to_vec(),
-            version,
-            overflow: Overflow::None,
             serialized,
         }
     }
@@ -134,48 +125,20 @@ impl Tuple {
     pub fn new_with_overflow(key: &Vec<u8>, value: &Vec<u8>, version: u64, overflow: Overflow) -> Self {
         assert!(key.len() < u16::MAX as usize, "Key size larger than u16 can hold.");
         assert!(value.len() < u16::MAX as usize, "Value size larger than u16 can hold.");
-        let mut serialized = Vec::new();
+        let mut serialized = Vec::with_capacity(2 + key.len() + 2 + value.len() + 8);
         serialized.extend_from_slice(&(key.len() as u16).to_le_bytes());
         serialized.extend_from_slice(&(value.len() as u16).to_le_bytes());
         let version_holder = VersionHolder::new(overflow as u8, version);
         serialized.extend_from_slice(&version_holder.get_bytes()[0..8]);
         serialized.extend_from_slice(&key);
         serialized.extend_from_slice(&value);
-
         Tuple {
-            key: key.to_vec(),
-            value: value.to_vec(),
-            version,
-            overflow,
             serialized,
         }
     }
 
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        let mut cursor = Cursor::new(&bytes[..]);
-        let key_len = cursor.read_u16::<LittleEndian>().unwrap() as usize;
-        let value_len = cursor.read_u16::<LittleEndian>().unwrap() as usize;    
-        let mut version_bytes: [u8; 8] = [0u8; 8];
-        cursor.read_exact(&mut version_bytes).unwrap();
-        let version_holder = VersionHolder::from_bytes(version_bytes.to_vec());
-        let mut key = vec![0u8; key_len];
-        cursor.read_exact(&mut key).unwrap();
-
-        let overflow =  Overflow::try_from(version_holder.get_flags()).unwrap();
-        let value: Vec<u8>;
-        let mut value_buffer = vec![0u8; value_len];
-        cursor.read_exact(&mut value_buffer).unwrap();
-        if overflow == Overflow::ValueCompressed {
-            value = lz4_flex::decompress_size_prepended(&value_buffer).unwrap();
-        } else {
-            value = value_buffer;
-        }
-
         Tuple {
-            key,
-            value,
-            version: version_holder.get_version(),
-            overflow: overflow,
             serialized: bytes,
         }
     }

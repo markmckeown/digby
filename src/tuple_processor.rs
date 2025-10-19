@@ -1,5 +1,7 @@
 use crate::{tuple::{Overflow, Tuple}, FreePageTracker, OverflowPageHandler, OverflowTuple, PageCache};
 use sha2::{Digest, Sha256};
+use crate::compressor::Compressor;
+use crate::compressor::CompressorType;
 
 pub struct TupleProcessor {
 
@@ -13,18 +15,21 @@ impl TupleProcessor {
         value: &Vec<u8>, 
         page_cache: &mut PageCache, 
         free_page_tracker: &mut FreePageTracker,
-        version: u64) -> Tuple {
+        version: u64,
+        compressor: &Compressor) -> Tuple {
         if key.len() <= (u8::MAX as usize - 32) && value.len() < 2048 {
             return Tuple::new(key, value, version);
         }    
         assert!(key.len() < u32::MAX as usize, "key is too large");
         assert!(value.len() < u32::MAX as usize, "value is too large");
 
-        let compressed_value: Vec<u8> = lz4_flex::compress_prepend_size(value);
-
-        // We can store it with the value compressed.
-        if key.len() <= (u8::MAX as usize - 32) && compressed_value.len() < 2048 {
-            return Tuple::new_with_overflow(key, &compressed_value, version, Overflow::ValueCompressed);
+        let mut compressed_value: Vec<u8> = Vec::new();
+        if compressor.compressor_type != CompressorType::None {
+            compressed_value = compressor.compress(value);
+            // We can store it with the value compressed.
+            if key.len() <= (u8::MAX as usize - 32) && compressed_value.len() < 2048 {
+                return Tuple::new_with_overflow(key, &compressed_value, version, Overflow::ValueCompressed);
+            }
         }
 
         let overflow_type: Overflow;
@@ -36,8 +41,15 @@ impl TupleProcessor {
             overflow_type = Overflow::ValueOverflow
         }
 
-        let compressed_key = lz4_flex::compress_prepend_size(key);
-        let overflow_tuple = OverflowTuple::new(&compressed_key, &compressed_value, version, Overflow::KeyValueCompressed);
+        let overflow_tuple: OverflowTuple;
+        if compressor.compressor_type != CompressorType::None {
+            let overflow_key = compressor.compress(key);
+            let overflow_value = compressed_value;
+            overflow_tuple = OverflowTuple::new(&overflow_key, &overflow_value, version, Overflow::KeyValueCompressed);
+        } else {
+            overflow_tuple = OverflowTuple::new(&key, &value, version, Overflow::None);
+        }
+
         let overflow_page_no = OverflowPageHandler::store_overflow_tuple(overflow_tuple, page_cache, 
             free_page_tracker, version);
 

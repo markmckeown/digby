@@ -77,7 +77,7 @@ impl OverflowPageHandler {
             return 0;
         }
         let tuple = tuple_option.unwrap();
-        if *tuple.get_overflow() == Overflow::None {
+        if tuple.get_overflow() == Overflow::None {
             return 0;
         }
         // A tuple has been deleted that points to a overflow page.

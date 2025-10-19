@@ -6,12 +6,13 @@ use std::io::Write;
 use std::io::Cursor;
 use byteorder::{LittleEndian, WriteBytesExt};
 use byteorder::ReadBytesExt;
+use digby::compressor::CompressorType;
 use digby::Db;
 
 
 #[test]
 fn test_digby_db() {
-    let mut _db = Db::new("/tmp/test_db.db", None);
+    let mut _db = Db::new("/tmp/test_db.db", None, CompressorType::None);
     let _ = std::fs::remove_file("/tmp/test_db.db");
 }
 
