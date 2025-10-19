@@ -52,7 +52,7 @@ impl Db {
             sanity_type = BlockSanity::XxH32Checksum;
         } else {
             block_layer = BlockLayer::new_with_key(file_layer, Db::BLOCK_SIZE, key.unwrap());
-            sanity_type = BlockSanity::AesGcm;
+            sanity_type = BlockSanity::Aes128Gcm;
         }
         let page_cache: PageCache = PageCache::new(block_layer);
 

@@ -7,11 +7,11 @@ use crate::Page;
 use crate::page::PageTrait;
 
 
-pub struct AesGcmSanity {
+pub struct Aes128GcmSanity {
 
 }
 
-impl AesGcmSanity {
+impl Aes128GcmSanity {
     pub fn set(page: &mut Page, input_key: &Vec<u8>) {
         assert!(input_key.len() == 16, "Key is incorrect size");
         let block_size = page.block_size;
