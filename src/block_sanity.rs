@@ -1,5 +1,12 @@
 use crate::{Aes128GcmSanity, Page, XxHashSanity};
 
+
+// Used to check a block read from disk is not
+// corrupt. This is done either by recording
+// a checksum of the page within the block in the
+// block, or encrypting the page in the block.
+// Two approaches are supported at present, xxhash_32
+// as a checksum or AES-128-GCM encryption of the page.
 #[derive(PartialEq, Eq, Debug)]
 pub enum BlockSanity {
     XxH32Checksum = 0,

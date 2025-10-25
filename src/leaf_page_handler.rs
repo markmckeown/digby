@@ -151,9 +151,9 @@ mod tests {
         let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
         assert!(pages.tree_leaf_pages.len() == 2);
         let tree_leaf_page1 = pages.tree_leaf_pages.pop().unwrap();
-        assert_eq!(tree_leaf_page1.get_all_tuples().len(), 93);
+        assert_eq!(tree_leaf_page1.get_all_tuples().len(), 97);
         let tree_leaf_page2 = pages.tree_leaf_pages.pop().unwrap();
-        assert_eq!(tree_leaf_page2.get_all_tuples().len(), 93);
+        assert_eq!(tree_leaf_page2.get_all_tuples().len(), 97);
     }
 
     // In this test we overwrite the same key twice.

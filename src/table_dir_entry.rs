@@ -57,20 +57,20 @@ mod tests {
     fn test_entry_basic() {
         let entry = TableDirEntry::new(b"mmk".to_vec(), 67, 567_);
         let size =  entry.get_byte_size();
-        assert!(19 == size);
-        assert!(67 == entry.get_root_page_number());
-        assert!(567 == entry.get_version());
-        assert!(b"mmk".to_vec() == entry.get_name());
+        assert_eq!(18, size);
+        assert_eq!(67, entry.get_root_page_number());
+        assert_eq!(567, entry.get_version());
+        assert_eq!(b"mmk".to_vec(), entry.get_name());
     }
 
     #[test]
     fn test_entry_serialise() {
         let first_entry = TableDirEntry::new(b"mmk".to_vec(), 67, 567_); 
         let entry = TableDirEntry::from_bytes(first_entry.get_serialized().to_vec());
-        assert!(19 == entry.get_byte_size());
-        assert!(67 == entry.get_root_page_number());
-        assert!(567 == entry.get_version());
-        assert!(b"mmk".to_vec() == entry.get_name());
+        assert_eq!(18, entry.get_byte_size());
+        assert_eq!(67, entry.get_root_page_number());
+        assert_eq!(567, entry.get_version());
+        assert_eq!(b"mmk".to_vec(), entry.get_name());
     }
 
 }

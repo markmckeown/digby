@@ -7,9 +7,10 @@ pub struct TupleProcessor {
 
 }
 
-// We store keys up to 224 bytes without change. If longer than that 
-// we store the first 224 bytes with the 32 bytes of the SHA256 of the
-// key.
+// If key is over 256 bytes then it is stored as [ first 224 bytes of key | SHA256 of Key].
+// The tuple will be stored in an Overflow page with the full key.
+// If keys are larger 256 bytes then lexical sorting will break down - another option
+// would be just to store the SHA256 as the comppressed key.
 impl TupleProcessor {
     pub fn generate_tuple(key: &Vec<u8>, 
         value: &Vec<u8>, 
@@ -17,7 +18,7 @@ impl TupleProcessor {
         free_page_tracker: &mut FreePageTracker,
         version: u64,
         compressor: &Compressor) -> Tuple {
-        if key.len() <= (u8::MAX as usize - 32) && value.len() < 2048 {
+        if !TupleProcessor::is_oversized_key(key) && value.len() < 2048 {
             return Tuple::new(key, value, version);
         }    
         assert!(key.len() < u32::MAX as usize, "key is too large");
@@ -27,13 +28,13 @@ impl TupleProcessor {
         if compressor.compressor_type != CompressorType::None {
             compressed_value = compressor.compress(value);
             // We can store it with the value compressed.
-            if key.len() <= (u8::MAX as usize - 32) && compressed_value.len() < 2048 {
+            if !TupleProcessor::is_oversized_key(key) && compressed_value.len() < 2048 {
                 return Tuple::new_with_overflow(key, &compressed_value, version, Overflow::ValueCompressed);
             }
         }
 
         let overflow_type: Overflow;
-        if key.len() > u8::MAX as usize && value.len() > 2048 {
+        if TupleProcessor::is_oversized_key(key) && value.len() > 2048 {
             overflow_type = Overflow::KeyValueOverflow;
         } else if key.len() > u8::MAX as usize {
             overflow_type = Overflow::KeyOverflow;
@@ -53,12 +54,8 @@ impl TupleProcessor {
         let overflow_page_no = OverflowPageHandler::store_overflow_tuple(overflow_tuple, page_cache, 
             free_page_tracker, version);
 
-        if key.len() > u8::MAX as usize - 32 {
-            // Generate a short key - first (256 - 32) bytes plus the SHA256 of the key.
-            let key_hash = Sha256::digest(key);
-            let mut new_key = key[0 .. u8::MAX as usize - 32].to_vec();
-            new_key.append(&mut key_hash.to_vec());
-            assert!(new_key.len() == u8::MAX as usize);
+        if TupleProcessor::is_oversized_key(key) {
+            let new_key = TupleProcessor::generate_short_key(key);
             return Tuple::new_with_overflow(&new_key, overflow_page_no.to_le_bytes().to_vec().as_ref(), version, overflow_type);
         } 
             
@@ -66,17 +63,18 @@ impl TupleProcessor {
     }
 
     pub fn is_oversized_key(key: &Vec<u8>) -> bool {
-        if key.len() > u8::MAX as usize - 32 {
+        if key.len() > u8::MAX as usize {
             return true;
         }
         return false;
     }
 
     pub fn generate_short_key(key: &Vec<u8>) -> Vec<u8> {
-        assert!(key.len() > u8::MAX as usize - 32);
+        assert!(key.len() > u8::MAX as usize);
         let key_hash = Sha256::digest(key);
-        let mut new_key = key[0 .. u8::MAX as usize - 32].to_vec();
-        new_key.append(&mut key_hash.to_vec());
+        let mut new_key: Vec<u8> = Vec::with_capacity(u8::MAX as usize);
+        new_key.extend_from_slice(&key[0 .. u8::MAX as usize - 32]);
+        new_key.extend_from_slice(&key_hash);
         assert!(new_key.len() == u8::MAX as usize);
         return new_key;
     }

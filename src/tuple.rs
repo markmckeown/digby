@@ -79,17 +79,17 @@ pub struct Tuple {
 
 impl TupleTrait for Tuple {
     fn get_key(&self) -> &[u8] {
-        let key_len = u16::from_le_bytes(self.serialized[0 .. 2].try_into().unwrap()) as usize;
-        &self.serialized[12 .. 12 + key_len]
+        let key_len = self.serialized[0]as usize;
+        &self.serialized[11 .. 11 + key_len]
     }
 
     fn get_value(&self) -> &[u8] {
-        let key_len = u16::from_le_bytes(self.serialized[0 .. 2].try_into().unwrap()) as usize;
-        &self.serialized[12 + key_len ..]
+        let key_len = self.serialized[0]as usize;
+        &self.serialized[11 + key_len ..]
     }
 
     fn get_version(&self) -> u64 {
-        VersionHolder::from_bytes(self.serialized[4 .. 4 + 8].to_vec()).get_version()
+        VersionHolder::from_bytes(self.serialized[3 .. 3 + 8].to_vec()).get_version()
     }
 
     fn get_serialized(&self) -> &[u8] {
@@ -101,7 +101,7 @@ impl TupleTrait for Tuple {
     }
 
     fn get_overflow(&self) -> Overflow {
-        Overflow::try_from(VersionHolder::from_bytes(self.serialized[4 .. 4 + 8].to_vec()).get_flags()).unwrap()
+        Overflow::try_from(VersionHolder::from_bytes(self.serialized[3 .. 3 + 8].to_vec()).get_flags()).unwrap()
     }
 
 }
@@ -110,8 +110,8 @@ impl Tuple {
     pub fn new(key: &Vec<u8>, value: &Vec<u8>, version: u64) -> Self {
         assert!(key.len() < u16::MAX as usize, "Key size larger than u16 can hold.");
         assert!(value.len() < u16::MAX as usize, "Value size larger than u16 can hold.");
-        let mut serialized = Vec::with_capacity(2 + key.len() + 2 + value.len() + 8);
-        serialized.extend_from_slice(&(key.len() as u16).to_le_bytes());
+        let mut serialized: Vec<u8> = Vec::with_capacity(1 + key.len() + 2 + value.len() + 8);
+        serialized.push(key.len() as u8);
         serialized.extend_from_slice(&(value.len() as u16).to_le_bytes());
         let version_holder = VersionHolder::new(0, version);
         serialized.extend_from_slice(&version_holder.get_bytes()[0..8]);
@@ -125,8 +125,8 @@ impl Tuple {
     pub fn new_with_overflow(key: &Vec<u8>, value: &Vec<u8>, version: u64, overflow: Overflow) -> Self {
         assert!(key.len() < u16::MAX as usize, "Key size larger than u16 can hold.");
         assert!(value.len() < u16::MAX as usize, "Value size larger than u16 can hold.");
-        let mut serialized = Vec::with_capacity(2 + key.len() + 2 + value.len() + 8);
-        serialized.extend_from_slice(&(key.len() as u16).to_le_bytes());
+        let mut serialized = Vec::with_capacity(1 + key.len() + 2 + value.len() + 8);
+        serialized.push(key.len() as u8);
         serialized.extend_from_slice(&(value.len() as u16).to_le_bytes());
         let version_holder = VersionHolder::new(overflow as u8, version);
         serialized.extend_from_slice(&version_holder.get_bytes()[0..8]);

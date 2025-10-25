@@ -272,8 +272,8 @@ impl TreeDirPage {
         
         let mut tree_dir_cursor = Cursor::new(&self.page.get_page_bytes()[tree_dir_index..]);
         let _page_no = tree_dir_cursor.read_u32::<byteorder::LittleEndian>().unwrap();
-        let key_len = tree_dir_cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
-        let tree_dir_entry_size = key_len + 4 + 2;
+        let key_len = tree_dir_cursor.read_u8().unwrap() as usize;
+        let tree_dir_entry_size = key_len + 4 + 1;
         TreeDirEntry::from_bytes(self.page.get_page_bytes()[tree_dir_index..tree_dir_index + tree_dir_entry_size].to_vec())
     }
 

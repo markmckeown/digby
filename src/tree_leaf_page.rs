@@ -142,9 +142,9 @@ impl TreeLeafPage {
         let tuple_offset = cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
 
         let mut tuple_cursor = Cursor::new(&self.page.get_page_bytes()[tuple_offset..]);
-        let key_len = tuple_cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
+        let key_len = tuple_cursor.read_u8().unwrap() as usize;
         let value_len = tuple_cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
-        let tuple_size = key_len + value_len + 8 + 2 + 2; // key + value + version + key_len + value_len
+        let tuple_size = key_len + value_len + 8 + 2 + 1; // key + value + version + key_len + value_len
 
         Tuple::from_bytes(self.page.get_page_bytes()[tuple_offset..tuple_offset + tuple_size].to_vec())
     }

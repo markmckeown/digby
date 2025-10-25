@@ -3,8 +3,42 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use crate::block_sanity::BlockSanity;
 
+// The block layer sits above the file layer.
+// Data is stored to the file as blocks, the blocks
+// contain pages. 
+// Everything above the block layer works in pages,
+// the file_layer works in blocks and the block_layer
+// maps between blocks and pages.
+// The difference between a page and a block is the 
+// page is contained in the block as the start of the
+// block - there are some bytes at the end of the
+// the block not contained in the page that hold either
+// checksum information for the page or encryption
+// information for the page.
+// 
+//
+// | Page | Checksum/Encryption Bytes |
+//
+// The amount of bytes used for checkum/encryption
+// depends on the BlockSanity used. 4 bytes for a
+// xxhash_32 hash of the page bytes, 28 bytes for
+// AES-128-GCM encryption of the page. If encryption
+// is used then there is no explicit checksum - checksum
+// will be part of the encryption algorithm
+//
+// The block size is determined at DB creation time,
+// on Linux 4096 bytes can be sent to disk atomically - 
+// there is recent support for untorn writes that could
+// support 16K writes atomically. The page size depoends
+// on the block size and the block sanity used.
+// 
+// The block layer is also respnsible for generating
+// free pages.
+//
 
 
+// This struct is used to communicate to anything that is
+// interested what the block size and page size is.
 #[derive(Copy, Clone)]
 pub struct PageConfig {
     pub block_size: usize,
@@ -15,7 +49,7 @@ pub struct BlockLayer {
     file_layer: FileLayer,
     page_config: PageConfig,
     block_sanity: BlockSanity,
-    key: Vec<u8>,
+    key: Vec<u8>,  // The encryption key if encryption is being used.
 }
 
 impl BlockLayer {
@@ -75,6 +109,10 @@ impl BlockLayer {
         self.file_layer.write_page_to_disk(page, page_number).expect("Failed to write page");
     }
 
+    // There has been a request for more free pages during a commit - there are
+    // no free pages in the system. This will initialise the pages (possibly not 
+    // needed and a waste of time) and extend the file with a sync - note, that
+    // if the commit does not complete then these pages will be leaked.
     pub fn generate_free_pages(&mut self, no_new_pages: u32) -> Vec<u32> {
         let existing_page_count = self.file_layer.get_page_count();
         let mut created_page_nos: Vec<u32> = Vec::new();
