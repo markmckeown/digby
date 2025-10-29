@@ -1,6 +1,6 @@
 use crate::compressor::CompressorType;
 use crate::free_page_tracker::FreePageTracker;
-use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TableDirPage, TreeLeafPage, TupleProcessor};
+use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TableDirPage, TreeDeleteHandler, TreeLeafPage, TupleProcessor};
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
@@ -12,7 +12,6 @@ use crate::overflow_tuple::OverflowTuple;
 use crate::tuple::{Overflow, TupleTrait};
 
 pub struct Db {
-    path: String, 
     page_cache: PageCache,
     compressor: Compressor,
 }
@@ -59,7 +58,6 @@ impl Db {
 
 
         let mut db = Db {
-            path: path.to_string(),
             page_cache: page_cache,
             compressor: Compressor::new(compressor_type),
         };
@@ -72,123 +70,40 @@ impl Db {
         db
     }
 
-    pub fn check_db_integrity(&mut self, sanity_type: BlockSanity) -> std::io::Result<()> {
-        let root_page = DbRootPage::from_page(self.page_cache.get_page(0));
-        if root_page.get_sanity_type() != sanity_type {
-            panic!("Db encryption mis-match, stored type is {:?}, requested type {:?}", root_page.get_sanity_type(), sanity_type);
-        }
-        let stored_compressor_type = CompressorType::try_from(root_page.get_compression_type()).expect("Unknown compressoion");
-        if stored_compressor_type != self.compressor.compressor_type {
-            panic!("Db compression mis-match, stored type is {:?}, requested type {:?}", root_page.get_compression_type(), 
-            self.compressor.compressor_type);
-        }
-        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1)); 
-        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2)); 
-        let current_master = if master_page1.get_version() > master_page2.get_version() {
-             master_page1 
+    pub fn delete(&mut self, key: &Vec<u8>) -> bool {
+        assert!(key.len() < u32::MAX as usize, "Cannot handle keys larger than u32::MAX.");
+        let key_to_use: Vec<u8>;
+        if TupleProcessor::is_oversized_key(key) {
+            key_to_use = TupleProcessor::generate_short_key(key);
         } else {
-             master_page2
-        }; 
-        let current_version = current_master.get_version();
-        let free_dir_page_no = current_master.get_free_page_dir_page_no();
-        let free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
-        assert!(free_dir_page.get_version() <= current_version);
-        let table_dir_page_no = current_master.get_table_dir_page_no();
-        let table_dir_page = TableDirPage::from_page(self.page_cache.get_page(table_dir_page_no));
-        assert!(table_dir_page.get_version() <= current_version);
-
-        Ok(())
-    }
-
-    pub fn init_db_file(&mut self, sanity_type: BlockSanity) -> std::io::Result<()> {
-        // Get some free pages and make space in the file.
-        // Will trigger a file sync.
-        let mut free_pages: Vec<u32> = self.page_cache.generate_free_pages(10);
-        assert!(free_pages.len() == 10);
-        
-        // Write the Global Tree Root Page.
-        let mut global_tree_root_page = TreeLeafPage::create_new(self.page_cache.get_page_config(), 5);
-        // remove it from the free list
-        free_pages.retain(|&x| x != 5);
-        self.page_cache.put_page(&mut global_tree_root_page.get_page());
-
-        // Write the table directoru page.
-        let mut table_dir_page = TableDirPage::create_new(self.page_cache.get_page_config(), 4, 0);
-        // remove from the free page list
-        free_pages.retain(|&x| x != 4);
-        self.page_cache.put_page(&mut table_dir_page.get_page());
-
-        // Write first master page
-        let mut master_page1: DbMasterPage = DbMasterPage::create_new(self.page_cache.get_page_config(), 1, 0);
-        // remove from free page list
-        free_pages.retain(|&x| x != 1);
-        master_page1.set_free_page_dir_page_no(3);
-        master_page1.set_table_dir_page_no(4);
-        master_page1.set_global_tree_root_page_no(5);
-        self.page_cache.put_page(&mut master_page1.get_page());
-
-        // Write second master page.
-        let mut master_page2: DbMasterPage = DbMasterPage::create_new(self.page_cache.get_page_config(), 2, 1);
-        // remove from free page list
-        free_pages.retain(|&x| x != 2);
-        master_page2.set_free_page_dir_page_no(3);
-        master_page2.set_table_dir_page_no(4);
-        master_page2.set_global_tree_root_page_no(5);
-        self.page_cache.put_page(&mut master_page2.get_page());
-        
-        // Now write the free page directory
-        let mut free_dir_page = FreeDirPage::create_new(self.page_cache.get_page_config(), 3, 0);
-        // The free_dir_page is no longer free, and also the root db page won't be free.
-        free_pages.retain(|&x| x != 0);
-        free_pages.retain(|&x| x != 3);
-        free_dir_page.add_free_pages(&free_pages);
-        self.page_cache.put_page(&mut free_dir_page.get_page());
-
-        // Flush all pages so far, don't sync the file metadata
-        self.page_cache.sync_data();
-
-        // Write the root page as last step to make the DB sane.
-        let mut db_root_page: DbRootPage = DbRootPage::create_new(self.page_cache.get_page_config());
-        db_root_page.set_sanity_type(sanity_type);
-        db_root_page.set_compression_type(self.compressor.compressor_type.clone().into());
-        self.page_cache.put_page(&mut db_root_page.get_page());
-
-        assert!(free_pages.len() == 4, "There should be 4 free pages");
-
-        self.page_cache.sync_data();
-        Ok(())
-    }
-
-    pub fn get_path(&self) -> &str {
-        &self.path
-    }
-
-    pub fn get_master_page(&mut self) -> DbMasterPage {
-        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1)); 
-        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2)); 
-        let current_master = if master_page1.get_version() > master_page2.get_version() {
-             master_page1 
-        } else {
-             master_page2
-        };
-        current_master
-    }
-
-
-    pub fn get_tuple_value<T: TupleTrait>(&self, tuple: &T) -> Vec<u8> {
-        let overflow = tuple.get_overflow();
-        if overflow == Overflow::ValueCompressed || overflow == Overflow::KeyValueCompressed {
-            return self.compressor.decompress(tuple.get_value());
+            key_to_use = key.clone();
         }
-        return tuple.get_value().to_vec();
-    }
 
-    pub fn get_tuple_key<T: TupleTrait>(&self, tuple: &T) -> Vec<u8> {
-        let overflow = tuple.get_overflow();
-        if overflow == Overflow::KeyValueCompressed {
-            return self.compressor.decompress(tuple.get_key());
+        // Get the current master page. Note this is a copy of the page 
+        let master_page = self.get_master_page();
+
+        // Increment the version number
+        let old_version = master_page.get_version();
+        let new_version = old_version + 1;
+
+        // Find the free page directory that has the free page numbers. Make sure
+        // it has free pages - cannot handle the case it does not yet.
+        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
+        let mut free_page_tracker = FreePageTracker::new(
+                self.page_cache.get_page(free_page_dir_page_no), 
+                new_version, *self.page_cache.get_page_config());
+
+
+        let tree_root_page_no = master_page.get_global_tree_root_page_no();
+        let root_page =  self.page_cache.get_page(tree_root_page_no);   
+        let (_new_root_page, deleted) = TreeDeleteHandler::delete_key(&key_to_use, root_page, 
+            &mut self.page_cache, &mut free_page_tracker, new_version);
+        if !deleted {
+            return false;
         }
-        return tuple.get_key().to_vec();
+
+        //TODO -  To fix up master page and store
+        return deleted;
     }
 
 
@@ -208,10 +123,6 @@ impl Db {
         }
 
         // Oversized key - get short version
-        // TODO - if the key already exists and points to an overflow page then
-        // we will leak the original overflow pages. So need to get the key first
-        // and add the overflow pages to the free pages - could do that here
-        // or at a lower level.
         let short_key = TupleProcessor::generate_short_key(key);
         // This tuple will have a page number as the value, the page will be an overflow page
         // that forms a linked list of pages that will hold the tuple.
@@ -289,7 +200,125 @@ impl Db {
         // Now sync the master
         self.page_cache.sync_data();
     }
+}
 
+impl Db {
+    fn check_db_integrity(&mut self, sanity_type: BlockSanity) -> std::io::Result<()> {
+        let root_page = DbRootPage::from_page(self.page_cache.get_page(0));
+        if root_page.get_sanity_type() != sanity_type {
+            panic!("Db encryption mis-match, stored type is {:?}, requested type {:?}", root_page.get_sanity_type(), sanity_type);
+        }
+        let stored_compressor_type = CompressorType::try_from(root_page.get_compression_type()).expect("Unknown compressoion");
+        if stored_compressor_type != self.compressor.compressor_type {
+            panic!("Db compression mis-match, stored type is {:?}, requested type {:?}", root_page.get_compression_type(), 
+            self.compressor.compressor_type);
+        }
+        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1)); 
+        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2)); 
+        let current_master = if master_page1.get_version() > master_page2.get_version() {
+             master_page1 
+        } else {
+             master_page2
+        }; 
+        let current_version = current_master.get_version();
+        let free_dir_page_no = current_master.get_free_page_dir_page_no();
+        let free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
+        assert!(free_dir_page.get_version() <= current_version);
+        let table_dir_page_no = current_master.get_table_dir_page_no();
+        let table_dir_page = TableDirPage::from_page(self.page_cache.get_page(table_dir_page_no));
+        assert!(table_dir_page.get_version() <= current_version);
+
+        Ok(())
+    }
+
+    fn init_db_file(&mut self, sanity_type: BlockSanity) -> std::io::Result<()> {
+        // Get some free pages and make space in the file.
+        // Will trigger a file sync.
+        let mut free_pages: Vec<u32> = self.page_cache.generate_free_pages(10);
+        assert!(free_pages.len() == 10);
+        
+        // Write the Global Tree Root Page.
+        let mut global_tree_root_page = TreeLeafPage::create_new(self.page_cache.get_page_config(), 5);
+        // remove it from the free list
+        free_pages.retain(|&x| x != 5);
+        self.page_cache.put_page(&mut global_tree_root_page.get_page());
+
+        // Write the table directoru page.
+        let mut table_dir_page = TableDirPage::create_new(self.page_cache.get_page_config(), 4, 0);
+        // remove from the free page list
+        free_pages.retain(|&x| x != 4);
+        self.page_cache.put_page(&mut table_dir_page.get_page());
+
+        // Write first master page
+        let mut master_page1: DbMasterPage = DbMasterPage::create_new(self.page_cache.get_page_config(), 1, 0);
+        // remove from free page list
+        free_pages.retain(|&x| x != 1);
+        master_page1.set_free_page_dir_page_no(3);
+        master_page1.set_table_dir_page_no(4);
+        master_page1.set_global_tree_root_page_no(5);
+        self.page_cache.put_page(&mut master_page1.get_page());
+
+        // Write second master page.
+        let mut master_page2: DbMasterPage = DbMasterPage::create_new(self.page_cache.get_page_config(), 2, 1);
+        // remove from free page list
+        free_pages.retain(|&x| x != 2);
+        master_page2.set_free_page_dir_page_no(3);
+        master_page2.set_table_dir_page_no(4);
+        master_page2.set_global_tree_root_page_no(5);
+        self.page_cache.put_page(&mut master_page2.get_page());
+        
+        // Now write the free page directory
+        let mut free_dir_page = FreeDirPage::create_new(self.page_cache.get_page_config(), 3, 0);
+        // The free_dir_page is no longer free, and also the root db page won't be free.
+        free_pages.retain(|&x| x != 0);
+        free_pages.retain(|&x| x != 3);
+        free_dir_page.add_free_pages(&free_pages);
+        self.page_cache.put_page(&mut free_dir_page.get_page());
+
+        // Flush all pages so far, don't sync the file metadata
+        self.page_cache.sync_data();
+
+        // Write the root page as last step to make the DB sane.
+        let mut db_root_page: DbRootPage = DbRootPage::create_new(self.page_cache.get_page_config());
+        db_root_page.set_sanity_type(sanity_type);
+        db_root_page.set_compression_type(self.compressor.compressor_type.clone().into());
+        self.page_cache.put_page(&mut db_root_page.get_page());
+
+        assert!(free_pages.len() == 4, "There should be 4 free pages");
+
+        self.page_cache.sync_data();
+        Ok(())
+    }
+}
+
+
+impl Db {
+    fn get_master_page(&mut self) -> DbMasterPage {
+        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1)); 
+        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2)); 
+        let current_master = if master_page1.get_version() > master_page2.get_version() {
+             master_page1 
+        } else {
+             master_page2
+        };
+        current_master
+    }
+
+    fn get_tuple_value<T: TupleTrait>(&self, tuple: &T) -> Vec<u8> {
+        let overflow = tuple.get_overflow();
+        if overflow == Overflow::ValueCompressed || overflow == Overflow::KeyValueCompressed {
+            return self.compressor.decompress(tuple.get_value());
+        }
+        return tuple.get_value().to_vec();
+    }
+
+    fn get_tuple_key<T: TupleTrait>(&self, tuple: &T) -> Vec<u8> {
+        let overflow = tuple.get_overflow();
+        if overflow == Overflow::KeyValueCompressed {
+            return self.compressor.decompress(tuple.get_key());
+        }
+        return tuple.get_key().to_vec();
+    }
 }
 
 impl Drop for Db {
@@ -309,12 +338,10 @@ mod tests {
     fn test_db_creation() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
-            let db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
-            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
+            Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
         }
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
-            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(1));
             let head_page2 = DbMasterPage::from_page(db.page_cache.get_page(2));
             let free_page_dir_page_no = head_page2.get_free_page_dir_page_no();
@@ -331,14 +358,12 @@ mod tests {
         let value = b"the_value".to_vec();
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
-            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
-            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let returned_value = db.get(&key).unwrap();
             assert!(returned_value == value);
         }
@@ -352,14 +377,12 @@ mod tests {
         let value: Vec<u8> = vec![56u8; 18192];
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::LZ4);
-            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::LZ4);
-            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let returned_value = db.get(&key).unwrap();
             assert!(returned_value == value);
         }
@@ -376,14 +399,12 @@ mod tests {
         rng.fill_bytes(&mut value);
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::LZ4);
-            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::LZ4);
-            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let returned_value = db.get(&key).unwrap();
             assert!(returned_value == value);
         }
@@ -397,14 +418,12 @@ mod tests {
         let value = b"the_value".to_vec();
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), Some(b"the_key".to_vec()), CompressorType::None);
-            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             db.put(&key, &value);
         }
         // The new scope essentially closes the DB - when Files run out of scope then 
         // they are close, Rust bizairely does not allow error handling on close!
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(),Some(b"the_key".to_vec()), CompressorType::None);
-            assert_eq!(db.get_path(), temp_file.path().to_str().unwrap());
             let returned_value = db.get(&key).unwrap();
             assert!(returned_value == value);
         }

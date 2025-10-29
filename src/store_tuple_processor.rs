@@ -94,7 +94,7 @@ impl StoreTupleProcessor{
         let update_result = LeafPageHandler::add_tuple(leaf_page, tuple, page_cache.get_page_config());
 
         // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
-        OverflowPageHandler::delete_overflow_pages(update_result.deleted_tuple, page_cache, free_page_tracker);
+        OverflowPageHandler::delete_overflow_tuple_pages(update_result.deleted_tuple, page_cache, free_page_tracker);
 
         // Remap leaf page or pages if it split and write to disk - get a set of dir entries back for the leadf pages.
         let leaf_dir_entries = StoreTupleProcessor::write_leaf_pages(update_result.tree_leaf_pages, 
@@ -199,7 +199,7 @@ impl StoreTupleProcessor{
         let mut update_result = LeafPageHandler::add_tuple(tree_root_single, tuple, page_cache.get_page_config());
 
         // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
-        OverflowPageHandler::delete_overflow_pages(update_result.deleted_tuple, page_cache, free_page_tracker);
+        OverflowPageHandler::delete_overflow_tuple_pages(update_result.deleted_tuple, page_cache, free_page_tracker);
 
         // Update the leaf page numbers so they are write over free pages and also set the version.
         LeafPageHandler::map_pages(&mut update_result.tree_leaf_pages, free_page_tracker, page_cache, new_version);

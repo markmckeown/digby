@@ -63,8 +63,8 @@ impl TreeLeafPage {
         data_page
     }
 
-    // Create a DataPage from a Page - read bytes from disk,
-    // determine it is a DataPage, and wrap it.
+    // Create a TreeLeafPage from a Page - read bytes from disk,
+    // determine it is a TreeLeafPage, and wrap it.
     pub fn from_page(page: Page) -> Self {
         if page.get_type() != PageType::TreeLeaf 
         && page.get_type() != PageType::TableDir {
@@ -237,9 +237,10 @@ impl TreeLeafPage {
         Some(self.get_tuple_index(0).get_key().to_vec())
     }
 
-    pub fn delete_key(&mut self, key: &Vec<u8>) -> bool {
-        if self.get_tuple(key).is_none() {
-            return false;
+    pub fn delete_key(&mut self, key: &Vec<u8>) -> Option<Tuple> {
+        let tuple = self.get_tuple(key);
+        if tuple.is_none() {
+            return None;
         }
         let page_size = self.page.page_size;
         let mut tuples = self.get_all_tuples();
@@ -252,7 +253,7 @@ impl TreeLeafPage {
         for tuple in tuples {
             self.add_tuple(&tuple);
         }
-        return true;
+        return tuple;
     }
 }
 

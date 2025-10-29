@@ -59,7 +59,8 @@ impl LeafPageHandler {
         }
 
         // Cannot fit, but we may be replacing the key so try deleting it.
-        if page.delete_key(&tuple.get_key().to_vec()) {
+        if existing_tuple.is_some() {
+            page.delete_key(&tuple.get_key().to_vec());
             // key was deleted. now check it fits.
             if page.can_fit(tuple.get_byte_size()) {
                 page.store_tuple(tuple);

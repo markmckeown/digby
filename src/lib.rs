@@ -54,3 +54,5 @@ pub mod compressor;
 pub use compressor::Compressor;
 pub mod block_sanity;
 pub use block_sanity::BlockSanity;
+pub mod tree_delete_handler;
+pub use tree_delete_handler::TreeDeleteHandler;

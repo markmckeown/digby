@@ -68,21 +68,29 @@ impl OverflowPageHandler {
         return OverflowTuple::from_bytes(buffer);
     }
 
-    pub fn delete_overflow_pages(
+    pub fn delete_overflow_tuple_pages(
         tuple_option: Option<Tuple>,
         page_cache: &mut PageCache,
-        free_page_tracker: &mut FreePageTracker
-    ) -> u32 {
+        free_page_tracker: &mut FreePageTracker) -> u32 {
         if tuple_option.is_none() {
             return 0;
         }
         let tuple = tuple_option.unwrap();
         if tuple.get_overflow() == Overflow::None {
             return 0;
-        }
+        }    
         // A tuple has been deleted that points to a overflow page.
-        let mut page_no = u32::from_le_bytes(tuple.get_value().to_vec().try_into().unwrap());
-        free_page_tracker.return_free_page_no(page_no);
+        let page_no = u32::from_le_bytes(tuple.get_value().to_vec().try_into().unwrap());
+        return OverflowPageHandler::delete_overflow_pages(page_no, page_cache, free_page_tracker);
+    }
+
+
+    pub fn delete_overflow_pages(
+        first_page: u32,
+        page_cache: &mut PageCache,
+        free_page_tracker: &mut FreePageTracker) -> u32 {    
+        free_page_tracker.return_free_page_no(first_page);
+        let mut page_no = first_page;
         let mut count:u32 = 1;
         loop {
             let page = OverflowPage::from_page(page_cache.get_page(page_no));
