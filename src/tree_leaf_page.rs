@@ -77,6 +77,10 @@ impl TreeLeafPage {
         self.page.set_type(PageType::TableDir)
     }
 
+    pub fn is_empty(&self) -> bool {
+        return self.get_entries() == 0;
+    }
+
     fn get_entries(&self) -> u16 {
         let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
         cursor.set_position(12);

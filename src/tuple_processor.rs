@@ -12,13 +12,15 @@ pub struct TupleProcessor {
 // If keys are larger 256 bytes then lexical sorting will break down - another option
 // would be just to store the SHA256 as the comppressed key.
 impl TupleProcessor {
+    const MAX_VALUE_SIZE: usize = 1024;
+
     pub fn generate_tuple(key: &Vec<u8>, 
         value: &Vec<u8>, 
         page_cache: &mut PageCache, 
         free_page_tracker: &mut FreePageTracker,
         version: u64,
         compressor: &Compressor) -> Tuple {
-        if !TupleProcessor::is_oversized_key(key) && value.len() < 2048 {
+        if !TupleProcessor::is_oversized_key(key) && value.len() < TupleProcessor::MAX_VALUE_SIZE {
             return Tuple::new(key, value, version);
         }    
         assert!(key.len() < u32::MAX as usize, "key is too large");
@@ -28,13 +30,13 @@ impl TupleProcessor {
         if compressor.compressor_type != CompressorType::None {
             compressed_value = compressor.compress(value);
             // We can store it with the value compressed.
-            if !TupleProcessor::is_oversized_key(key) && compressed_value.len() < 2048 {
+            if !TupleProcessor::is_oversized_key(key) && compressed_value.len() < TupleProcessor::MAX_VALUE_SIZE {
                 return Tuple::new_with_overflow(key, &compressed_value, version, Overflow::ValueCompressed);
             }
         }
 
         let overflow_type: Overflow;
-        if TupleProcessor::is_oversized_key(key) && value.len() > 2048 {
+        if TupleProcessor::is_oversized_key(key) && value.len() > TupleProcessor::MAX_VALUE_SIZE {
             overflow_type = Overflow::KeyValueOverflow;
         } else if key.len() > u8::MAX as usize {
             overflow_type = Overflow::KeyOverflow;
