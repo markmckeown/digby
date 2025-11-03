@@ -21,6 +21,7 @@ impl StoreTupleProcessor{
     ) -> Option<Tuple> {
         // Set the page to be the first page, the root page.
         let mut page = first;
+
         loop {
             // If the page is a tree leaf then if the key is stored
             // then it will be in this leaf page.

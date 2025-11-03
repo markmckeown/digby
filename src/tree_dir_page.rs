@@ -69,7 +69,7 @@ impl TreeDirPage {
     
     pub fn from_page(page: Page) -> Self {
         if page.get_type() != crate::page::PageType::TreeDirPage {
-            panic!("Invalid page type for TreePageDir");
+            panic!("Invalid page type for TreePageDir, got {:?}", page.get_type());
         }
 
         let tree_page_dir = TreeDirPage { page: page };
@@ -321,7 +321,7 @@ impl TreeDirPage {
     }
 
 
-    fn set_page_no_for_key(&mut self, key: Vec<u8>, new_page_no: u32) {
+fn set_page_no_for_key(&mut self, key: Vec<u8>, new_page_no: u32) {
         let page_size = self.page.page_size;
         let entries = self.get_entries();
         assert!(entries != 0);

@@ -5,7 +5,7 @@ use crate::block_layer::PageConfig;
 use crate::version_holder::VersionHolder;
 
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum PageType {
     Free = 1,
     DbRoot = 2,

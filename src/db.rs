@@ -101,10 +101,7 @@ impl Db {
         if !deleted {
             return false;
         }
-
-
-        // Write out the free pages.
-        free_page_tracker.return_free_page_no(tree_root_page_no);
+    
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
         assert!(free_dir_pages.len() >= 1);
@@ -130,7 +127,6 @@ impl Db {
         self.page_cache.put_page(master_page.get_page());
         // Now sync the master
         self.page_cache.sync_data();
-
 
         return deleted;
     }
@@ -201,7 +197,6 @@ impl Db {
             &mut self.page_cache, new_version);
        
         // Write out the free pages.
-        free_page_tracker.return_free_page_no(tree_root_page_no);
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
         assert!(free_dir_pages.len() >= 1);
@@ -397,6 +392,63 @@ mod tests {
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
+
+
+     #[test]
+    fn test_db_store_two_value() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let key = b"the_key".to_vec();
+        let value = b"the_value".to_vec();
+        let another_key = b"another_key".to_vec();
+        let another_value = b"another_value".to_vec();
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
+            db.put(&key, &value);
+            db.put(&another_key, &another_value);
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then 
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
+            let returned_value = db.get(&key).unwrap();
+            assert!(returned_value == value);
+            let returned_value = db.get(&another_key).unwrap();
+            assert!(returned_value == another_value);
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
+
+
+    #[test]
+    fn test_db_store_value_delete() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let key = b"the_key".to_vec();
+        let value = b"the_value".to_vec();
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
+            db.put(&key, &value);
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then 
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
+            let returned_value = db.get(&key).unwrap();
+            assert!(returned_value == value);
+        }
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
+            let deleted = db.delete(&key);
+            assert!(deleted);
+        }
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
+            let returned_value = db.get(&key);
+            assert!(returned_value.is_none());
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
 
     #[test]
     fn test_db_store_large_key_value_compressible() {
