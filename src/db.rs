@@ -80,7 +80,7 @@ impl Db {
         }
 
         // Get the current master page. Note this is a copy of the page 
-        let master_page = self.get_master_page();
+        let mut master_page = self.get_master_page();
 
         // Increment the version number
         let old_version = master_page.get_version();
@@ -96,13 +96,42 @@ impl Db {
 
         let tree_root_page_no = master_page.get_global_tree_root_page_no();
         let root_page =  self.page_cache.get_page(tree_root_page_no);   
-        let (_new_root_page, deleted) = TreeDeleteHandler::delete_key(&key_to_use, root_page, 
+        let (new_tree_free_page_no, deleted) = TreeDeleteHandler::delete_key(&key_to_use, root_page, 
             &mut self.page_cache, &mut free_page_tracker, new_version);
         if !deleted {
             return false;
         }
 
-        //TODO -  To fix up master page and store
+
+        // Write out the free pages.
+        free_page_tracker.return_free_page_no(tree_root_page_no);
+        // Write the new free page directory back through the page cache.
+        let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
+        assert!(free_dir_pages.len() >= 1);
+        let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
+        while let Some(mut free_dir_page) = free_dir_pages.pop() {
+            self.page_cache.put_page(free_dir_page.get_page());
+        }
+
+        // Now need to update the master - tell it were the 
+        // the globale tree root page is and where the free page
+        // directory is now.
+        master_page.set_free_page_dir_page_no(first_free_dir_page);
+        master_page.set_global_tree_root_page_no(new_tree_free_page_no);
+        // update the version
+        master_page.set_version(new_version);
+        // flip the page number to overrwrite the non-current master
+        // page and make it the new current master.
+        master_page.flip_page_number();
+
+        // Sync the first two pages before writing the new master page.
+        self.page_cache.sync_data();
+        // Put the master page.
+        self.page_cache.put_page(master_page.get_page());
+        // Now sync the master
+        self.page_cache.sync_data();
+
+
         return deleted;
     }
 
@@ -165,8 +194,7 @@ impl Db {
             new_version, &self.compressor);  
         
         // Now get the page number of the root of the global tree. Then get the page,
-        // this is a copy of the page. Only handle the case when the root is also 
-        // a leaf node ATM.
+        // this is a copy of the page. 
         let tree_root_page_no = master_page.get_global_tree_root_page_no();
         let page =  self.page_cache.get_page(tree_root_page_no);   
         let new_tree_free_page_no = StoreTupleProcessor::store_tuple(tuple, page, &mut free_page_tracker, 

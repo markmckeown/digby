@@ -1,5 +1,5 @@
 use crate::tuple::{Overflow, TupleTrait};
-use crate::{FreePageTracker, OverflowPageHandler, Page, PageCache, TreeDirPage, TreeLeafPage};
+use crate::{FreePageTracker, OverflowPageHandler, Page, PageCache, TreeDirEntry, TreeDirPage, TreeLeafPage};
 use crate::page::{PageTrait, PageType};
 pub struct TreeDeleteHandler {
 
@@ -11,7 +11,6 @@ impl TreeDeleteHandler {
         page_cache: &mut PageCache, 
         free_page_tracker: &mut FreePageTracker, 
         new_version: u64) -> (u32, bool) {
-        let root_page_no = root_page.get_page_number();
 
         if root_page.get_type() == PageType::TreeLeaf {
            // The root of the tree is actually a leaf page - requires special handling.
@@ -93,7 +92,44 @@ impl TreeDeleteHandler {
         new_version: u64, 
         new_leaf_page_no: u32) -> u32 {
 
+        // if new_leaf_page_no is not 0 then we just need to rewrite the dir pages, none of them
+        // the leaf page still exists and we do not rebalance.
+        if new_leaf_page_no != 0 {
+            return TreeDeleteHandler::fix_stack_no_page_del(key, dir_pages, free_page_tracker, 
+                page_cache, new_version, new_leaf_page_no);
+        }
+
+        // Need to handle page deletion
         return 0;
+    }
+
+    fn fix_stack_no_page_del(key: &Vec<u8>, 
+        dir_pages: &mut Vec<TreeDirPage>, 
+        free_page_tracker: &mut FreePageTracker, 
+        page_cache: &mut PageCache, 
+        new_version: u64, 
+        new_leaf_page_no: u32) -> u32 {
+
+        let mut page_no_to_update = new_leaf_page_no;
+        loop {
+            let dir_page_wrapped = dir_pages.pop();
+            if dir_page_wrapped.is_none() {
+                break;
+            }
+            let mut dir_page = dir_page_wrapped.unwrap();
+            // Update the entry in the dir page with the new page number
+            let tree_dir_entry = TreeDirEntry::new(key.clone(), page_no_to_update);
+            let mut entries: Vec<TreeDirEntry> = Vec::new();
+            entries.push(tree_dir_entry);
+            dir_page.add_entries(entries);
+            let dir_old_page_no  = dir_page.get_page_number();
+            free_page_tracker.return_free_page_no(dir_old_page_no);
+            page_no_to_update = free_page_tracker.get_free_page(page_cache);
+            dir_page.set_page_number(page_no_to_update);
+            dir_page.set_version(new_version);
+            page_cache.put_page(dir_page.get_page());
+        }    
+        return page_no_to_update;
     }
 
 
