@@ -88,7 +88,7 @@ impl TreeDirPage {
         self.page.get_page_bytes_mut()[index..index+4].copy_from_slice(&page_no.to_le_bytes());
     }
 
- pub fn get_entries(&self) -> u16 {
+    pub fn get_entries(&self) -> u16 {
         let index = 12;
         let slice = &self.page.get_page_bytes()[index..index + 2];
         let array: [u8; 2] = slice.try_into().unwrap();
@@ -285,6 +285,62 @@ impl TreeDirPage {
         Some(self.get_dir_entry_index(0).get_key().to_vec())
     }
 
+    pub fn remove_key_page(&mut self, key: &Vec<u8>, page_no: u32) -> () {
+        let entries = self.get_entries();
+        
+
+        // There should only be the left most page.
+        if entries == 0 {
+            assert!(page_no == self.get_page_to_left());
+            self.set_page_to_left(0);
+            return;
+        }
+
+
+        // Greater than right most key - just remove entry
+        let last_entry = self.get_dir_entry_index(entries - 1);
+        if key > last_entry.get_key().to_vec().as_ref() { 
+            self.set_entries(entries - 1);
+            return;
+        }
+
+        // Less than lowest key in entry - remove left most key from list
+        let first_entry = self.get_dir_entry_index(0);
+        if key < first_entry.get_key().to_vec().as_ref() {
+            assert!(page_no == self.get_page_to_left());
+            let new_left_most_page = first_entry.get_page_no();
+            self.set_page_to_left(new_left_most_page);
+            let page_size = self.page.page_size;
+        
+            let sorted = self.get_all_dir_entries();
+            // Clear the page and re-add all tree_dir_entries
+            self.set_entries(0);
+            self.set_free_space(page_size as u16 - TreeDirPage::HEADER_SIZE); // Reset free space
+
+            let mut count = 0;
+            for entry in sorted {
+                if count == 0 {
+                    continue; // skip first
+                }
+                count = count + 1;
+                self.append_tree_dir_entry(&entry, page_size as u64);
+            }
+            return;
+        }
+
+        // Find the key by page_no
+        let mut entries = self.get_all_dir_entries();
+        entries.retain(|entry| entry.get_page_no() != page_no);
+        self.set_entries(0);
+        let page_size = self.page.page_size;
+        self.set_free_space(page_size as u16 - TreeDirPage::HEADER_SIZE); // Reset free space
+        for entry in entries {
+            self.append_tree_dir_entry(&entry, page_size as u64);
+        }
+
+    }
+
+
     // Get the page for a key. The key can be: 
     //   Less than the left most key so use the page to the left
     //   Equal to a key, so use that page.
@@ -474,4 +530,53 @@ mod tests {
         assert_eq!(tree_dir_page.get_next_page(b"s".to_vec().as_ref()), 275);
         assert_eq!(tree_dir_page.get_next_page(b"u".to_vec().as_ref()), 175);
     }
+
+
+
+    #[test]
+    fn test_delete_entries() {
+        let tree_dir_entry_1 = TreeDirEntry::new(b"d".to_vec(), 45);
+        let tree_dir_entry_2 = TreeDirEntry::new(b"s".to_vec(), 75);
+        let mut entries: Vec<TreeDirEntry> = Vec::new();
+        entries.push(tree_dir_entry_1);
+        entries.push(tree_dir_entry_2);
+        let mut tree_dir_page = TreeDirPage::new(4096, 4096, 3, 567);
+        tree_dir_page.add_entries(entries);
+
+        tree_dir_page.remove_key_page(&b"d".to_vec(), 45);
+        assert_eq!(tree_dir_page.get_page_to_left(), 75);
+
+        tree_dir_page.remove_key_page(&b"t".to_vec(), 75);
+        assert_eq!(tree_dir_page.get_entries(), 0);
+        assert_eq!(tree_dir_page.get_page_to_left(), 0);
+    }
+
+
+    #[test]
+    fn test_delete_entries1() {
+        let tree_dir_entry_1 = TreeDirEntry::new(b"d".to_vec(), 45);
+        let tree_dir_entry_2 = TreeDirEntry::new(b"s".to_vec(), 75);
+        let tree_dir_entry_3 = TreeDirEntry::new(b"w".to_vec(), 105);
+        let mut entries: Vec<TreeDirEntry> = Vec::new();
+        entries.push(tree_dir_entry_1);
+        entries.push(tree_dir_entry_2);
+        entries.push(tree_dir_entry_3);
+        let mut tree_dir_page = TreeDirPage::new(4096, 4096, 3, 567);
+        tree_dir_page.add_entries(entries);
+        assert_eq!(tree_dir_page.get_entries(), 2);
+
+        
+        tree_dir_page.remove_key_page(&b"t".to_vec(), 75);
+        assert_eq!(tree_dir_page.get_page_to_left(), 45);
+        assert_eq!(tree_dir_page.get_entries(), 1);
+
+        tree_dir_page.remove_key_page(&b"e".to_vec(), 45);
+        assert_eq!(tree_dir_page.get_entries(), 0);
+        assert_eq!(tree_dir_page.get_page_to_left(), 105);
+
+        tree_dir_page.remove_key_page(&b"z".to_vec(), 105);
+        assert_eq!(tree_dir_page.get_entries(), 0);
+        assert_eq!(tree_dir_page.get_page_to_left(), 0);
+    }
+
 }
