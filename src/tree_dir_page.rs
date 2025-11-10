@@ -113,6 +113,10 @@ impl TreeDirPage {
     }
 
 
+    pub fn is_empty(&self) -> bool {
+        return self.get_page_to_left() == 0;
+    }
+
     pub fn can_fit_entries(&self, entries: &Vec<TreeDirEntry>) -> bool {
         if entries.len() == 1 {
             // if only one entry then its just an update, nothing to add.
@@ -572,11 +576,13 @@ mod tests {
 
         tree_dir_page.remove_key_page(&b"e".to_vec(), 45);
         assert_eq!(tree_dir_page.get_entries(), 0);
+        assert!(!tree_dir_page.is_empty());
         assert_eq!(tree_dir_page.get_page_to_left(), 105);
 
         tree_dir_page.remove_key_page(&b"z".to_vec(), 105);
         assert_eq!(tree_dir_page.get_entries(), 0);
         assert_eq!(tree_dir_page.get_page_to_left(), 0);
+        assert!(tree_dir_page.is_empty());
     }
 
 }

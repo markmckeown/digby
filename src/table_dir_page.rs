@@ -54,7 +54,6 @@ impl TableDirPage {
          }
     }
 
-    
     pub fn can_fit(&mut self, size: usize) -> bool {
         self.page.can_fit(size)
     }
