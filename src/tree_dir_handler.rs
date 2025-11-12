@@ -21,13 +21,6 @@ impl TreeDirHandler {
         assert!(!entries.is_empty(), "entries was empty");
         let mut tree_dir_pages: Vec<TreeDirPageRef> = Vec::new();
 
-        /*
-        let mut entries: Vec<TreeDirEntry> = Vec::new();
-        for leaf_page in leaf_pages {
-            let tree_dir_entry = TreeDirEntry::new(leaf_page.get_left_key(page_size).unwrap(), leaf_page.get_page_number());
-            entries.push(tree_dir_entry);
-        }
-        */
 
         // Do not need to split the tree dir page.
         if tree_dir_page.can_fit_entries(&entries) {

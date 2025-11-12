@@ -195,10 +195,13 @@ impl TreeLeafPage {
         let entries = self.get_entries();
         let start = (entries+1)/2;
         let mut tuples = Vec::new();
+        let mut free_space = self.get_free_space();
         for i in start..entries {
             let tuple = self.get_tuple_index(i);
+            free_space += tuple.get_byte_size() as u16 + 2;
             tuples.push(tuple);
         }
+        self.set_free_space(free_space);
         self.set_entries(start);
         tuples 
     }

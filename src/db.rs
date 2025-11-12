@@ -503,7 +503,10 @@ mod tests {
         {
             let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
             CompressorType::None, 128);
-            for i in 0u64..=256 {
+            let mut numbers: Vec<u64> = (0..=256).collect();
+            let mut rng = rng();
+            numbers.shuffle(&mut rng);
+            for i in numbers {
                 db.put(i.to_be_bytes().to_vec().as_ref(), i.to_be_bytes().to_vec().as_ref());
             }
         }
