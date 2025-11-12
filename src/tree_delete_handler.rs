@@ -126,7 +126,7 @@ impl TreeDeleteHandler {
             let mut dir_page = dir_page_wrapped.unwrap();
             dir_page.remove_key_page(key, page_to_delete);
             if dir_page.is_empty() {
-                page_to_delete = dir_page.get_next_page(key);
+                page_to_delete = dir_page.get_page_number();
                 free_page_tracker.return_free_page_no(page_to_delete);
             } else {
                 // This dir page is not empty - push back on stack for

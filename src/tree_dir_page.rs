@@ -153,8 +153,12 @@ impl TreeDirPage {
         // Empty page - there must be more than one entry. Set first to be the left of
         // page then add other entries
         if self.get_entries() == 0 {
-            // If the page is empty then there must be more than one entry.
-            assert!(!deque.is_empty(), "Cannot add single entry to an empty tree dir page.");
+            if deque.is_empty() {
+                // This can be triggered on delete.
+                self.set_page_to_left(entry.get_page_no());
+                return;
+            }
+
             self.set_page_to_left(entry.get_page_no());
             while !deque.is_empty() {
                 self.add_tree_dir_in_page(deque.pop_front().unwrap());
@@ -321,12 +325,10 @@ impl TreeDirPage {
             self.set_entries(0);
             self.set_free_space(page_size as u16 - TreeDirPage::HEADER_SIZE); // Reset free space
 
-            let mut count = 0;
             for entry in sorted {
-                if count == 0 {
+                if entry.get_page_no() == new_left_most_page {
                     continue; // skip first
                 }
-                count = count + 1;
                 self.append_tree_dir_entry(&entry, page_size as u64);
             }
             return;
@@ -353,7 +355,11 @@ impl TreeDirPage {
     //
     pub fn get_next_page(&self, key: &Vec<u8>) -> u32 {
         let entries = self.get_entries();
-        assert!(entries != 0);
+
+        if entries == 0 {
+            return self.get_page_to_left()
+        }
+
         if key < self.get_dir_entry_index(0).get_key().to_vec().as_ref() {
             return self.get_page_to_left()
         }

@@ -19,8 +19,11 @@ pub struct Db {
 
 impl Db {
     pub const BLOCK_SIZE: usize = 4096;
+    pub fn new(path: &str, key: Option<Vec<u8>>, compressor_type: CompressorType) -> Self {
+        return Db::new_with_page_size(path, key, compressor_type, Db::BLOCK_SIZE)
+    }
 
-    pub fn new(path: &str, key: Option<Vec<u8>>, compressor_type: CompressorType) -> Self {        
+    pub fn new_with_page_size(path: &str, key: Option<Vec<u8>>, compressor_type: CompressorType, block_size: usize) -> Self {        
         use std::fs::OpenOptions;
         use std::path::Path;
         
@@ -44,14 +47,14 @@ impl Db {
             is_new = true;
         }
 
-        let file_layer: FileLayer = FileLayer::new(db_file, Db::BLOCK_SIZE);
+        let file_layer: FileLayer = FileLayer::new(db_file, block_size);
         let block_layer: BlockLayer;
         let sanity_type: BlockSanity;
         if key.is_none() {
-            block_layer = BlockLayer::new(file_layer, Db::BLOCK_SIZE);
+            block_layer = BlockLayer::new(file_layer, block_size);
             sanity_type = BlockSanity::XxH32Checksum;
         } else {
-            block_layer = BlockLayer::new_with_key(file_layer, Db::BLOCK_SIZE, key.unwrap());
+            block_layer = BlockLayer::new_with_key(file_layer, block_size, key.unwrap());
             sanity_type = BlockSanity::Aes128Gcm;
         }
         let page_cache: PageCache = PageCache::new(block_layer);
@@ -448,6 +451,99 @@ mod tests {
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
+
+
+    #[test]
+    fn test_db_store_value_delete_small_page_reverse() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            for i in 0u64..=256 {
+                db.put(i.to_be_bytes().to_vec().as_ref(), i.to_be_bytes().to_vec().as_ref());
+            }
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then 
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            for i in 0u64..=256 {
+                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref()).unwrap();
+                assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
+            }
+        }
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            for i in (0..257u64).rev() {
+                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref()).unwrap();
+                assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
+                let deleted = db.delete(i.to_be_bytes().to_vec().as_ref());
+                if !deleted {
+                    assert!(deleted);
+                }
+                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+                assert!(returned_value.is_none());
+            }
+        }
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            let i: u64 = 0;
+            let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+            assert!(returned_value.is_none());
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
+
+    #[test]
+    fn test_db_store_value_delete_small_page() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            for i in 0u64..256 {
+                db.put(i.to_be_bytes().to_vec().as_ref(), i.to_be_bytes().to_vec().as_ref());
+            }
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then 
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            for i in 0u64..256 {
+                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref()).unwrap();
+                assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
+            }
+        }
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            for i in 0u64..256 {
+                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref()).unwrap();
+                assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
+                let deleted = db.delete(i.to_be_bytes().to_vec().as_ref());
+                if !deleted {
+                    assert!(deleted);
+                }
+                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+                assert!(returned_value.is_none());
+            }
+        }
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            let i: u64 = 0;
+            let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+            assert!(returned_value.is_none());
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
+
+
 
 
     #[test]
