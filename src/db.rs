@@ -399,6 +399,87 @@ impl Db {
         let table_root_page_no = table_root_page_no_wrapped.unwrap();
         return self.get_from_tree(key, table_root_page_no);
     }
+
+    pub fn delete_table(&mut self, table_name: &Vec<u8>, key: &Vec<u8>) -> bool {
+        assert!(key.len() < u32::MAX as usize, "Cannot handle keys larger than u32::MAX.");
+        assert!(table_name.len() < u8::MAX as usize, "Cannot handle keys larger than u8::MAX.");
+        
+        let table_root_page_no_wrapped = self.get_table_tree_root(table_name);
+        if table_root_page_no_wrapped.is_none() {
+            // should maybe throw error
+            return false;
+        }
+        let table_root_page_no = table_root_page_no_wrapped.unwrap();
+
+        
+        let key_to_use: Vec<u8>;
+        if TupleProcessor::is_oversized_key(key) {
+            key_to_use = TupleProcessor::generate_short_key(key);
+        } else {
+            key_to_use = key.clone();
+        }
+
+        // Get the current master page. Note this is a copy of the page 
+        let mut master_page = self.get_master_page();
+
+        // Increment the version number
+        let old_version = master_page.get_version();
+        let new_version = old_version + 1;
+
+        // Find the free page directory that has the free page numbers. 
+        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
+        let mut free_page_tracker = FreePageTracker::new(
+                self.page_cache.get_page(free_page_dir_page_no), 
+                new_version, *self.page_cache.get_page_config());
+
+
+        let root_page =  self.page_cache.get_page(table_root_page_no);   
+        let (new_tree_free_page_no, deleted) = TreeDeleteHandler::delete_key(&key_to_use, root_page, 
+            &mut self.page_cache, &mut free_page_tracker, new_version);
+        if !deleted {
+            return false;
+        }
+
+        let table_tuple =  TupleProcessor::generate_tuple(&table_name, 
+            new_tree_free_page_no.to_le_bytes().to_vec().as_ref(), &mut self.page_cache, &mut free_page_tracker, 
+            new_version, &self.compressor);
+
+        let table_dir_root_page_no = master_page.get_table_dir_page_no();
+        let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
+        let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(table_tuple, table_dir_root_page, &mut free_page_tracker, 
+            &mut self.page_cache, new_version);
+
+    
+        // Write the new free page directory back through the page cache.
+        let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
+        assert!(free_dir_pages.len() >= 1);
+        let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
+        while let Some(mut free_dir_page) = free_dir_pages.pop() {
+            self.page_cache.put_page(free_dir_page.get_page());
+        }
+
+        // Now need to update the master - tell it were the 
+        // the globale tree root page is and where the free page
+        // directory is now.
+        master_page.set_free_page_dir_page_no(first_free_dir_page);
+        master_page.set_table_dir_page_no(new_table_dir_root_page_no);
+        // update the version
+        master_page.set_version(new_version);
+        // flip the page number to overrwrite the non-current master
+        // page and make it the new current master.
+        master_page.flip_page_number();
+
+        // Sync the first two pages before writing the new master page.
+        self.page_cache.sync_data();
+        // Put the master page.
+        self.page_cache.put_page(master_page.get_page());
+        // Now sync the master
+        self.page_cache.sync_data();
+
+        return deleted;
+    }
+
+
 }
 
 impl Db {
@@ -597,6 +678,35 @@ mod tests {
             assert!(db.get_table_tree_root(&name).is_some());
             let returned_value = db.get_table(&name, &key).unwrap();
             assert!(returned_value == value);
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
+    #[test]
+    fn test_db_create_put_delete_table() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let key = b"the_key".to_vec();
+        let value = b"the_value".to_vec();
+        let name = b"the_table".to_vec();
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
+            assert!(db.get_table_tree_root(&name).is_none());
+            db.create_table(&name);
+            db.put_table(&name, &key, &value);
+            assert!(db.get_table_tree_root(&name).is_some());
+        }
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
+            assert!(db.get_table_tree_root(&name).is_some());
+            let returned_value = db.get_table(&name, &key).unwrap();
+            assert!(returned_value == value);
+            assert!(db.delete_table(&name, &key))
+        }
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
+            assert!(db.get_table_tree_root(&name).is_some());
+            let returned_value = db.get_table(&name, &key);
+            assert!(returned_value.is_none());
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
