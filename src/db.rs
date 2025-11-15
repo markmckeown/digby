@@ -1,6 +1,6 @@
 use crate::compressor::CompressorType;
 use crate::free_page_tracker::FreePageTracker;
-use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TableDirPage, TreeDeleteHandler, TreeLeafPage, TupleProcessor};
+use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TreeDeleteHandler, TreeLeafPage, TupleProcessor};
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
@@ -89,8 +89,7 @@ impl Db {
         let old_version = master_page.get_version();
         let new_version = old_version + 1;
 
-        // Find the free page directory that has the free page numbers. Make sure
-        // it has free pages - cannot handle the case it does not yet.
+        // Find the free page directory that has the free page numbers. 
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
         let mut free_page_tracker = FreePageTracker::new(
                 self.page_cache.get_page(free_page_dir_page_no), 
@@ -250,10 +249,7 @@ impl Db {
         let free_dir_page_no = current_master.get_free_page_dir_page_no();
         let free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
         assert!(free_dir_page.get_version() <= current_version);
-        let table_dir_page_no = current_master.get_table_dir_page_no();
-        let table_dir_page = TableDirPage::from_page(self.page_cache.get_page(table_dir_page_no));
-        assert!(table_dir_page.get_version() <= current_version);
-
+        
         Ok(())
     }
 
@@ -269,8 +265,8 @@ impl Db {
         free_pages.retain(|&x| x != 5);
         self.page_cache.put_page(&mut global_tree_root_page.get_page());
 
-        // Write the table directoru page.
-        let mut table_dir_page = TableDirPage::create_new(self.page_cache.get_page_config(), 4, 0);
+        // Write the table directory page.
+        let mut table_dir_page = TreeLeafPage::create_new(self.page_cache.get_page_config(), 4);
         // remove from the free page list
         free_pages.retain(|&x| x != 4);
         self.page_cache.put_page(&mut table_dir_page.get_page());
