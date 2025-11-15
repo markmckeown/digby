@@ -43,6 +43,7 @@ impl FileLayer {
     }
 
     pub fn read_page_from_disk(&mut self, page: &mut Page, page_number: u32) -> std::io::Result<()> {
+        assert!(page_number < self.block_count);
         use std::io::{Read, Seek, SeekFrom};
 
         let offset = page_number as u64 * self.block_size as u64;
