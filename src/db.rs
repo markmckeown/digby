@@ -1,6 +1,6 @@
 use crate::compressor::CompressorType;
 use crate::free_page_tracker::FreePageTracker;
-use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TreeDeleteHandler, TreeLeafPage, TupleProcessor};
+use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TreeDeleteHandler, TreeLeafPage, TupleProcessor, page_cache};
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
@@ -225,6 +225,90 @@ impl Db {
         // Now sync the master
         self.page_cache.sync_data();
     }
+
+    pub fn create_table(&mut self, name: &Vec<u8>) -> () {
+        // Assert on the things that cannot be handled yet.
+        assert!(name.len() < u8::MAX as usize, "Cannot handle table name larger than u8::MAX.");
+        
+        // Get the current master page. Note this is a copy of the page 
+        let mut master_page = self.get_master_page();
+
+        // TODO check if table exists
+
+        // Increment the version number
+        let old_version = master_page.get_version();
+        let new_version = old_version + 1;
+
+        // Find the free page directory that has the free page numbers. Make sure
+        // it has free pages - cannot handle the case it does not yet.
+        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
+        let mut free_page_tracker = FreePageTracker::new(
+                self.page_cache.get_page(free_page_dir_page_no), 
+                new_version, *self.page_cache.get_page_config());
+
+        let new_table_root_page_no = free_page_tracker.get_free_page(&mut self.page_cache);
+        let mut new_table_root_page = TreeLeafPage::create_new(self.page_cache.get_page_config(), 
+        new_table_root_page_no);   
+        new_table_root_page.set_version(new_version);
+        self.page_cache.put_page(new_table_root_page.get_page());
+
+        // Create the tuple we want to add. 
+        let tuple = TupleProcessor::generate_tuple(&name, 
+            new_table_root_page_no.to_le_bytes().to_vec().as_ref(), &mut self.page_cache, &mut free_page_tracker, 
+            new_version, &self.compressor);  
+        
+        // Now get the page number of the root of the global tree. Then get the page,
+        // this is a copy of the page. 
+        let table_tree_root_page_no = master_page.get_table_dir_page_no();
+        let page =  self.page_cache.get_page(table_tree_root_page_no);   
+        let new_table_tree_root_no = StoreTupleProcessor::store_tuple(tuple, page, &mut free_page_tracker, 
+            &mut self.page_cache, new_version);
+       
+        // Write out the free pages.
+        // Write the new free page directory back through the page cache.
+        let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
+        assert!(free_dir_pages.len() >= 1);
+        let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
+        while let Some(mut free_dir_page) = free_dir_pages.pop() {
+            self.page_cache.put_page(free_dir_page.get_page());
+        }
+
+        // Now need to update the master - tell it were the 
+        // the globale tree root page is and where the free page
+        // directory is now.
+        master_page.set_free_page_dir_page_no(first_free_dir_page);
+        master_page.set_table_dir_page_no(new_table_tree_root_no);
+        // update the version
+        master_page.set_version(new_version);
+        // flip the page number to overrwrite the non-current master
+        // page and make it the new current master.
+        master_page.flip_page_number();
+
+        // Sync the first two pages before writing the new master page.
+        self.page_cache.sync_data();
+        // Put the master page.
+        self.page_cache.put_page(master_page.get_page());
+        // Now sync the master
+        self.page_cache.sync_data();
+    }
+
+
+    pub fn get_table_tree_root(&mut self, name: &Vec<u8>) -> Option<u32> {
+        assert!(name.len() < u8::MAX as usize, "Cannot handle keys larger than u8::MAX.");
+        let master_page = self.get_master_page();
+        let table_dir_page_no = master_page.get_table_dir_page_no();
+        // TODO need to check versions.
+        let page = self.page_cache.get_page(table_dir_page_no);
+
+        if let Some(tuple) = StoreTupleProcessor::get_tuple(name, page, &mut self.page_cache) {
+            assert!(tuple.get_overflow() == Overflow::None);
+            assert_eq!(tuple.get_value().len(), 4);
+            let page_no =  u32::from_le_bytes(tuple.get_value().try_into().unwrap());
+            return Some(page_no);
+        } else {
+            return None;
+        }
+    }
 }
 
 impl Db {
@@ -391,6 +475,20 @@ mod tests {
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
+
+    #[test]
+    fn test_db_create_table() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let name = b"the_table".to_vec();
+        {
+            let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
+            assert!(db.get_table_tree_root(&name).is_none());
+            db.create_table(&name);
+            assert!(db.get_table_tree_root(&name).is_some());
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
 
 
      #[test]
