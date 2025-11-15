@@ -314,7 +314,7 @@ impl Db {
         }
     }
 
-    pub fn put_table(&mut self, table_name: &Vec<u8>, key: &Vec<u8>, value: &Vec<u8>) -> () {
+    pub fn put_table_entry(&mut self, table_name: &Vec<u8>, key: &Vec<u8>, value: &Vec<u8>) -> () {
         assert!(table_name.len() < u8::MAX as usize, "Cannot handle keys larger than u8::MAX.");
         assert!(key.len() < u32::MAX as usize, "Cannot handle keys larger than u32::MAX.");
         assert!(value.len() < u32::MAX as usize, "Cannot handle values larger than u32::MAX.");
@@ -387,7 +387,7 @@ impl Db {
     }
 
 
-    pub fn get_table(&mut self, table_name: &Vec<u8>, key: &Vec<u8>) -> Option<Vec<u8>> {
+    pub fn get_table_entry(&mut self, table_name: &Vec<u8>, key: &Vec<u8>) -> Option<Vec<u8>> {
         assert!(table_name.len() < u8::MAX as usize, "Cannot handle keys larger than u8::MAX.");
         assert!(key.len() < u32::MAX as usize, "Cannot handle keys larger than u32::MAX.");
         
@@ -400,7 +400,7 @@ impl Db {
         return self.get_from_tree(key, table_root_page_no);
     }
 
-    pub fn delete_table(&mut self, table_name: &Vec<u8>, key: &Vec<u8>) -> bool {
+    pub fn delete_table_entry(&mut self, table_name: &Vec<u8>, key: &Vec<u8>) -> bool {
         assert!(key.len() < u32::MAX as usize, "Cannot handle keys larger than u32::MAX.");
         assert!(table_name.len() < u8::MAX as usize, "Cannot handle keys larger than u8::MAX.");
         
@@ -670,13 +670,13 @@ mod tests {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
             assert!(db.get_table_tree_root(&name).is_none());
             db.create_table(&name);
-            db.put_table(&name, &key, &value);
+            db.put_table_entry(&name, &key, &value);
             assert!(db.get_table_tree_root(&name).is_some());
         }
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
             assert!(db.get_table_tree_root(&name).is_some());
-            let returned_value = db.get_table(&name, &key).unwrap();
+            let returned_value = db.get_table_entry(&name, &key).unwrap();
             assert!(returned_value == value);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -692,20 +692,20 @@ mod tests {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
             assert!(db.get_table_tree_root(&name).is_none());
             db.create_table(&name);
-            db.put_table(&name, &key, &value);
+            db.put_table_entry(&name, &key, &value);
             assert!(db.get_table_tree_root(&name).is_some());
         }
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
             assert!(db.get_table_tree_root(&name).is_some());
-            let returned_value = db.get_table(&name, &key).unwrap();
+            let returned_value = db.get_table_entry(&name, &key).unwrap();
             assert!(returned_value == value);
-            assert!(db.delete_table(&name, &key))
+            assert!(db.delete_table_entry(&name, &key))
         }
         {
             let mut db = Db::new(temp_file.path().to_str().unwrap(), None, CompressorType::None);
             assert!(db.get_table_tree_root(&name).is_some());
-            let returned_value = db.get_table(&name, &key);
+            let returned_value = db.get_table_entry(&name, &key);
             assert!(returned_value.is_none());
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");

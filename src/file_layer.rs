@@ -74,6 +74,7 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let mut file_layer = FileLayer::new(temp_file, BLOCK_SIZE);
         let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4); // Create a new page
+        file_layer.append_new_page(&page, 0);
         let test_data: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(BLOCK_SIZE as usize)
