@@ -66,17 +66,13 @@ impl TreeLeafPage {
     // Create a TreeLeafPage from a Page - read bytes from disk,
     // determine it is a TreeLeafPage, and wrap it.
     pub fn from_page(page: Page) -> Self {
-        if page.get_type() != PageType::TreeLeaf 
-        && page.get_type() != PageType::TableDir {
-            panic!("Page type is not TreeLeaf or TableDir");
+        if page.get_type() != PageType::TreeLeaf  {
+            panic!("Page type is not TreeLeaf");
         }
         TreeLeafPage { page }
     }
 
-    pub fn make_table_dir_page(&mut self) {
-        self.page.set_type(PageType::TableDir)
-    }
-
+    
     pub fn is_empty(&self) -> bool {
         return self.get_entries() == 0;
     }
