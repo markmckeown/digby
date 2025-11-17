@@ -13,8 +13,7 @@ pub enum PageType {
     DbMaster = 4,
     Overflow = 5,
     FreeDir = 6,
-    TreeInternal = 7,
-    TreeDirPage = 8,
+    TreeDirPage = 7,
 }
 
 impl TryFrom<u8> for PageType {
@@ -28,8 +27,7 @@ impl TryFrom<u8> for PageType {
             4 => Ok(PageType::DbMaster),
             5 => Ok(PageType::Overflow),
             6 => Ok(PageType::FreeDir),
-            7 => Ok(PageType::TreeInternal),
-            8 => Ok(PageType::TreeDirPage),
+            7 => Ok(PageType::TreeDirPage),
             _ => Err(()),
         }
     }
