@@ -90,14 +90,14 @@ impl BlockLayer {
         return &self.page_config
     }
 
-    pub fn read_page(&mut self, page_number: u32) -> Page {
+    pub fn read_page(&mut self, page_number: u64) -> Page {
         let mut page = Page::create_new(&self.page_config);
         self.file_layer.read_page_from_disk(&mut page, page_number).expect("Failed to read page");
         self.check_sanity(&mut page);
         page
     }
 
-    pub fn get_total_page_count(&self) -> u32 {
+    pub fn get_total_page_count(&self) -> u64 {
         self.file_layer.get_page_count()
     }
 
@@ -113,9 +113,9 @@ impl BlockLayer {
     // no free pages in the system. This will initialise the pages (possibly not 
     // needed and a waste of time) and extend the file with a sync - note, that
     // if the commit does not complete then these pages will be leaked.
-    pub fn generate_free_pages(&mut self, no_new_pages: u32) -> Vec<u32> {
+    pub fn generate_free_pages(&mut self, no_new_pages: u64) -> Vec<u64> {
         let existing_page_count = self.file_layer.get_page_count();
-        let mut created_page_nos: Vec<u32> = Vec::new();
+        let mut created_page_nos: Vec<u64> = Vec::new();
         for new_page_no in existing_page_count..existing_page_count + no_new_pages {
             let mut page = Page::create_new(&self.page_config);
             page.set_page_number(new_page_no);

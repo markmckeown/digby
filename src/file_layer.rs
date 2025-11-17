@@ -3,7 +3,7 @@ use crate::page::Page;
 pub struct FileLayer {
     file: std::fs::File,
     block_size: usize,
-    block_count: u32,
+    block_count: u64,
 }
 
 
@@ -12,7 +12,7 @@ impl FileLayer {
         let metadata = file.metadata().expect("Failed to get metadata for file.");
         let file_size = metadata.len();
         assert!(file_size % block_size as u64 == 0, "File size is not a multiple of page size.");
-        let block_count : u32 = (file_size / block_size as u64).try_into().unwrap();
+        let block_count : u64 = (file_size / block_size as u64).try_into().unwrap();
         FileLayer { 
             file,
             block_size,
@@ -20,33 +20,33 @@ impl FileLayer {
         }
     }
 
-    pub fn get_page_count(&self) -> u32 {
+    pub fn get_page_count(&self) -> u64 {
         self.block_count
     }
 
-    pub fn append_new_page(&mut self, page: &Page, page_number: u32) -> () {
+    pub fn append_new_page(&mut self, page: &Page, page_number: u64) -> () {
         use std::io::{Seek, SeekFrom, Write};
         assert!(page_number == self.block_count, "page_number should match page_count");
-        let offset = page_number as u64 * self.block_size as u64;
+        let offset = page_number * self.block_size as u64;
         self.file.seek(SeekFrom::Start(offset)).expect("Failed to seek for append_new_page");
         self.file.write_all(&page.get_block_bytes()).expect("Failed to write for append_new_page");
         self.block_count = self.block_count + 1;
     }
 
-    pub fn write_page_to_disk(&mut self, page: &Page, page_number: u32) -> std::io::Result<()> {
+    pub fn write_page_to_disk(&mut self, page: &Page, page_number: u64) -> std::io::Result<()> {
         use std::io::{Seek, SeekFrom, Write};
 
-        let offset = page_number as u64 * self.block_size as u64;
+        let offset = page_number * self.block_size as u64;
         self.file.seek(SeekFrom::Start(offset)).expect("Failed to seek for write_page_to_disk");
         self.file.write_all(&page.get_block_bytes()).expect("Failed to write for write_page_to_disk");
         Ok(())
     }
 
-    pub fn read_page_from_disk(&mut self, page: &mut Page, page_number: u32) -> std::io::Result<()> {
+    pub fn read_page_from_disk(&mut self, page: &mut Page, page_number: u64) -> std::io::Result<()> {
         assert!(page_number < self.block_count);
         use std::io::{Read, Seek, SeekFrom};
 
-        let offset = page_number as u64 * self.block_size as u64;
+        let offset = page_number * self.block_size as u64;
         self.file.seek(SeekFrom::Start(offset)).expect("Failed to seek for read");
         self.file.read_exact(page.get_block_bytes_mut()).expect("Failed to read");
         Ok(())

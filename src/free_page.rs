@@ -12,11 +12,11 @@ impl PageTrait for FreePage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(& self) -> u32 {
+    fn get_page_number(& self) -> u64 {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self,  page_no: u32) -> () {
+    fn set_page_number(&mut self,  page_no: u64) -> () {
         self.page.set_page_number(page_no)
     }
 
@@ -34,11 +34,11 @@ impl PageTrait for FreePage {
 }
 
 impl FreePage {
-    pub fn create_new(page_config: &PageConfig, page_number: u32) -> Self {
+    pub fn create_new(page_config: &PageConfig, page_number: u64) -> Self {
         FreePage::new(page_config.block_size, page_config.page_size, page_number)
     }
 
-    fn new(block_size: usize, page_size: usize, page_number: u32) -> Self {
+    fn new(block_size: usize, page_size: usize, page_number: u64) -> Self {
         let mut free_page = FreePage {
             page: Page::new(block_size, page_size),
         };

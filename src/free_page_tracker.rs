@@ -20,7 +20,7 @@ use crate::page_cache::PageCache;
 // 
 pub struct FreePageTracker {
     free_dir_page_list: Vec<FreeDirPage>,
-    returned_pages: Vec<u32>,
+    returned_pages: Vec<u64>,
     new_version: u64,
     page_config: PageConfig,
 }
@@ -51,7 +51,7 @@ impl FreePageTracker {
     // to write back. If there are no free pages in the system then this
     // object will have to ask the PageCache to create more free pages - this
     // is why the PageCache is provide as a parameter.
-    pub fn get_free_page(&mut self, page_cache: &mut PageCache) -> u32 {
+    pub fn get_free_page(&mut self, page_cache: &mut PageCache) -> u64 {
         assert!(!self.free_dir_page_list.is_empty());
 
         let last = self.free_dir_page_list.last_mut().unwrap();
@@ -79,7 +79,7 @@ impl FreePageTracker {
         // The current free_dir_page has no free pages, it has no links
         // to other free_dir_pages - so have the page_cache generate
         // new free pages.
-        let mut new_free_pages: Vec<u32> = page_cache.generate_free_pages(16);
+        let mut new_free_pages: Vec<u64> = page_cache.generate_free_pages(8);
         // Reverse the free pages or we add at end of file first.
         new_free_pages.reverse();
         // Grab a free page number to return to the commit before adding to free_dir_page
@@ -89,13 +89,13 @@ impl FreePageTracker {
     }
 
 
-    pub fn get_return_pages(&self) -> Vec<u32> {
+    pub fn get_return_pages(&self) -> Vec<u64> {
         self.returned_pages.clone()
     }
 
     // Commit no long needs this page no. It should be recycled for the next
     // commit and should not be used in this commit.
-    pub fn return_free_page_no(&mut self, page_no: u32) -> () {
+    pub fn return_free_page_no(&mut self, page_no: u64) -> () {
         assert!(!self.free_dir_page_list.is_empty());
         self.returned_pages.push(page_no);
     }
@@ -180,15 +180,15 @@ mod tests {
 
         let new_free_page = free_page_tracker.get_free_page(&mut page_cache);
         assert!(new_free_page == 1);
-        assert!(page_cache.get_total_page_count() == 17);
+        assert_eq!(page_cache.get_total_page_count(), 9);
 
-        for number in 16u32..=5000 {
+        for number in 16u64..=5000 {
             free_page_tracker.return_free_page_no(number);
         }
-        assert!(page_cache.get_total_page_count() == 17);
+        assert_eq!(page_cache.get_total_page_count(), 9);
         let mut pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
-        assert!(pages.len() == 5);
-        assert!(page_cache.get_total_page_count() == 17 + 4);
+        assert_eq!(pages.len(), 10);
+        assert_eq!(page_cache.get_total_page_count(), 18);
 
         let free_page_dir_no = pages.last().unwrap().get_page_number();
         while !pages.is_empty() {
@@ -203,9 +203,9 @@ mod tests {
         for _number in 1u32..=2100 {
             free_page_tracker.get_free_page(&mut page_cache);
         }
-        assert!(page_cache.get_total_page_count() == 17 + 4);
+        assert_eq!(page_cache.get_total_page_count(), 18);
         // Two of the free_page_dir are no longer needed.
-        assert!(free_page_tracker.get_return_pages().len() == 2);
+        assert_eq!(free_page_tracker.get_return_pages().len(), 4);
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 }

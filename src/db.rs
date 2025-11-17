@@ -1,6 +1,6 @@
 use crate::compressor::CompressorType;
 use crate::free_page_tracker::FreePageTracker;
-use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TreeDeleteHandler, TreeLeafPage, TupleProcessor, page_cache};
+use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TreeDeleteHandler, TreeLeafPage, TupleProcessor};
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
@@ -141,7 +141,7 @@ impl Db {
         return self.get_from_tree(key, tree_page_no);
     }
 
-    fn get_from_tree(&mut self, key: &Vec<u8>, tree_page_no: u32) -> Option<Vec<u8>> {
+    fn get_from_tree(&mut self, key: &Vec<u8>, tree_page_no: u64) -> Option<Vec<u8>> {
         // TODO need to check versions.
         let page = self.page_cache.get_page(tree_page_no);
         // If not an oversized key...
@@ -163,7 +163,7 @@ impl Db {
         if tuple.is_none() {
             return None;
         }
-        let overflow_page_no = u32::from_le_bytes(tuple.unwrap().get_value()[0 .. 4].try_into().unwrap());
+        let overflow_page_no = u64::from_le_bytes(tuple.unwrap().get_value()[0 .. 8].try_into().unwrap());
         let overflow_tuple: OverflowTuple = OverflowPageHandler::get_overflow_tuple(overflow_page_no, &mut self.page_cache);
         // Confirm the key is the same - would require a SHA256 clash to fail
         if *key != self.get_tuple_key(&overflow_tuple) {
@@ -297,7 +297,7 @@ impl Db {
     }
 
 
-    pub fn get_table_tree_root(&mut self, name: &Vec<u8>) -> Option<u32> {
+    pub fn get_table_tree_root(&mut self, name: &Vec<u8>) -> Option<u64> {
         assert!(name.len() < u8::MAX as usize, "Cannot handle keys larger than u8::MAX.");
         let master_page = self.get_master_page();
         let table_dir_page_no = master_page.get_table_dir_page_no();
@@ -306,8 +306,8 @@ impl Db {
 
         if let Some(tuple) = StoreTupleProcessor::get_tuple(name, page, &mut self.page_cache) {
             assert!(tuple.get_overflow() == Overflow::None);
-            assert_eq!(tuple.get_value().len(), 4);
-            let page_no =  u32::from_le_bytes(tuple.get_value().try_into().unwrap());
+            assert_eq!(tuple.get_value().len(), 8);
+            let page_no =  u64::from_le_bytes(tuple.get_value().try_into().unwrap());
             return Some(page_no);
         } else {
             return None;
@@ -511,7 +511,7 @@ impl Db {
     fn init_db_file(&mut self, sanity_type: BlockSanity) -> std::io::Result<()> {
         // Get some free pages and make space in the file.
         // Will trigger a file sync.
-        let mut free_pages: Vec<u32> = self.page_cache.generate_free_pages(10);
+        let mut free_pages: Vec<u64> = self.page_cache.generate_free_pages(10);
         assert!(free_pages.len() == 10);
         
         // Write the Global Tree Root Page.

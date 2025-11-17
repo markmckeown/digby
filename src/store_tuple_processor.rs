@@ -45,7 +45,7 @@ impl StoreTupleProcessor{
         first: Page,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
-        new_version: u64) -> u32 {
+        new_version: u64) -> u64 {
         
         if first.get_type() == PageType::TreeLeaf {
            // The root of the tree is actually a leaf page - requires special handling.
@@ -68,12 +68,12 @@ impl StoreTupleProcessor{
         root_dir_page: TreeDirPage,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
-        new_version: u64) -> u32 {
+        new_version: u64) -> u64 {
         let mut dir_page = root_dir_page;
         // This is the stack for storing the tree dir as we descend into
         // the tree.  
         let mut dir_pages: Vec<TreeDirPage> = Vec::new();
-        let mut next_page: u32;
+        let mut next_page: u64;
         let leaf_page: TreeLeafPage;
         let key = tuple.get_key().to_vec();
         // loop down until we hit the leaf page keeping a track of the
@@ -195,7 +195,7 @@ impl StoreTupleProcessor{
         tree_root_single: TreeLeafPage,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
-        new_version: u64) -> u32 {
+        new_version: u64) -> u64 {
         // Add the tuple to the leaf page.
         let mut update_result = LeafPageHandler::add_tuple(tree_root_single, tuple, page_cache.get_page_config());
 

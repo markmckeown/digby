@@ -23,7 +23,7 @@ impl PageCache {
 
     // Generate free pages on disk that can be written back to. Returns
     // a list of page numbers.
-    pub fn generate_free_pages(&mut self, no_new_pages: u32) -> Vec<u32> {
+    pub fn generate_free_pages(&mut self, no_new_pages: u64) -> Vec<u64> {
         self.block_layer.generate_free_pages(no_new_pages)
     }
 
@@ -32,7 +32,7 @@ impl PageCache {
     // maybe two versions of this method, one that returns an
     // immutable refernce to a page that is shared, and a version
     // that returns a copy of the page.
-    pub fn get_page(&mut self, page_number: u32) -> Page {
+    pub fn get_page(&mut self, page_number: u64) -> Page {
         self.block_layer.read_page(page_number)
     }
 
@@ -40,7 +40,7 @@ impl PageCache {
         self.block_layer.write_page(page);
     }
 
-    pub fn get_total_page_count(&self) -> u32 {
+    pub fn get_total_page_count(&self) -> u64 {
         self.block_layer.get_total_page_count()
     }
 

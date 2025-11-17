@@ -10,7 +10,7 @@ impl TreeDeleteHandler {
         root_page: Page, 
         page_cache: &mut PageCache, 
         free_page_tracker: &mut FreePageTracker, 
-        new_version: u64) -> (u32, bool) {
+        new_version: u64) -> (u64, bool) {
 
         if root_page.get_type() == PageType::TreeLeaf {
            // The root of the tree is actually a leaf page - requires special handling.
@@ -29,14 +29,14 @@ impl TreeDeleteHandler {
         root_dir_page: TreeDirPage, 
         page_cache: &mut PageCache, 
         free_page_tracker: &mut FreePageTracker, 
-        new_version: u64) -> (u32, bool) {
+        new_version: u64) -> (u64, bool) {
   
         let root_page_no = root_dir_page.get_page_number();
         let mut dir_page = root_dir_page;
         // This is the stack for storing the tree dir as we descend into
         // the tree.  
         let mut dir_pages: Vec<TreeDirPage> = Vec::new();
-        let mut next_page: u32;
+        let mut next_page: u64;
         let mut leaf_page: TreeLeafPage;
         // loop down until we hit the leaf page keeping a track of the
         // the dir pages as we go.
@@ -67,7 +67,7 @@ impl TreeDeleteHandler {
 
 
          // Store the root page back into the page cache - should not do this if it is empty!
-        let mut new_leaf_page_no: u32 = 0;
+        let mut new_leaf_page_no: u64 = 0;
         // we always return the leaf page number to be recycled.
         let old_leaf_page_no = leaf_page.get_page_number();
         free_page_tracker.return_free_page_no(old_leaf_page_no);
@@ -91,8 +91,8 @@ impl TreeDeleteHandler {
         free_page_tracker: &mut FreePageTracker, 
         page_cache: &mut PageCache, 
         new_version: u64, 
-        new_leaf_page_no: u32,
-        old_leaf_page_no: u32) -> u32 {
+        new_leaf_page_no: u64,
+        old_leaf_page_no: u64) -> u64 {
 
         // if new_leaf_page_no is not 0 then we just need to rewrite the dir pages, none of them
         // the leaf page still exists and we do not rebalance.
@@ -113,7 +113,7 @@ impl TreeDeleteHandler {
         free_page_tracker: &mut FreePageTracker, 
         page_cache: &mut PageCache, 
         new_version: u64, 
-        old_leaf_page_no: u32) -> u32 {
+        old_leaf_page_no: u64) -> u64 {
 
 
         let mut page_to_delete = old_leaf_page_no;
@@ -155,7 +155,7 @@ impl TreeDeleteHandler {
         dir_pages: &mut Vec<TreeDirPage>, 
         free_page_tracker: &mut FreePageTracker, 
         page_cache: &mut PageCache, 
-        new_version: u64) -> u32 {
+        new_version: u64) -> u64 {
 
         let mut new_page_no = 0;
         loop {
@@ -190,7 +190,7 @@ impl TreeDeleteHandler {
         free_page_tracker: &mut FreePageTracker, 
         page_cache: &mut PageCache, 
         new_version: u64, 
-        new_leaf_page_no: u32) -> u32 {
+        new_leaf_page_no: u64) -> u64 {
 
         let mut page_no_to_update = new_leaf_page_no;
         loop {
@@ -220,7 +220,7 @@ impl TreeDeleteHandler {
         root_page: &mut TreeLeafPage, 
         page_cache: &mut PageCache, 
         free_page_tracker: &mut FreePageTracker, 
-        new_version: u64) -> (u32, bool) {
+        new_version: u64) -> (u64, bool) {
         let root_page_no = root_page.get_page_number();
     
         let tuple = root_page.delete_key(key);

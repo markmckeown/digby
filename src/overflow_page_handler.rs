@@ -17,15 +17,15 @@ impl OverflowPageHandler {
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
         version: u64
-    ) -> u32 {
+    ) -> u64 {
         // We write the buffer backwards as we want to create a linked list
         // of pages. The last page we write will be the head of the list
         // and contain the start of the OverflowTuple.
         let buffer = tuple.get_serialized();
         let mut end = tuple.get_byte_size();
 
-        let mut previous: u32 = 0;
-        let mut next_page: u32;
+        let mut previous: u64 = 0;
+        let mut next_page: u64;
         loop {
             next_page = free_page_tracker.get_free_page(page_cache);
             let mut page = OverflowPage::create_new(page_cache.get_page_config(), next_page, version);
@@ -52,7 +52,7 @@ impl OverflowPageHandler {
 
 
     pub fn get_overflow_tuple(
-        overflow_page_no: u32,
+        overflow_page_no: u64,
         page_cache: &mut PageCache) -> OverflowTuple {
         let mut buffer: Vec<u8> = Vec::new();
 
@@ -80,13 +80,13 @@ impl OverflowPageHandler {
             return 0;
         }    
         // A tuple has been deleted that points to a overflow page.
-        let page_no = u32::from_le_bytes(tuple.get_value().to_vec().try_into().unwrap());
+        let page_no = u64::from_le_bytes(tuple.get_value().to_vec().try_into().unwrap());
         return OverflowPageHandler::delete_overflow_pages(page_no, page_cache, free_page_tracker);
     }
 
 
     pub fn delete_overflow_pages(
-        first_page: u32,
+        first_page: u64,
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker) -> u32 {    
         free_page_tracker.return_free_page_no(first_page);

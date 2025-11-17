@@ -5,9 +5,8 @@ use crate::page::PageTrait;
 use std::io::Cursor;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-// | Page No (u32) | VersionHolder (8 bytes) | Pad (4 bytes) | 
-// Allow for more TableDirPages in Future
-// | GlobalTreeRootPage (u32) | TableDirPage(u32) | Pad (4 bytes) | Pad (4 bytes) | Pad (4 bytes) | FreePageDir (u32) |
+// | Page No (8 bytes) | VersionHolder (8 bytes) | GlobalTreeRootPage (8 bytes) | 
+// | TableDirPage(8 bytes) | FreePageDir (8 bytes) |
 // Could have more FreePageDir in future.
 pub struct DbMasterPage {
     page: Page
@@ -18,11 +17,11 @@ impl PageTrait for DbMasterPage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(&self) -> u32 {
+    fn get_page_number(&self) -> u64 {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self,  page_no: u32) -> () {
+    fn set_page_number(&mut self,  page_no: u64) -> () {
         self.page.set_page_number(page_no)
     }
 
@@ -40,11 +39,11 @@ impl PageTrait for DbMasterPage {
 }
 
 impl DbMasterPage {
-    pub fn create_new(page_config: &PageConfig, page_number: u32, version: u64) -> Self {
+    pub fn create_new(page_config: &PageConfig, page_number: u64, version: u64) -> Self {
         DbMasterPage::new(page_config.block_size, page_config.page_size, page_number, version)
     }
 
-    fn new(block_size: usize, page_size: usize, page_number: u32, version: u64) -> Self {
+    fn new(block_size: usize, page_size: usize, page_number: u64, version: u64) -> Self {
         let mut head_page = DbMasterPage {
             page: Page::new(block_size, page_size),
         };
@@ -64,48 +63,48 @@ impl DbMasterPage {
     }
 
     const GLOBAL_TREE_OFFSET: u64 = 16;
-    pub fn get_global_tree_root_page_no(&self) -> u32 {
-        self.get_u32_at_offset(DbMasterPage::GLOBAL_TREE_OFFSET)
+    pub fn get_global_tree_root_page_no(&self) -> u64 {
+        self.get_u64_at_offset(DbMasterPage::GLOBAL_TREE_OFFSET)
     }
 
-    pub fn set_global_tree_root_page_no(&mut self, page_no: u32) {
-        self.set_u32_at_offset(DbMasterPage::GLOBAL_TREE_OFFSET, page_no);
+    pub fn set_global_tree_root_page_no(&mut self, page_no: u64) {
+        self.set_u64_at_offset(DbMasterPage::GLOBAL_TREE_OFFSET, page_no);
     }
 
     const FREE_PAGE_DIR_OFFSET: u64 = 32;
-    pub fn get_free_page_dir_page_no(&self) -> u32 {
-        self.get_u32_at_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET)
+    pub fn get_free_page_dir_page_no(&self) -> u64 {
+        self.get_u64_at_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET)
     }
 
-    pub fn set_free_page_dir_page_no(&mut self, page_no: u32) {
-        self.set_u32_at_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET, page_no);
+    pub fn set_free_page_dir_page_no(&mut self, page_no: u64) {
+        self.set_u64_at_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET, page_no);
     }
 
-    const TABLE_DIR_PAGE: u64 = 20;
-    pub fn get_table_dir_page_no(&self) -> u32 {
-        self.get_u32_at_offset(DbMasterPage::TABLE_DIR_PAGE)
+    const TABLE_DIR_PAGE: u64 = 24;
+    pub fn get_table_dir_page_no(&self) -> u64 {
+        self.get_u64_at_offset(DbMasterPage::TABLE_DIR_PAGE)
     }
 
-    pub fn set_table_dir_page_no(&mut self, page_no: u32) {
-        self.set_u32_at_offset(DbMasterPage::TABLE_DIR_PAGE, page_no);
+    pub fn set_table_dir_page_no(&mut self, page_no: u64) {
+        self.set_u64_at_offset(DbMasterPage::TABLE_DIR_PAGE, page_no);
     }
 
 
-    fn set_u32_at_offset(&mut self, offset: u64, value: u32) {
+    fn set_u64_at_offset(&mut self, offset: u64, value: u64) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(offset);
-        cursor.write_u32::<LittleEndian>(value).expect("Failed to write table dir page number");
+        cursor.write_u64::<LittleEndian>(value).expect("Failed to write table dir page number");
     }
 
-    fn get_u32_at_offset(&self, offset: u64) -> u32 {
+    fn get_u64_at_offset(&self, offset: u64) -> u64 {
         let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
         cursor.set_position(offset);
-        cursor.read_u32::<LittleEndian>().unwrap()
+        cursor.read_u64::<LittleEndian>().unwrap()
     }
     
     pub fn flip_page_number(&mut self) -> () {
         let page_number = self.get_page_number();
-        let new_page_number: u32;
+        let new_page_number: u64;
         if page_number == 1 {
             new_page_number = 2;
         } else {

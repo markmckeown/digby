@@ -7,8 +7,8 @@ use crate::tuple::TupleTrait;
 
 // TreeLeafPage structure
 //
-// Header is 16 bytes:
-// | Page No (u32) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) | 
+// Header is 20 bytes:
+// | Page No (8 bytes) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) | 
 //
 // TreeLeafPage body is of the format:
 //
@@ -25,11 +25,11 @@ impl PageTrait for TreeLeafPage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(& self) -> u32 {
+    fn get_page_number(& self) -> u64 {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self,  page_no: u32) -> () {
+    fn set_page_number(&mut self,  page_no: u64) -> () {
         self.page.set_page_number(page_no)
     }
 
@@ -47,19 +47,21 @@ impl PageTrait for TreeLeafPage {
 }
 
 impl TreeLeafPage {
-    pub fn create_new(page_config: &PageConfig, page_number: u32) -> Self {
+    const HEADER_SIZE: usize = 20;
+
+    pub fn create_new(page_config: &PageConfig, page_number: u64) -> Self {
         TreeLeafPage::new(page_config.block_size, page_config.page_size, page_number)
     }
 
     // Create a new DataPage with given page size and page number.
     // This is used when creating a page to add to the DB.
-    fn new(block_size: usize, page_size: usize, page_number: u32) -> Self {
+    fn new(block_size: usize, page_size: usize, page_number: u64) -> Self {
         let mut page = Page::new(block_size, page_size);
         page.set_type(PageType::TreeLeaf);
         page.set_page_number(page_number);      
         let mut data_page = TreeLeafPage { page };
         data_page.set_entries(0);
-        data_page.set_free_space((page_size - 20) as u16); // 20 bytes for header
+        data_page.set_free_space((page_size - TreeLeafPage::HEADER_SIZE) as u16);
         data_page
     }
 
@@ -79,25 +81,25 @@ impl TreeLeafPage {
 
     fn get_entries(&self) -> u16 {
         let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
-        cursor.set_position(12);
+        cursor.set_position(16);
         cursor.read_u16::<byteorder::LittleEndian>().unwrap()
     }
 
     fn set_entries(&mut self, entries: u16) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(12);
+        cursor.set_position(16);
         cursor.write_u16::<byteorder::LittleEndian>(entries).expect("Failed to write entries");
     }
 
     fn get_free_space(&self) -> u16 {
         let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
-        cursor.set_position(14);
+        cursor.set_position(18);
         cursor.read_u16::<byteorder::LittleEndian>().unwrap()
     }
 
     fn set_free_space(&mut self, free_space: u16) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(14);
+        cursor.set_position(18);
         cursor.write_u16::<byteorder::LittleEndian>(free_space).expect("Failed to write free space");
     }
 

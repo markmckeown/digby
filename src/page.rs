@@ -1,4 +1,4 @@
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::{Cursor};
 use std::convert::TryFrom;
 use crate::block_layer::PageConfig;
@@ -7,12 +7,20 @@ use crate::version_holder::VersionHolder;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum PageType {
+    // A page that can be reused. Created when DB file grows.
     Free = 1,
+    // Page created when DB is created and not changed.
     DbRoot = 2,
+    // Holds data in the B+ tree, the leaf nodes.
     TreeLeaf = 3,
+    // There are two DbMaster pages - one is current and one is old.
+    // These are flipped when a new version is committed.
     DbMaster = 4,
+    // Page to hold large key/value data. These can be chained if needed.
     Overflow = 5,
+    // Page to track free pages.
     FreeDir = 6,
+    // B+ tree internal node page.
     TreeDirPage = 7,
 }
 
@@ -35,15 +43,15 @@ impl TryFrom<u8> for PageType {
 
 pub trait PageTrait {
     fn get_page_bytes(&self) -> &[u8];
-    fn get_page_number(& self) -> u32;
-    fn set_page_number(&mut self, page_no: u32) -> (); 
+    fn get_page_number(& self) -> u64;
+    fn set_page_number(&mut self, page_no: u64) -> (); 
     fn get_page(&mut self) -> &mut Page;
     fn get_version(& self) -> u64;
     fn set_version(&mut self, version: u64) -> ();
 }
 
 
-// | Page No (u32) | VersionHolder (8 bytes) | Body | )
+// | Page No (u64) | VersionHolder (8 bytes) | Body | )
 pub struct Page {
     bytes: Vec<u8>,
     pub page_size: usize,
@@ -55,14 +63,14 @@ impl PageTrait for Page {
         &self.bytes[0..self.page_size]
     }
 
-    fn get_page_number(&self) -> u32 {
+    fn get_page_number(&self) -> u64 {
         let mut cursor = Cursor::new(&self.bytes[..]);
         cursor.set_position(0);
-        cursor.read_u32::<LittleEndian>().unwrap()
+        cursor.read_u64::<LittleEndian>().unwrap()
     }
 
-    fn set_page_number(&mut self, page_no: u32) -> () {
-        self.bytes[0..0+4].copy_from_slice(&page_no.to_le_bytes());
+    fn set_page_number(&mut self, page_no: u64) -> () {
+        self.bytes[0..0+8].copy_from_slice(&page_no.to_le_bytes());
     }
 
 
@@ -71,13 +79,13 @@ impl PageTrait for Page {
     }
 
     fn get_version(& self) -> u64 {
-        VersionHolder::from_bytes(self.bytes[4..4+8].to_vec()).get_version()
+        VersionHolder::from_bytes(self.bytes[8..8+8].to_vec()).get_version()
     }
 
     fn set_version(&mut self, version: u64) -> () {
-        let mut version_holder = VersionHolder::from_bytes(self.bytes[4..4+8].to_vec());
+        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8+8].to_vec());
         version_holder.set_version(version);
-        self.bytes[4..4+8].copy_from_slice(&version_holder.get_bytes());
+        self.bytes[8..8+8].copy_from_slice(&version_holder.get_bytes());
     }
 }
 
@@ -120,20 +128,14 @@ impl Page {
     }
 
     
-    pub fn set_page_number(&mut self, page_number: u32) {
-        let mut cursor = Cursor::new(&mut self.bytes[..]);
-        cursor.set_position(0);
-        cursor.write_u32::<LittleEndian>(page_number as u32).expect("Failed to write page number");
+    pub fn get_type(&self) -> PageType {
+        PageType::try_from(VersionHolder::from_bytes(self.bytes[8..8+8].to_vec()).get_flags()).unwrap()
     }
 
-    pub fn get_type(&self) -> PageType {
-        PageType::try_from(VersionHolder::from_bytes(self.bytes[4..4+8].to_vec()).get_flags()).unwrap()
-     }
-
     pub fn set_type(&mut self, page_type: PageType) {
-        let mut version_holder = VersionHolder::from_bytes(self.bytes[4..4+8].to_vec());
+        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8+8].to_vec());
         version_holder.set_flags(page_type as u8);
-        self.bytes[4..4+8].copy_from_slice(&version_holder.get_bytes());
+        self.bytes[8..8+8].copy_from_slice(&version_holder.get_bytes());
     }
 }
 
