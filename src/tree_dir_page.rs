@@ -238,7 +238,7 @@ impl TreeDirPage {
     }
 
     // Get all tuples in the page - used for rebuilding the page when adding or updating an entry.
-    fn get_all_dir_entries(&self) -> Vec<TreeDirEntry> {
+    pub fn get_all_dir_entries(&self) -> Vec<TreeDirEntry> {
         let entries = self.get_entries();
         let mut dir_entries = Vec::new();
         for i in 0..entries {

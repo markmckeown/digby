@@ -1,6 +1,6 @@
 use crate::compressor::CompressorType;
 use crate::free_page_tracker::FreePageTracker;
-use crate::{Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TreeDeleteHandler, TreeLeafPage, TupleProcessor};
+use crate::{ClearHandler, Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor, TreeDeleteHandler, TreeLeafPage, TupleProcessor};
 use crate::db_master_page::DbMasterPage;
 use crate::page_cache::PageCache;
 use crate::file_layer::FileLayer;
@@ -200,6 +200,58 @@ impl Db {
         let tree_root_page_no = master_page.get_global_tree_root_page_no();
         let page =  self.page_cache.get_page(tree_root_page_no);   
         let new_tree_free_page_no = StoreTupleProcessor::store_tuple(tuple, page, &mut free_page_tracker, 
+            &mut self.page_cache, new_version);
+       
+        // Write out the free pages.
+        // Write the new free page directory back through the page cache.
+        let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
+        assert!(free_dir_pages.len() >= 1);
+        let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
+        while let Some(mut free_dir_page) = free_dir_pages.pop() {
+            self.page_cache.put_page(free_dir_page.get_page());
+        }
+
+        // Now need to update the master - tell it were the 
+        // the globale tree root page is and where the free page
+        // directory is now.
+        master_page.set_free_page_dir_page_no(first_free_dir_page);
+        master_page.set_global_tree_root_page_no(new_tree_free_page_no);
+        // update the version
+        master_page.set_version(new_version);
+        // flip the page number to overrwrite the non-current master
+        // page and make it the new current master.
+        master_page.flip_page_number();
+
+        // Sync the first two pages before writing the new master page.
+        self.page_cache.sync_data();
+        // Put the master page.
+        self.page_cache.put_page(master_page.get_page());
+        // Now sync the master
+        self.page_cache.sync_data();
+    }
+
+
+    pub fn clear(&mut self) -> () {
+        // Get the current master page. Note this is a copy of the page 
+        let mut master_page = self.get_master_page();
+
+        // Increment the version number
+        let old_version = master_page.get_version();
+        let new_version = old_version + 1;
+
+        // Find the free page directory that has the free page numbers. Make sure
+        // it has free pages - cannot handle the case it does not yet.
+        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
+        let mut free_page_tracker = FreePageTracker::new(
+                self.page_cache.get_page(free_page_dir_page_no), 
+                new_version, *self.page_cache.get_page_config());
+
+        
+        // Now get the page number of the root of the global tree. Then get the page,
+        // this is a copy of the page. 
+        let tree_root_page_no = master_page.get_global_tree_root_page_no();
+        let page =  self.page_cache.get_page(tree_root_page_no);   
+        let new_tree_free_page_no = ClearHandler::clear_tree(page, &mut free_page_tracker, 
             &mut self.page_cache, new_version);
        
         // Write out the free pages.
@@ -813,7 +865,7 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
- #[test]
+    #[test]
     fn test_db_store_value_delete_small_page_random() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
@@ -864,6 +916,42 @@ mod tests {
     }
 
 
+    #[test]
+    fn test_db_clear() {
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            let mut numbers: Vec<u64> = (0..=256).collect();
+            let mut rng = rng();
+            numbers.shuffle(&mut rng);
+            for i in numbers {
+                db.put(i.to_be_bytes().to_vec().as_ref(), i.to_be_bytes().to_vec().as_ref());
+            }
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then 
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            db.clear();
+            let i: u64 = 0;
+            let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+            assert!(returned_value.is_none());
+        }
+        {
+            let mut db = Db::new_with_page_size(temp_file.path().to_str().unwrap(), None, 
+            CompressorType::None, 128);
+            let mut numbers: Vec<u64> = (0..=256).collect();
+            let mut rng = rng();
+            numbers.shuffle(&mut rng);
+            for i in numbers {
+                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+                assert!(returned_value.is_none());
+            }
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
 
 
     #[test]
