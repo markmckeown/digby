@@ -1,33 +1,78 @@
-# digby
-Rust KV Store Using a B+ Tree
+# Digby: A Rust-based Key-Value Store
 
-Version: 0.2
+Digby is an embedded key-value store written in Rust, built as a learning project to learn Rust and explore database implementation concepts. It uses a B+ Tree as its core data structure.
 
-## Goal - Learn Rust by implementing a KV store.
+## Features
 
-## Features:
-* B+ Tree for storing key-value pairs.
-* There is a global B+ tree and also support for tables or independent B+ trees. 
-* Keys and Values can be up to 4GB in size. This uses overflow pages, large keys are stored using their first 224 bytes along with 32 bytes of the key's SHA256 in the B+ tree - whole key and value is stored compressed in overflow pages.
-* Uses Copy-On-Write (COW) for storing data safely. Based on "B-trees, Shadowing, and Clones" but current implementation is actually bottom up rather than top down and uses a stack rather than recursion.
-* Deletion follows the approach of "Deletion Without Rebalancing in Multiway Search Trees".
-* Uses xxhash_32 checksum for each page to detect corruption, unless AES-128-GCM is used for encryption which has a built in checksum. Checksum is stored in page and not in page pointer, could change to use this approach similarly to ZFS and bcachefs. 
-* Option to use AES-128-GCM to encrypt all contents.
-* Block/page size is configurable, goal is to use Linux untorn writes to support blocks larger than 4K ie 16K.
-* lz4 compression for large keys/values.
-* Other checksum, compression and encryption approaches could be supported.
-* key-value tuples have simple versions, plan is to extend to MVCC.
-* Page numbers are 64 bits - capacity is 2^64 * 4K (4 ZiB). However, some of the page number bits may be used for page size or "pointer swizzling" in the future which will reduce capacit (2^40 * 4K is 4PiB). The extra capacity comes at a cost as the page numbers have doubled in size reducing capacity of internal tree nodes etc - in reality 32 bit page number numbers is probably good enough at 16 TiB capacity. 
+*   **B+ Tree Based**: Efficient key-value storage and retrieval.
+*   **Global & Table-based Stores**: Supports a single global B+ Tree as well as independent trees (tables).
+*   **Large Item Support**: Keys and values can be up to 4GB, handled via overflow pages. Large keys are indexed using a combination of their prefix and a SHA256 hash.
+*   **Copy-On-Write (COW)**: Ensures data safety and consistency during writes using a bottom-up shadowing approach.
+*   **Safe Deletion**: Implements deletion without requiring complex tree rebalancing.
+*   **Data Integrity and Security**:
+    *   Uses xxhash32 checksums for page integrity verification.
+    *   Optional AES-128-GCM encryption for all stored content, which includes its own integrity checks.
+*   **Configurable**: Block/page size is configurable.
+*   **Compression**: Optional lz4 compression for large keys and values.
 
-## TODO
-* Rust code is very crude and NOOB level.
-* page_cache does not actually cache pages.
-* support multiple page/block sizes, help with large values. Use a slab allocator approach similar to ZFS to do this.
-* Add support for tail/head compression  interal/leaf pages per https://www.cs.purdue.edu/homes/csjgwang/pubs/SIGMOD24_BtreeCompression.pdf Re-write internal and leaf page implementations which are totally inefficient per above reference..
-* Investigate support for adding MVCC.
-* Investigate using untorn writes in Linux.
-* Investigate using io_uring for writes/reads.
-* Investigae optimizing COW updates similar to Bcachefs. Use a log to store updates before adding to tree. In Bcachefs the tree nodes use LSM Tree mechanisms to avoid rewriting the tree on update. For examlpe a leaf node could be 64K, 16K could be a log for the node. Updates would only update a log page in the leaf node until the node is full then the node would be compacted copied using COW.
-* Support multiple threads.
+## Usage
 
+To use `digby` in your project, add it to your `Cargo.toml`:
 
+```toml
+[dependencies]
+digby = "0.2" # Replace with the desired version
+```
+
+### Example
+
+Here is a simple example of how to create a database, put a value, and then retrieve it.
+
+```rust
+use digby::{Db, CompressorType};
+use std::fs;
+
+fn main() {
+    let db_path = "my_database.db";
+    
+    // Create or open the database.
+    // The second argument is an optional key for encryption.
+    let mut db = Db::new(db_path, None, CompressorType::None);
+
+    let key = b"hello";
+    let value = b"world";
+
+    // Put a key-value pair into the database.
+    db.put(key, value);
+
+    // Get the value back.
+    if let Some(retrieved_value) = db.get(key) {
+        println!("Retrieved value: {}", String::from_utf8_lossy(&retrieved_value));
+        assert_eq!(retrieved_value, value);
+    } else {
+        println!("Value not found!");
+    }
+
+    // Clean up the database file.
+    fs::remove_file(db_path).expect("Failed to remove database file");
+}
+```
+
+## Roadmap and Future Work
+
+This project is under active development. Future plans include:
+
+*   **MVCC (Multi-Version Concurrency Control)**: Extend the simple versioning system.
+*   **Performance Optimizations**:
+    *   Implement a proper page cache.
+    *   Add support for tail/head compression in B+ Tree pages.
+    *   Rewrite internal and leaf page implementations for better efficiency.
+    *   Investigate `io_uring` for high-performance async I/O.
+    *   Explore update optimizations similar to Bcachefs (e.g., using LSM Tree concepts).
+*   **Concurrency**: Add support for multi-threaded access.
+*   **Filesystem Integration**: Investigate using Linux untorn writes. 
+*   **Code Quality**: Continue to refactor and improve the Rust implementation.
+
+## License
+
+This project is licensed under the Apache 2.0 License. See the [LICENSE](LICENSE) file for details.
