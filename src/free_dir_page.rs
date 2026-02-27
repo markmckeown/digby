@@ -3,7 +3,6 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
-use std::u16;
 
 // Header size 34 bytes
 // | Page No (u64) | VersionHolder (8 bytes) | NextPage(u64) | PreviousPage (u64) | Entries u16 |
@@ -21,7 +20,7 @@ impl PageTrait for FreeDirPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) -> () {
+    fn set_page_number(&mut self, page_no: u64) {
         self.page.set_page_number(page_no)
     }
 
@@ -33,7 +32,7 @@ impl PageTrait for FreeDirPage {
         self.page.get_version()
     }
 
-    fn set_version(&mut self, version: u64) -> () {
+    fn set_version(&mut self, version: u64) {
         self.page.set_version(version);
     }
 }
@@ -69,7 +68,7 @@ impl FreeDirPage {
     }
 
     pub fn get_entries(&self) -> u16 {
-        let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(32);
         cursor.read_u16::<LittleEndian>().unwrap()
     }
@@ -83,7 +82,7 @@ impl FreeDirPage {
     }
 
     pub fn get_next(&self) -> u64 {
-        let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(16);
         cursor.read_u64::<LittleEndian>().unwrap()
     }
@@ -97,7 +96,7 @@ impl FreeDirPage {
     }
 
     pub fn get_previous(&self) -> u64 {
-        let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(24);
         cursor.read_u64::<LittleEndian>().unwrap()
     }
@@ -133,7 +132,7 @@ impl FreeDirPage {
         cursor.read_u64::<LittleEndian>().unwrap()
     }
 
-    pub fn add_free_page(&mut self, free_page_number: u64) -> () {
+    pub fn add_free_page(&mut self, free_page_number: u64) {
         assert!(!self.is_full());
         let entries = self.get_entries();
         let offset = FreeDirPage::HEADER_SIZE as u64 + (8 * self.get_entries() as u64);
@@ -145,18 +144,18 @@ impl FreeDirPage {
         self.set_entries(entries + 1);
     }
 
-    pub fn add_free_pages(&mut self, free_pages: &Vec<u64>) -> () {
+    pub fn add_free_pages(&mut self, free_pages: &[u64]) {
         assert!(!self.is_full_for(free_pages.len()));
         assert!(free_pages.len() < u16::MAX as usize);
         let entries = self.get_entries();
         let mut offset = FreeDirPage::HEADER_SIZE as u64 + (8 * self.get_entries() as u64);
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(offset);
-        for free_page in &free_pages[..] {
+        for free_page in free_pages {
             cursor
                 .write_u64::<LittleEndian>(*free_page)
                 .expect("Failed to write free page");
-            offset = offset + 8;
+            offset += 8;
             cursor.set_position(offset);
         }
         self.set_entries(entries + free_pages.len() as u16);

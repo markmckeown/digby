@@ -31,22 +31,17 @@ impl OverflowPageHandler {
             page.set_next_page(previous);
 
             let free_space = page.get_free_space();
-            let bytes_to_write: usize;
-            if end < free_space {
-                bytes_to_write = end;
-            } else {
-                bytes_to_write = free_space;
-            }
+            let bytes_to_write: usize = if end < free_space { end } else { free_space };
             page.add_bytes(&buffer[end - bytes_to_write..end], bytes_to_write);
             page_cache.put_page(page.get_page());
-            end = end - bytes_to_write;
+            end -= bytes_to_write;
             if end == 0 {
                 break;
             }
             previous = next_page;
         }
 
-        return next_page;
+        next_page
     }
 
     pub fn get_overflow_tuple(overflow_page_no: u64, page_cache: &mut PageCache) -> OverflowTuple {
@@ -61,7 +56,7 @@ impl OverflowPageHandler {
                 break;
             }
         }
-        return OverflowTuple::from_bytes(buffer);
+        OverflowTuple::from_bytes(buffer)
     }
 
     pub fn delete_overflow_tuple_pages(
@@ -78,7 +73,7 @@ impl OverflowPageHandler {
         }
         // A tuple has been deleted that points to a overflow page.
         let page_no = u64::from_le_bytes(tuple.get_value().to_vec().try_into().unwrap());
-        return OverflowPageHandler::delete_overflow_pages(page_no, page_cache, free_page_tracker);
+        OverflowPageHandler::delete_overflow_pages(page_no, page_cache, free_page_tracker)
     }
 
     pub fn delete_overflow_pages(
@@ -96,10 +91,10 @@ impl OverflowPageHandler {
                 break;
             }
             free_page_tracker.return_free_page_no(page_no);
-            count = count + 1;
+            count += 1;
         }
 
-        return count;
+        count
     }
 }
 

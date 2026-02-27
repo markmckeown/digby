@@ -15,7 +15,7 @@ impl PageTrait for FreePage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) -> () {
+    fn set_page_number(&mut self, page_no: u64) {
         self.page.set_page_number(page_no)
     }
 
@@ -27,7 +27,7 @@ impl PageTrait for FreePage {
         self.page.get_version()
     }
 
-    fn set_version(&mut self, version: u64) -> () {
+    fn set_version(&mut self, version: u64) {
         self.page.set_version(version);
     }
 }
@@ -51,7 +51,6 @@ impl FreePage {
             panic!("Invalid page type for FreePage");
         }
 
-        let free_page = FreePage { page };
-        free_page
+        FreePage { page }
     }
 }

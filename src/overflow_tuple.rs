@@ -42,7 +42,7 @@ impl TupleTrait for OverflowTuple {
 }
 
 impl OverflowTuple {
-    pub fn new(key: &Vec<u8>, value: &Vec<u8>, version: u64, overflow: Overflow) -> Self {
+    pub fn new(key: &[u8], value: &[u8], version: u64, overflow: Overflow) -> Self {
         assert!(
             key.len() < u32::MAX as usize,
             "Key size larger than u32 can hold."
@@ -56,8 +56,8 @@ impl OverflowTuple {
         serialized.extend_from_slice(&(value.len() as u32).to_le_bytes());
         let version_holder = VersionHolder::new(overflow as u8, version);
         serialized.extend_from_slice(&version_holder.get_bytes()[0..8]);
-        serialized.extend_from_slice(&key);
-        serialized.extend_from_slice(&value);
+        serialized.extend_from_slice(key);
+        serialized.extend_from_slice(value);
 
         OverflowTuple { serialized }
     }

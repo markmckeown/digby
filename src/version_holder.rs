@@ -29,11 +29,11 @@ impl VersionHolder {
         self.bytes[7]
     }
 
-    pub fn set_flags(&mut self, flags: u8) -> () {
+    pub fn set_flags(&mut self, flags: u8) {
         self.bytes[7] = flags
     }
 
-    pub fn set_version(&mut self, version: u64) -> () {
+    pub fn set_version(&mut self, version: u64) {
         assert!(
             version < VersionHolder::MAX_IN_7_BYTES,
             "Version is too larget to store in 7 bytes."

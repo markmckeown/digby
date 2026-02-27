@@ -7,7 +7,7 @@ pub struct TreeDeleteHandler {}
 
 impl TreeDeleteHandler {
     pub fn delete_key(
-        key: &Vec<u8>,
+        key: &[u8],
         root_page: Page,
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
@@ -26,17 +26,17 @@ impl TreeDeleteHandler {
         }
 
         let root_dir_page = TreeDirPage::from_page(root_page);
-        return TreeDeleteHandler::delete_key_from_tree(
+        TreeDeleteHandler::delete_key_from_tree(
             key,
             root_dir_page,
             page_cache,
             free_page_tracker,
             new_version,
-        );
+        )
     }
 
     fn delete_key_from_tree(
-        key: &Vec<u8>,
+        key: &[u8],
         root_dir_page: TreeDirPage,
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
@@ -52,7 +52,7 @@ impl TreeDeleteHandler {
         // loop down until we hit the leaf page keeping a track of the
         // the dir pages as we go.
         loop {
-            next_page = dir_page.get_next_page(&key);
+            next_page = dir_page.get_next_page(key);
             dir_pages.push(dir_page);
             let page = page_cache.get_page(next_page);
             if page.get_type() == PageType::TreeLeaf {
@@ -101,11 +101,11 @@ impl TreeDeleteHandler {
             new_leaf_page_no,
             old_leaf_page_no,
         );
-        return (new_root_page_no, true);
+        (new_root_page_no, true)
     }
 
     fn fix_stack(
-        key: &Vec<u8>,
+        key: &[u8],
         dir_pages: &mut Vec<TreeDirPage>,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
@@ -127,18 +127,18 @@ impl TreeDeleteHandler {
         }
 
         // Need to handle page deletion
-        return TreeDeleteHandler::fix_stack_page_del(
+        TreeDeleteHandler::fix_stack_page_del(
             key,
             dir_pages,
             free_page_tracker,
             page_cache,
             new_version,
             old_leaf_page_no,
-        );
+        )
     }
 
     fn fix_stack_page_del(
-        key: &Vec<u8>,
+        key: &[u8],
         dir_pages: &mut Vec<TreeDirPage>,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
@@ -176,17 +176,11 @@ impl TreeDeleteHandler {
         }
 
         // There are a stack of dir pages to rewrite
-        return TreeDeleteHandler::fix_dir_stack(
-            key,
-            dir_pages,
-            free_page_tracker,
-            page_cache,
-            new_version,
-        );
+        TreeDeleteHandler::fix_dir_stack(key, dir_pages, free_page_tracker, page_cache, new_version)
     }
 
     fn fix_dir_stack(
-        key: &Vec<u8>,
+        key: &[u8],
         dir_pages: &mut Vec<TreeDirPage>,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
@@ -204,10 +198,8 @@ impl TreeDeleteHandler {
             free_page_tracker.return_free_page_no(old_page_no);
             // The first dir_page we pop does not need its directory entries changed.
             if new_page_no != 0 {
-                let tree_dir_entry = TreeDirEntry::new(key.clone(), new_page_no);
-                let mut entries: Vec<TreeDirEntry> = Vec::new();
-                entries.push(tree_dir_entry);
-                dir_page.add_entries(entries);
+                let tree_dir_entry = TreeDirEntry::new(key.to_owned(), new_page_no);
+                dir_page.add_entries(vec![tree_dir_entry]);
             }
             new_page_no = free_page_tracker.get_free_page(page_cache);
             dir_page.set_page_number(new_page_no);
@@ -215,11 +207,11 @@ impl TreeDeleteHandler {
             page_cache.put_page(dir_page.get_page());
         }
 
-        return new_page_no;
+        new_page_no
     }
 
     fn fix_stack_no_page_del(
-        key: &Vec<u8>,
+        key: &[u8],
         dir_pages: &mut Vec<TreeDirPage>,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
@@ -234,10 +226,8 @@ impl TreeDeleteHandler {
             }
             let mut dir_page = dir_page_wrapped.unwrap();
             // Update the entry in the dir page with the new page number
-            let tree_dir_entry = TreeDirEntry::new(key.clone(), page_no_to_update);
-            let mut entries: Vec<TreeDirEntry> = Vec::new();
-            entries.push(tree_dir_entry);
-            dir_page.add_entries(entries);
+            let tree_dir_entry = TreeDirEntry::new(key.to_owned(), page_no_to_update);
+            dir_page.add_entries(vec![tree_dir_entry]);
             let dir_old_page_no = dir_page.get_page_number();
             free_page_tracker.return_free_page_no(dir_old_page_no);
             page_no_to_update = free_page_tracker.get_free_page(page_cache);
@@ -245,11 +235,11 @@ impl TreeDeleteHandler {
             dir_page.set_version(new_version);
             page_cache.put_page(dir_page.get_page());
         }
-        return page_no_to_update;
+        page_no_to_update
     }
 
     fn delete_key_from_root(
-        key: &Vec<u8>,
+        key: &[u8],
         root_page: &mut TreeLeafPage,
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
@@ -281,6 +271,6 @@ impl TreeDeleteHandler {
             free_page_tracker,
         );
 
-        return (new_root_page_no, true);
+        (new_root_page_no, true)
     }
 }

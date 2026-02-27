@@ -33,11 +33,11 @@ impl TreeDirHandler {
         // Need to split the tree dir page.
         let entries_to_right = tree_dir_page.get_right_half_entries();
         assert!(!entries_to_right.is_empty());
-        let new_left_key = entries_to_right.get(0).unwrap().get_key().to_vec();
+        let new_left_key = entries_to_right.first().unwrap().get_key().to_vec();
         let mut new_tree_dir_page = TreeDirPage::create_new(page_config, 0, 0);
         new_tree_dir_page.add_split_entries_new_page(entries_to_right);
 
-        if entries.get(0).unwrap().get_key() < new_left_key.as_ref() {
+        if entries.first().unwrap().get_key() < new_left_key.as_ref() {
             // Use original page to add entries. Note if the first is less than the left key in the
             // new page then all entries will be.
             tree_dir_page.add_entries(entries);
@@ -54,7 +54,7 @@ impl TreeDirHandler {
             left_key: Some(new_left_key),
         });
 
-        return tree_dir_pages;
+        tree_dir_pages
     }
 
     pub fn map_pages(
@@ -62,7 +62,7 @@ impl TreeDirHandler {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         version: u64,
-    ) -> () {
+    ) {
         for page_ref in page_refs {
             let old_page_no = page_ref.page.get_page_number();
             if old_page_no != 0 {
@@ -96,11 +96,11 @@ impl TreeDirHandler {
         // Need to split the parent dir page.
         let entries_to_right = parent_dir_page.get_right_half_entries();
         assert!(!entries_to_right.is_empty());
-        let new_page_left_key = entries_to_right.get(0).unwrap().get_key().to_vec();
+        let new_page_left_key = entries_to_right.first().unwrap().get_key().to_vec();
         let mut new_tree_page = TreeDirPage::create_new(page_config, 0, version);
         new_tree_page.add_split_entries_new_page(entries_to_right);
 
-        if entries.get(0).unwrap().get_key() < new_page_left_key.as_ref() {
+        if entries.first().unwrap().get_key() < new_page_left_key.as_ref() {
             // Add entries to original page.
             parent_dir_page.add_entries(entries);
         } else {
@@ -115,7 +115,7 @@ impl TreeDirHandler {
             left_key: Some(new_page_left_key),
         });
 
-        return tree_dir_pages;
+        tree_dir_pages
     }
 }
 

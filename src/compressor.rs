@@ -35,9 +35,7 @@ impl From<CompressorType> for u8 {
 
 impl Compressor {
     pub fn new(compressor_type: CompressorType) -> Self {
-        Compressor {
-            compressor_type: compressor_type,
-        }
+        Compressor { compressor_type }
     }
 
     pub fn compress(&self, data: &[u8]) -> Vec<u8> {

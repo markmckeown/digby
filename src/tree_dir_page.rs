@@ -25,7 +25,7 @@ impl PageTrait for TreeDirPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) -> () {
+    fn set_page_number(&mut self, page_no: u64) {
         self.page.set_page_number(page_no)
     }
 
@@ -37,7 +37,7 @@ impl PageTrait for TreeDirPage {
         self.page.get_version()
     }
 
-    fn set_version(&mut self, version: u64) -> () {
+    fn set_version(&mut self, version: u64) {
         self.page.set_version(version);
     }
 }
@@ -77,8 +77,7 @@ impl TreeDirPage {
             );
         }
 
-        let tree_page_dir = TreeDirPage { page: page };
-        tree_page_dir
+        TreeDirPage { page }
     }
 
     pub fn get_page_to_left(&self) -> u64 {
@@ -88,7 +87,7 @@ impl TreeDirPage {
         u64::from_le_bytes(array)
     }
 
-    pub fn set_page_to_left(&mut self, page_no: u64) -> () {
+    pub fn set_page_to_left(&mut self, page_no: u64) {
         let index = 16;
         self.page.get_page_bytes_mut()[index..index + 8].copy_from_slice(&page_no.to_le_bytes());
     }
@@ -100,7 +99,7 @@ impl TreeDirPage {
         u16::from_le_bytes(array)
     }
 
-    pub fn set_entries(&mut self, entries: u16) -> () {
+    pub fn set_entries(&mut self, entries: u16) {
         let index = 24;
         self.page.get_page_bytes_mut()[index..index + 2].copy_from_slice(&entries.to_le_bytes());
     }
@@ -112,13 +111,13 @@ impl TreeDirPage {
         u16::from_le_bytes(array)
     }
 
-    pub fn set_free_space(&mut self, entries: u16) -> () {
+    pub fn set_free_space(&mut self, entries: u16) {
         let index = 26;
         self.page.get_page_bytes_mut()[index..index + 2].copy_from_slice(&entries.to_le_bytes());
     }
 
     pub fn is_empty(&self) -> bool {
-        return self.get_page_to_left() == 0;
+        self.get_page_to_left() == 0
     }
 
     pub fn can_fit_entries(&self, entries: &Vec<TreeDirEntry>) -> bool {
@@ -132,7 +131,7 @@ impl TreeDirPage {
         for entry in entries {
             if count == 0 {
                 // skip first one as its an update.
-                count = count + 1;
+                count += 1;
                 continue;
             }
             size = size + entry.get_byte_size() + 2;
@@ -143,7 +142,7 @@ impl TreeDirPage {
 
     // If there is only one entry then its just an update. Any other entries are new entries
     // that should be added.
-    pub fn add_entries(&mut self, entries: Vec<TreeDirEntry>) -> () {
+    pub fn add_entries(&mut self, entries: Vec<TreeDirEntry>) {
         assert!(
             !entries.is_empty(),
             "Cannot add zero entries to tree dir page."
@@ -192,7 +191,7 @@ impl TreeDirPage {
     // Store entry in page. The check for left-hand-page should already be done. This just
     // adds the entry to the page. It will replace any existing matching key.
     // TODO this is inefficient, should use memmove.
-    fn add_tree_dir_in_page(&mut self, table_dir_entry: TreeDirEntry) -> () {
+    fn add_tree_dir_in_page(&mut self, table_dir_entry: TreeDirEntry) {
         let page_size = self.page.page_size;
         // TODO inefficent way to do this.
         let sorted = self.build_sorted_tree_dir_entries(table_dir_entry);
@@ -212,7 +211,7 @@ impl TreeDirPage {
 
         // First entry is set as left page - the key is not recorded here, it will be in the
         // parent tree_dir_page
-        let first_entry = split_enties.get(0).unwrap();
+        let first_entry = split_enties.first().unwrap();
         self.set_page_to_left(first_entry.get_page_no());
 
         // Append all the rest of the entries.
@@ -223,7 +222,7 @@ impl TreeDirPage {
 
     // Add a directory entry to the top of the stack of entries. This should be called from
     // store_tree_dir_in_page which sorts the entries before adding them.
-    fn append_tree_dir_entry(&mut self, tree_dir_entry: &TreeDirEntry, page_size: u64) -> () {
+    fn append_tree_dir_entry(&mut self, tree_dir_entry: &TreeDirEntry, page_size: u64) {
         let tree_dir_entry_size: usize = tree_dir_entry.get_byte_size();
 
         let current_entries = self.get_entries();
@@ -233,12 +232,11 @@ impl TreeDirPage {
         let tree_dir_entry_offset: usize =
             (page_size as usize) - (free_space as usize + current_entries_size);
         let page_bytes = self.page.get_page_bytes_mut();
-        page_bytes[tree_dir_entry_offset..tree_dir_entry_offset + tree_dir_entry_size as usize]
+        page_bytes[tree_dir_entry_offset..tree_dir_entry_offset + tree_dir_entry_size]
             .copy_from_slice(tree_dir_entry.get_serialized());
 
-        let mut cursor = Cursor::new(
-            &mut page_bytes[page_size as usize - (current_entries_size + 2 as usize)..],
-        );
+        let mut cursor =
+            Cursor::new(&mut page_bytes[page_size as usize - (current_entries_size + 2_usize)..]);
         cursor
             .write_u16::<byteorder::LittleEndian>(tree_dir_entry_offset as u16)
             .expect("Failed to write tuple offset");
@@ -269,7 +267,7 @@ impl TreeDirPage {
     // count and the free space.
     pub fn get_right_half_entries(&mut self) -> Vec<TreeDirEntry> {
         let entries = self.get_entries();
-        let start = (entries + 1) / 2;
+        let start = entries.div_ceil(2);
         let mut tree_dir_entries = Vec::new();
         let mut size_removed: u16 = 0;
         for i in start..entries {
@@ -315,7 +313,7 @@ impl TreeDirPage {
         Some(self.get_dir_entry_index(0).get_key().to_vec())
     }
 
-    pub fn remove_key_page(&mut self, key: &Vec<u8>, page_no: u64) -> () {
+    pub fn remove_key_page(&mut self, key: &[u8], page_no: u64) {
         let entries = self.get_entries();
 
         // There should only be the left most page.
@@ -327,14 +325,14 @@ impl TreeDirPage {
 
         // Greater than right most key - just remove entry
         let last_entry = self.get_dir_entry_index(entries - 1);
-        if key > last_entry.get_key().to_vec().as_ref() {
+        if key > last_entry.get_key() {
             self.set_entries(entries - 1);
             return;
         }
 
         // Less than lowest key in entry - remove left most key from list
         let first_entry = self.get_dir_entry_index(0);
-        if key < first_entry.get_key().to_vec().as_ref() {
+        if key < first_entry.get_key() {
             assert!(page_no == self.get_page_to_left());
             let new_left_most_page = first_entry.get_page_no();
             self.set_page_to_left(new_left_most_page);
@@ -371,19 +369,19 @@ impl TreeDirPage {
     //   Between two keys so use the first key in the pair of keys
     //   Greater than the right most key so use it.
     //
-    pub fn get_next_page(&self, key: &Vec<u8>) -> u64 {
+    pub fn get_next_page(&self, key: &[u8]) -> u64 {
         let entries = self.get_entries();
 
         if entries == 0 {
             return self.get_page_to_left();
         }
 
-        if key < self.get_dir_entry_index(0).get_key().to_vec().as_ref() {
+        if key < self.get_dir_entry_index(0).get_key() {
             return self.get_page_to_left();
         }
 
         let last_entry = self.get_dir_entry_index(entries - 1);
-        if key > last_entry.get_key().to_vec().as_ref() {
+        if key > last_entry.get_key() {
             return last_entry.get_page_no();
         }
 
@@ -395,7 +393,7 @@ impl TreeDirPage {
             let entry: TreeDirEntry = self.get_dir_entry_index(mid);
             if entry.get_key() == key {
                 return entry.get_page_no();
-            } else if key > entry.get_key().to_vec().as_ref() {
+            } else if key > entry.get_key() {
                 left = mid + 1;
             } else {
                 right = mid - 1;
@@ -436,7 +434,7 @@ impl TreeDirPage {
         let tree_dir_index = cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
 
         let page_bytes = self.page.get_page_bytes_mut();
-        page_bytes[tree_dir_index..tree_dir_index + 8 as usize]
+        page_bytes[tree_dir_index..tree_dir_index + 8_usize]
             .copy_from_slice(new_page_no.to_le_bytes().as_ref());
     }
 }

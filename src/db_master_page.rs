@@ -21,7 +21,7 @@ impl PageTrait for DbMasterPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) -> () {
+    fn set_page_number(&mut self, page_no: u64) {
         self.page.set_page_number(page_no)
     }
 
@@ -33,7 +33,7 @@ impl PageTrait for DbMasterPage {
         self.page.get_version()
     }
 
-    fn set_version(&mut self, version: u64) -> () {
+    fn set_version(&mut self, version: u64) {
         self.page.set_version(version);
     }
 }
@@ -63,8 +63,7 @@ impl DbMasterPage {
             panic!("Invalid page type for DbMasterPage");
         }
 
-        let head_page = DbMasterPage { page };
-        head_page
+        DbMasterPage { page }
     }
 
     const GLOBAL_TREE_OFFSET: u64 = 16;
@@ -103,19 +102,14 @@ impl DbMasterPage {
     }
 
     fn get_u64_at_offset(&self, offset: u64) -> u64 {
-        let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(offset);
         cursor.read_u64::<LittleEndian>().unwrap()
     }
 
-    pub fn flip_page_number(&mut self) -> () {
+    pub fn flip_page_number(&mut self) {
         let page_number = self.get_page_number();
-        let new_page_number: u64;
-        if page_number == 1 {
-            new_page_number = 2;
-        } else {
-            new_page_number = 1;
-        }
+        let new_page_number: u64 = if page_number == 1 { 2 } else { 1 };
         self.page.set_page_number(new_page_number);
     }
 }

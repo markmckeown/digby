@@ -22,7 +22,7 @@ pub struct Db {
 impl Db {
     pub const BLOCK_SIZE: usize = 4096;
     pub fn new(path: &str, key: Option<Vec<u8>>, compressor_type: CompressorType) -> Self {
-        return Db::new_with_page_size(path, key, compressor_type, Db::BLOCK_SIZE);
+        Db::new_with_page_size(path, key, compressor_type, Db::BLOCK_SIZE)
     }
 
     pub fn new_with_page_size(
@@ -47,6 +47,7 @@ impl Db {
                 is_new = true;
             }
         } else {
+            // File does not exist, create.
             db_file = OpenOptions::new()
                 .write(true)
                 .read(true)
@@ -59,17 +60,17 @@ impl Db {
         let file_layer: FileLayer = FileLayer::new(db_file, block_size);
         let block_layer: BlockLayer;
         let sanity_type: BlockSanity;
-        if key.is_none() {
+        if let Some(k) = key {
+            block_layer = BlockLayer::new_with_key(file_layer, block_size, k);
+            sanity_type = BlockSanity::Aes128Gcm;
+        } else {
             block_layer = BlockLayer::new(file_layer, block_size);
             sanity_type = BlockSanity::XxH32Checksum;
-        } else {
-            block_layer = BlockLayer::new_with_key(file_layer, block_size, key.unwrap());
-            sanity_type = BlockSanity::Aes128Gcm;
         }
         let page_cache: PageCache = PageCache::new(block_layer);
 
         let mut db = Db {
-            page_cache: page_cache,
+            page_cache,
             compressor: Compressor::new(compressor_type),
         };
 
@@ -83,17 +84,16 @@ impl Db {
         db
     }
 
-    pub fn delete(&mut self, key: &Vec<u8>) -> bool {
+    pub fn delete(&mut self, key: &[u8]) -> bool {
         assert!(
             key.len() < u32::MAX as usize,
             "Cannot handle keys larger than u32::MAX."
         );
-        let key_to_use: Vec<u8>;
-        if TupleProcessor::is_oversized_key(key) {
-            key_to_use = TupleProcessor::generate_short_key(key);
+        let key_to_use: Vec<u8> = if TupleProcessor::is_oversized_key(key) {
+            TupleProcessor::generate_short_key(key)
         } else {
-            key_to_use = key.clone();
-        }
+            key.to_owned()
+        };
 
         // Get the current master page. Note this is a copy of the page
         let mut master_page = self.get_master_page();
@@ -125,7 +125,7 @@ impl Db {
 
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(free_dir_pages.len() >= 1);
+        assert!(!free_dir_pages.is_empty());
         let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
             self.page_cache.put_page(free_dir_page.get_page());
@@ -149,20 +149,20 @@ impl Db {
         // Now sync the master
         self.page_cache.sync_data();
 
-        return deleted;
+        deleted
     }
 
-    pub fn get(&mut self, key: &Vec<u8>) -> Option<Vec<u8>> {
+    pub fn get(&mut self, key: &[u8]) -> Option<Vec<u8>> {
         assert!(
             key.len() < u32::MAX as usize,
             "Cannot handle keys larger than u32::MAX."
         );
         let master_page = self.get_master_page();
         let tree_page_no = master_page.get_global_tree_root_page_no();
-        return self.get_from_tree(key, tree_page_no);
+        self.get_from_tree(key, tree_page_no)
     }
 
-    fn get_from_tree(&mut self, key: &Vec<u8>, tree_page_no: u64) -> Option<Vec<u8>> {
+    fn get_from_tree(&mut self, key: &[u8], tree_page_no: u64) -> Option<Vec<u8>> {
         // TODO need to check versions.
         let page = self.page_cache.get_page(tree_page_no);
         // If not an oversized key...
@@ -180,9 +180,7 @@ impl Db {
         // that forms a linked list of pages that will hold the tuple.
         let tuple = StoreTupleProcessor::get_tuple(&short_key, page, &mut self.page_cache);
         // Do not have this key.
-        if tuple.is_none() {
-            return None;
-        }
+        tuple.as_ref()?;
         let overflow_page_no =
             u64::from_le_bytes(tuple.unwrap().get_value()[0..8].try_into().unwrap());
         let overflow_tuple: OverflowTuple =
@@ -191,10 +189,10 @@ impl Db {
         if *key != self.get_tuple_key(&overflow_tuple) {
             return None;
         }
-        return Some(self.get_tuple_value(&overflow_tuple));
+        Some(self.get_tuple_value(&overflow_tuple))
     }
 
-    pub fn put(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> () {
+    pub fn put(&mut self, key: &[u8], value: &[u8]) {
         // Assert on the things that cannot be handled yet.
         assert!(
             key.len() < u32::MAX as usize,
@@ -223,8 +221,8 @@ impl Db {
 
         // Create the tuple we want to add.
         let tuple = TupleProcessor::generate_tuple(
-            &key,
-            &value,
+            key,
+            value,
             &mut self.page_cache,
             &mut free_page_tracker,
             new_version,
@@ -246,7 +244,7 @@ impl Db {
         // Write out the free pages.
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(free_dir_pages.len() >= 1);
+        assert!(!free_dir_pages.is_empty());
         let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
             self.page_cache.put_page(free_dir_page.get_page());
@@ -271,7 +269,7 @@ impl Db {
         self.page_cache.sync_data();
     }
 
-    pub fn clear(&mut self) -> () {
+    pub fn clear(&mut self) {
         // Get the current master page. Note this is a copy of the page
         let mut master_page = self.get_master_page();
 
@@ -302,7 +300,7 @@ impl Db {
         // Write out the free pages.
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(free_dir_pages.len() >= 1);
+        assert!(!free_dir_pages.is_empty());
         let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
             self.page_cache.put_page(free_dir_page.get_page());
@@ -327,7 +325,7 @@ impl Db {
         self.page_cache.sync_data();
     }
 
-    pub fn create_table(&mut self, name: &Vec<u8>) -> () {
+    pub fn create_table(&mut self, name: &[u8]) {
         // Assert on the things that cannot be handled yet.
         assert!(
             name.len() < u8::MAX as usize,
@@ -360,8 +358,8 @@ impl Db {
 
         // Create the tuple we want to add.
         let tuple = TupleProcessor::generate_tuple(
-            &name,
-            new_table_root_page_no.to_le_bytes().to_vec().as_ref(),
+            name,
+            &new_table_root_page_no.to_le_bytes(),
             &mut self.page_cache,
             &mut free_page_tracker,
             new_version,
@@ -383,7 +381,7 @@ impl Db {
         // Write out the free pages.
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(free_dir_pages.len() >= 1);
+        assert!(!free_dir_pages.is_empty());
         let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
             self.page_cache.put_page(free_dir_page.get_page());
@@ -408,7 +406,7 @@ impl Db {
         self.page_cache.sync_data();
     }
 
-    pub fn get_table_tree_root(&mut self, name: &Vec<u8>) -> Option<u64> {
+    pub fn get_table_tree_root(&mut self, name: &[u8]) -> Option<u64> {
         assert!(
             name.len() < u8::MAX as usize,
             "Cannot handle keys larger than u8::MAX."
@@ -422,13 +420,13 @@ impl Db {
             assert!(tuple.get_overflow() == Overflow::None);
             assert_eq!(tuple.get_value().len(), 8);
             let page_no = u64::from_le_bytes(tuple.get_value().try_into().unwrap());
-            return Some(page_no);
+            Some(page_no)
         } else {
-            return None;
+            None
         }
     }
 
-    pub fn put_table_entry(&mut self, table_name: &Vec<u8>, key: &Vec<u8>, value: &Vec<u8>) -> () {
+    pub fn put_table_entry(&mut self, table_name: &[u8], key: &[u8], value: &[u8]) {
         assert!(
             table_name.len() < u8::MAX as usize,
             "Cannot handle keys larger than u8::MAX."
@@ -467,8 +465,8 @@ impl Db {
 
         // Create the tuple we want to add.
         let tuple = TupleProcessor::generate_tuple(
-            &key,
-            &value,
+            key,
+            value,
             &mut self.page_cache,
             &mut free_page_tracker,
             new_version,
@@ -485,8 +483,8 @@ impl Db {
         );
 
         let table_tuple = TupleProcessor::generate_tuple(
-            &table_name,
-            new_table_root_page_no.to_le_bytes().to_vec().as_ref(),
+            table_name,
+            &new_table_root_page_no.to_le_bytes(),
             &mut self.page_cache,
             &mut free_page_tracker,
             new_version,
@@ -506,7 +504,7 @@ impl Db {
         // Write out the free pages.
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(free_dir_pages.len() >= 1);
+        assert!(!free_dir_pages.is_empty());
         let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
             self.page_cache.put_page(free_dir_page.get_page());
@@ -531,15 +529,15 @@ impl Db {
         self.page_cache.sync_data();
     }
 
-    pub fn clear_table(&mut self, table_name: &Vec<u8>) -> () {
+    pub fn clear_table(&mut self, table_name: &[u8]) {
         self.clear_table_with_delete(table_name, false);
     }
 
-    pub fn delete_table(&mut self, table_name: &Vec<u8>) -> () {
+    pub fn delete_table(&mut self, table_name: &[u8]) {
         self.clear_table_with_delete(table_name, true);
     }
 
-    pub fn clear_table_with_delete(&mut self, table_name: &Vec<u8>, delete: bool) -> () {
+    pub fn clear_table_with_delete(&mut self, table_name: &[u8], delete: bool) {
         assert!(
             table_name.len() < u8::MAX as usize,
             "Cannot handle keys larger than u8::MAX."
@@ -579,8 +577,7 @@ impl Db {
         let table_dir_root_page_no = master_page.get_table_dir_page_no();
         let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
 
-        let new_table_dir_root_page_no: u64;
-        if delete {
+        let new_table_dir_root_page_no: u64 = if delete {
             free_page_tracker.return_free_page_no(new_table_root_page_no);
             let (new_page, _is_deleted) = TreeDeleteHandler::delete_key(
                 table_name,
@@ -589,29 +586,29 @@ impl Db {
                 &mut free_page_tracker,
                 new_version,
             );
-            new_table_dir_root_page_no = new_page;
+            new_page
         } else {
             let table_tuple = TupleProcessor::generate_tuple(
-                &table_name,
-                new_table_root_page_no.to_le_bytes().to_vec().as_ref(),
+                table_name,
+                &new_table_root_page_no.to_le_bytes(),
                 &mut self.page_cache,
                 &mut free_page_tracker,
                 new_version,
                 &self.compressor,
             );
-            new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
+            StoreTupleProcessor::store_tuple(
                 table_tuple,
                 table_dir_root_page,
                 &mut free_page_tracker,
                 &mut self.page_cache,
                 new_version,
-            );
-        }
+            )
+        };
 
         // Write out the free pages.
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(free_dir_pages.len() >= 1);
+        assert!(!free_dir_pages.is_empty());
         let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
             self.page_cache.put_page(free_dir_page.get_page());
@@ -636,7 +633,7 @@ impl Db {
         self.page_cache.sync_data();
     }
 
-    pub fn get_table_entry(&mut self, table_name: &Vec<u8>, key: &Vec<u8>) -> Option<Vec<u8>> {
+    pub fn get_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> Option<Vec<u8>> {
         assert!(
             table_name.len() < u8::MAX as usize,
             "Cannot handle keys larger than u8::MAX."
@@ -647,15 +644,13 @@ impl Db {
         );
 
         let table_root_page_no_wrapped = self.get_table_tree_root(table_name);
-        if table_root_page_no_wrapped.is_none() {
-            return None;
-        }
+        table_root_page_no_wrapped?;
 
         let table_root_page_no = table_root_page_no_wrapped.unwrap();
-        return self.get_from_tree(key, table_root_page_no);
+        self.get_from_tree(key, table_root_page_no)
     }
 
-    pub fn delete_table_entry(&mut self, table_name: &Vec<u8>, key: &Vec<u8>) -> bool {
+    pub fn delete_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> bool {
         assert!(
             key.len() < u32::MAX as usize,
             "Cannot handle keys larger than u32::MAX."
@@ -672,12 +667,11 @@ impl Db {
         }
         let table_root_page_no = table_root_page_no_wrapped.unwrap();
 
-        let key_to_use: Vec<u8>;
-        if TupleProcessor::is_oversized_key(key) {
-            key_to_use = TupleProcessor::generate_short_key(key);
+        let key_to_use: Vec<u8> = if TupleProcessor::is_oversized_key(key) {
+            TupleProcessor::generate_short_key(key)
         } else {
-            key_to_use = key.clone();
-        }
+            key.to_owned()
+        };
 
         // Get the current master page. Note this is a copy of the page
         let mut master_page = self.get_master_page();
@@ -707,8 +701,8 @@ impl Db {
         }
 
         let table_tuple = TupleProcessor::generate_tuple(
-            &table_name,
-            new_tree_free_page_no.to_le_bytes().to_vec().as_ref(),
+            table_name,
+            &new_tree_free_page_no.to_le_bytes(),
             &mut self.page_cache,
             &mut free_page_tracker,
             new_version,
@@ -727,7 +721,7 @@ impl Db {
 
         // Write the new free page directory back through the page cache.
         let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(free_dir_pages.len() >= 1);
+        assert!(!free_dir_pages.is_empty());
         let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
         while let Some(mut free_dir_page) = free_dir_pages.pop() {
             self.page_cache.put_page(free_dir_page.get_page());
@@ -751,7 +745,7 @@ impl Db {
         // Now sync the master
         self.page_cache.sync_data();
 
-        return deleted;
+        deleted
     }
 }
 
@@ -800,14 +794,13 @@ impl Db {
             TreeLeafPage::create_new(self.page_cache.get_page_config(), 5);
         // remove it from the free list
         free_pages.retain(|&x| x != 5);
-        self.page_cache
-            .put_page(&mut global_tree_root_page.get_page());
+        self.page_cache.put_page(global_tree_root_page.get_page());
 
         // Write the table directory page.
         let mut table_dir_page = TreeLeafPage::create_new(self.page_cache.get_page_config(), 4);
         // remove from the free page list
         free_pages.retain(|&x| x != 4);
-        self.page_cache.put_page(&mut table_dir_page.get_page());
+        self.page_cache.put_page(table_dir_page.get_page());
 
         // Write first master page
         let mut master_page1: DbMasterPage =
@@ -817,7 +810,7 @@ impl Db {
         master_page1.set_free_page_dir_page_no(3);
         master_page1.set_table_dir_page_no(4);
         master_page1.set_global_tree_root_page_no(5);
-        self.page_cache.put_page(&mut master_page1.get_page());
+        self.page_cache.put_page(master_page1.get_page());
 
         // Write second master page.
         let mut master_page2: DbMasterPage =
@@ -827,7 +820,7 @@ impl Db {
         master_page2.set_free_page_dir_page_no(3);
         master_page2.set_table_dir_page_no(4);
         master_page2.set_global_tree_root_page_no(5);
-        self.page_cache.put_page(&mut master_page2.get_page());
+        self.page_cache.put_page(master_page2.get_page());
 
         // Now write the free page directory
         let mut free_dir_page = FreeDirPage::create_new(self.page_cache.get_page_config(), 3, 0);
@@ -835,7 +828,7 @@ impl Db {
         free_pages.retain(|&x| x != 0);
         free_pages.retain(|&x| x != 3);
         free_dir_page.add_free_pages(&free_pages);
-        self.page_cache.put_page(&mut free_dir_page.get_page());
+        self.page_cache.put_page(free_dir_page.get_page());
 
         // Flush all pages so far, don't sync the file metadata
         self.page_cache.sync_data();
@@ -845,7 +838,7 @@ impl Db {
             DbRootPage::create_new(self.page_cache.get_page_config());
         db_root_page.set_sanity_type(sanity_type);
         db_root_page.set_compression_type(self.compressor.compressor_type.clone().into());
-        self.page_cache.put_page(&mut db_root_page.get_page());
+        self.page_cache.put_page(db_root_page.get_page());
 
         assert!(free_pages.len() == 4, "There should be 4 free pages");
 
@@ -858,12 +851,12 @@ impl Db {
     fn get_master_page(&mut self) -> DbMasterPage {
         let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1));
         let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2));
-        let current_master = if master_page1.get_version() > master_page2.get_version() {
+
+        if master_page1.get_version() > master_page2.get_version() {
             master_page1
         } else {
             master_page2
-        };
-        current_master
+        }
     }
 
     fn get_tuple_value<T: TupleTrait>(&self, tuple: &T) -> Vec<u8> {
@@ -871,7 +864,7 @@ impl Db {
         if overflow == Overflow::ValueCompressed || overflow == Overflow::KeyValueCompressed {
             return self.compressor.decompress(tuple.get_value());
         }
-        return tuple.get_value().to_vec();
+        tuple.get_value().to_vec()
     }
 
     fn get_tuple_key<T: TupleTrait>(&self, tuple: &T) -> Vec<u8> {
@@ -879,7 +872,7 @@ impl Db {
         if overflow == Overflow::KeyValueCompressed {
             return self.compressor.decompress(tuple.get_key());
         }
-        return tuple.get_key().to_vec();
+        tuple.get_key().to_vec()
     }
 }
 
@@ -933,7 +926,7 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            db.put(&key, &value);
+            db.put(key.as_ref(), value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
@@ -943,7 +936,7 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            let returned_value = db.get(&key).unwrap();
+            let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -959,9 +952,9 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            assert!(db.get_table_tree_root(&name).is_none());
-            db.create_table(&name);
-            assert!(db.get_table_tree_root(&name).is_some());
+            assert!(db.get_table_tree_root(name.as_ref()).is_none());
+            db.create_table(name.as_ref());
+            assert!(db.get_table_tree_root(name.as_ref()).is_some());
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
@@ -978,10 +971,10 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            assert!(db.get_table_tree_root(&name).is_none());
-            db.create_table(&name);
-            db.put_table_entry(&name, &key, &value);
-            assert!(db.get_table_tree_root(&name).is_some());
+            assert!(db.get_table_tree_root(name.as_ref()).is_none());
+            db.create_table(name.as_ref());
+            db.put_table_entry(name.as_ref(), key.as_ref(), value.as_ref());
+            assert!(db.get_table_tree_root(name.as_ref()).is_some());
         }
         {
             let mut db = Db::new(
@@ -989,8 +982,8 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            assert!(db.get_table_tree_root(&name).is_some());
-            let returned_value = db.get_table_entry(&name, &key).unwrap();
+            assert!(db.get_table_tree_root(name.as_ref()).is_some());
+            let returned_value = db.get_table_entry(name.as_ref(), key.as_ref()).unwrap();
             assert!(returned_value == value);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -1008,10 +1001,10 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            assert!(db.get_table_tree_root(&name).is_none());
-            db.create_table(&name);
-            db.put_table_entry(&name, &key, &value);
-            assert!(db.get_table_tree_root(&name).is_some());
+            assert!(db.get_table_tree_root(name.as_ref()).is_none());
+            db.create_table(name.as_ref());
+            db.put_table_entry(name.as_ref(), key.as_ref(), value.as_ref());
+            assert!(db.get_table_tree_root(name.as_ref()).is_some());
         }
         {
             let mut db = Db::new(
@@ -1019,14 +1012,14 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            assert!(db.get_table_tree_root(&name).is_some());
-            let returned_value = db.get_table_entry(&name, &key).unwrap();
+            assert!(db.get_table_tree_root(name.as_ref()).is_some());
+            let returned_value = db.get_table_entry(name.as_ref(), key.as_ref()).unwrap();
             assert!(returned_value == value);
-            db.clear_table(&name);
-            let returned_value = db.get_table_entry(&name, &key);
+            db.clear_table(name.as_ref());
+            let returned_value = db.get_table_entry(name.as_ref(), key.as_ref());
             assert!(returned_value.is_none());
-            db.delete_table(&name);
-            assert!(db.get_table_tree_root(&name).is_none());
+            db.delete_table(name.as_ref());
+            assert!(db.get_table_tree_root(name.as_ref()).is_none());
         }
         {
             let mut db = Db::new(
@@ -1034,7 +1027,7 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            assert!(db.get_table_tree_root(&name).is_none());
+            assert!(db.get_table_tree_root(name.as_ref()).is_none());
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
@@ -1051,10 +1044,10 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            assert!(db.get_table_tree_root(&name).is_none());
-            db.create_table(&name);
-            db.put_table_entry(&name, &key, &value);
-            assert!(db.get_table_tree_root(&name).is_some());
+            assert!(db.get_table_tree_root(name.as_ref()).is_none());
+            db.create_table(name.as_ref());
+            db.put_table_entry(name.as_ref(), key.as_ref(), value.as_ref());
+            assert!(db.get_table_tree_root(name.as_ref()).is_some());
         }
         {
             let mut db = Db::new(
@@ -1062,10 +1055,10 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            assert!(db.get_table_tree_root(&name).is_some());
-            let returned_value = db.get_table_entry(&name, &key).unwrap();
+            assert!(db.get_table_tree_root(name.as_ref()).is_some());
+            let returned_value = db.get_table_entry(name.as_ref(), key.as_ref()).unwrap();
             assert!(returned_value == value);
-            assert!(db.delete_table_entry(&name, &key))
+            assert!(db.delete_table_entry(name.as_ref(), key.as_ref()))
         }
         {
             let mut db = Db::new(
@@ -1073,8 +1066,8 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            assert!(db.get_table_tree_root(&name).is_some());
-            let returned_value = db.get_table_entry(&name, &key);
+            assert!(db.get_table_tree_root(name.as_ref()).is_some());
+            let returned_value = db.get_table_entry(name.as_ref(), key.as_ref());
             assert!(returned_value.is_none());
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -1093,8 +1086,8 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            db.put(&key, &value);
-            db.put(&another_key, &another_value);
+            db.put(key.as_ref(), value.as_ref());
+            db.put(another_key.as_ref(), another_value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
@@ -1104,9 +1097,9 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            let returned_value = db.get(&key).unwrap();
+            let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
-            let returned_value = db.get(&another_key).unwrap();
+            let returned_value = db.get(another_key.as_ref()).unwrap();
             assert!(returned_value == another_value);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -1123,7 +1116,7 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            db.put(&key, &value);
+            db.put(key.as_ref(), value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
@@ -1133,7 +1126,7 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            let returned_value = db.get(&key).unwrap();
+            let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
         }
         {
@@ -1142,7 +1135,7 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            let deleted = db.delete(&key);
+            let deleted = db.delete(key.as_ref());
             assert!(deleted);
         }
         {
@@ -1151,7 +1144,7 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            let returned_value = db.get(&key);
+            let returned_value = db.get(key.as_ref());
             assert!(returned_value.is_none());
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -1168,10 +1161,7 @@ mod tests {
                 128,
             );
             for i in 0u64..=256 {
-                db.put(
-                    i.to_be_bytes().to_vec().as_ref(),
-                    i.to_be_bytes().to_vec().as_ref(),
-                );
+                db.put(&i.to_be_bytes(), &i.to_be_bytes());
             }
         }
         // The new scope essentially closes the DB - when Files run out of scope then
@@ -1184,7 +1174,7 @@ mod tests {
                 128,
             );
             for i in 0u64..=256 {
-                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref()).unwrap();
+                let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
             }
         }
@@ -1196,13 +1186,13 @@ mod tests {
                 128,
             );
             for i in (0..257u64).rev() {
-                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref()).unwrap();
+                let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
-                let deleted = db.delete(i.to_be_bytes().to_vec().as_ref());
+                let deleted = db.delete(&i.to_be_bytes());
                 if !deleted {
                     assert!(deleted);
                 }
-                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+                let returned_value = db.get(&i.to_be_bytes());
                 assert!(returned_value.is_none());
             }
         }
@@ -1214,7 +1204,7 @@ mod tests {
                 128,
             );
             let i: u64 = 0;
-            let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+            let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -1234,10 +1224,7 @@ mod tests {
             let mut rng = rng();
             numbers.shuffle(&mut rng);
             for i in numbers {
-                db.put(
-                    i.to_be_bytes().to_vec().as_ref(),
-                    i.to_be_bytes().to_vec().as_ref(),
-                );
+                db.put(&i.to_be_bytes(), &i.to_be_bytes());
             }
         }
         // The new scope essentially closes the DB - when Files run out of scope then
@@ -1250,7 +1237,7 @@ mod tests {
                 128,
             );
             for i in 0u64..=256 {
-                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref()).unwrap();
+                let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
             }
         }
@@ -1265,13 +1252,13 @@ mod tests {
             let mut rng = rng();
             numbers.shuffle(&mut rng);
             for i in numbers {
-                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref()).unwrap();
+                let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
-                let deleted = db.delete(i.to_be_bytes().to_vec().as_ref());
+                let deleted = db.delete(&i.to_be_bytes());
                 if !deleted {
                     assert!(deleted);
                 }
-                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+                let returned_value = db.get(&i.to_be_bytes());
                 assert!(returned_value.is_none());
             }
         }
@@ -1283,7 +1270,7 @@ mod tests {
                 128,
             );
             let i: u64 = 0;
-            let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+            let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -1303,10 +1290,7 @@ mod tests {
             let mut rng = rng();
             numbers.shuffle(&mut rng);
             for i in numbers {
-                db.put(
-                    i.to_be_bytes().to_vec().as_ref(),
-                    i.to_be_bytes().to_vec().as_ref(),
-                );
+                db.put(&i.to_be_bytes(), &i.to_be_bytes());
             }
         }
         // The new scope essentially closes the DB - when Files run out of scope then
@@ -1320,7 +1304,7 @@ mod tests {
             );
             db.clear();
             let i: u64 = 0;
-            let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+            let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
         }
         {
@@ -1334,7 +1318,7 @@ mod tests {
             let mut rng = rng();
             numbers.shuffle(&mut rng);
             for i in numbers {
-                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+                let returned_value = db.get(&i.to_be_bytes());
                 assert!(returned_value.is_none());
             }
         }
@@ -1352,10 +1336,7 @@ mod tests {
                 128,
             );
             for i in 0u64..256 {
-                db.put(
-                    i.to_be_bytes().to_vec().as_ref(),
-                    i.to_be_bytes().to_vec().as_ref(),
-                );
+                db.put(&i.to_be_bytes(), &i.to_be_bytes());
             }
         }
         // The new scope essentially closes the DB - when Files run out of scope then
@@ -1368,7 +1349,7 @@ mod tests {
                 128,
             );
             for i in 0u64..256 {
-                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref()).unwrap();
+                let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
             }
         }
@@ -1380,13 +1361,13 @@ mod tests {
                 128,
             );
             for i in 0u64..256 {
-                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref()).unwrap();
+                let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
-                let deleted = db.delete(i.to_be_bytes().to_vec().as_ref());
+                let deleted = db.delete(&i.to_be_bytes());
                 if !deleted {
                     assert!(deleted);
                 }
-                let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+                let returned_value = db.get(&i.to_be_bytes());
                 assert!(returned_value.is_none());
             }
         }
@@ -1398,7 +1379,7 @@ mod tests {
                 128,
             );
             let i: u64 = 0;
-            let returned_value = db.get(i.to_be_bytes().to_vec().as_ref());
+            let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -1415,7 +1396,7 @@ mod tests {
                 None,
                 CompressorType::LZ4,
             );
-            db.put(&key, &value);
+            db.put(key.as_ref(), value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
@@ -1425,7 +1406,7 @@ mod tests {
                 None,
                 CompressorType::LZ4,
             );
-            let returned_value = db.get(&key).unwrap();
+            let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -1445,7 +1426,7 @@ mod tests {
                 None,
                 CompressorType::LZ4,
             );
-            db.put(&key, &value);
+            db.put(key.as_ref(), value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
@@ -1455,7 +1436,7 @@ mod tests {
                 None,
                 CompressorType::LZ4,
             );
-            let returned_value = db.get(&key).unwrap();
+            let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
@@ -1472,7 +1453,7 @@ mod tests {
                 Some(b"the_key".to_vec()),
                 CompressorType::None,
             );
-            db.put(&key, &value);
+            db.put(key.as_ref(), value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
@@ -1482,7 +1463,7 @@ mod tests {
                 Some(b"the_key".to_vec()),
                 CompressorType::None,
             );
-            let returned_value = db.get(&key).unwrap();
+            let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");

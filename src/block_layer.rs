@@ -57,7 +57,7 @@ impl BlockLayer {
             file_layer,
             block_sanity: BlockSanity::XxH32Checksum,
             page_config: PageConfig {
-                block_size: block_size,
+                block_size,
                 page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
             },
             key: Vec::new(),
@@ -77,7 +77,7 @@ impl BlockLayer {
             file_layer,
             block_sanity: BlockSanity::Aes128Gcm,
             page_config: PageConfig {
-                block_size: block_size,
+                block_size,
                 page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
             },
             key: enc_key,
@@ -85,7 +85,7 @@ impl BlockLayer {
     }
 
     pub fn get_page_config(&self) -> &PageConfig {
-        return &self.page_config;
+        &self.page_config
     }
 
     pub fn read_page(&mut self, page_number: u64) -> Page {
@@ -101,7 +101,7 @@ impl BlockLayer {
         self.file_layer.get_page_count()
     }
 
-    pub fn write_page(&mut self, page: &mut Page) -> () {
+    pub fn write_page(&mut self, page: &mut Page) {
         let page_number = page.get_page_number();
         assert!(
             page_number < self.file_layer.get_page_count(),
@@ -127,29 +127,27 @@ impl BlockLayer {
             page.set_type(crate::page::PageType::Free);
             self.set_sanity(&mut page);
             created_page_nos.push(new_page_no);
-            self.file_layer.append_new_page(&mut page, new_page_no);
+            self.file_layer.append_new_page(&page, new_page_no);
         }
         // Sync the file and file metadata.
         self.file_layer.sync_all();
         created_page_nos
     }
 
-    fn set_sanity(&self, page: &mut Page) -> () {
+    fn set_sanity(&self, page: &mut Page) {
         self.block_sanity.set_block_sanity(page, &self.key);
     }
 
-    fn check_sanity(&self, page: &mut Page) -> () {
+    fn check_sanity(&self, page: &mut Page) {
         self.block_sanity.check_block_sanity(page, &self.key);
     }
 
-    pub fn sync_data(&mut self) -> () {
+    pub fn sync_data(&mut self) {
         self.file_layer.sync_data();
-        ()
     }
 
-    pub fn sync_all(&mut self) -> () {
+    pub fn sync_all(&mut self) {
         self.file_layer.sync_all();
-        ()
     }
 }
 

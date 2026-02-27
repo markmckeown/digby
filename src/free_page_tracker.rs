@@ -36,13 +36,11 @@ impl FreePageTracker {
     pub fn new(page: Page, new_version: u64, page_config: PageConfig) -> Self {
         let free_dir_page = FreeDirPage::from_page(page);
         assert!(free_dir_page.get_version() < new_version);
-        let mut list = Vec::new();
-        list.push(free_dir_page);
         FreePageTracker {
-            free_dir_page_list: list,
+            free_dir_page_list: vec![free_dir_page],
             returned_pages: Vec::new(),
-            new_version: new_version,
-            page_config: page_config,
+            new_version,
+            page_config,
         }
     }
 
@@ -86,7 +84,7 @@ impl FreePageTracker {
         // Grab a free page number to return to the commit before adding to free_dir_page
         let new_free_page = new_free_pages.pop().unwrap();
         last.add_free_pages(&new_free_pages);
-        return new_free_page;
+        new_free_page
     }
 
     pub fn get_return_pages(&self) -> Vec<u64> {
@@ -95,7 +93,7 @@ impl FreePageTracker {
 
     // Commit no long needs this page no. It should be recycled for the next
     // commit and should not be used in this commit.
-    pub fn return_free_page_no(&mut self, page_no: u64) -> () {
+    pub fn return_free_page_no(&mut self, page_no: u64) {
         assert!(!self.free_dir_page_list.is_empty());
         self.returned_pages.push(page_no);
     }
@@ -129,7 +127,7 @@ impl FreePageTracker {
         while !self.returned_pages.is_empty() {
             // We create a new free page for the new free_page_dir page we need - we do not want to use a returned page no
             // as that could cause corruption. Returned pages are still in use until the commit is complete.
-            let next_free_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
+            let next_free_page_no = *page_cache.generate_free_pages(1).first().unwrap();
             let mut next_free_dir_page =
                 FreeDirPage::create_new(&self.page_config, next_free_page_no, self.new_version);
             next_free_dir_page.set_next(last.get_page_number());
@@ -148,7 +146,7 @@ impl FreePageTracker {
         // Move all the free_dir_pages into the new Vec, the vec in the object is now empty
         // and any attempt to use it will cause a panic
         pages.append(&mut self.free_dir_page_list);
-        return pages;
+        pages
     }
 }
 

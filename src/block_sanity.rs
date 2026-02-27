@@ -41,7 +41,7 @@ impl BlockSanity {
         }
     }
 
-    pub fn check_block_sanity(&self, page: &mut Page, key: &Vec<u8>) -> () {
+    pub fn check_block_sanity(&self, page: &mut Page, key: &Vec<u8>) {
         match self {
             BlockSanity::XxH32Checksum => {
                 XxHashSanity::verify_checksum(page);
@@ -52,7 +52,7 @@ impl BlockSanity {
         }
     }
 
-    pub fn set_block_sanity(&self, page: &mut Page, key: &Vec<u8>) -> () {
+    pub fn set_block_sanity(&self, page: &mut Page, key: &Vec<u8>) {
         match self {
             BlockSanity::XxH32Checksum => {
                 XxHashSanity::set_checksum(page);

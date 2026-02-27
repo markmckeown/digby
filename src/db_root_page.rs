@@ -22,7 +22,7 @@ impl PageTrait for DbRootPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) -> () {
+    fn set_page_number(&mut self, page_no: u64) {
         self.page.set_page_number(page_no)
     }
 
@@ -34,7 +34,7 @@ impl PageTrait for DbRootPage {
         self.page.get_version()
     }
 
-    fn set_version(&mut self, version: u64) -> () {
+    fn set_version(&mut self, version: u64) {
         self.page.set_version(version);
     }
 }
@@ -76,7 +76,7 @@ impl DbRootPage {
     }
 
     pub fn get_magic_number(&self) -> u32 {
-        let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(16);
         cursor.read_u32::<LittleEndian>().unwrap()
     }
@@ -90,7 +90,7 @@ impl DbRootPage {
     }
 
     pub fn get_db_major_version(&self) -> u16 {
-        let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(20);
         cursor.read_u16::<LittleEndian>().unwrap()
     }
@@ -104,7 +104,7 @@ impl DbRootPage {
     }
 
     pub fn get_db_minor_version(&self) -> u16 {
-        let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(22);
         cursor.read_u16::<LittleEndian>().unwrap()
     }
@@ -118,12 +118,12 @@ impl DbRootPage {
     }
 
     pub fn get_sanity_type(&self) -> BlockSanity {
-        let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(24);
         BlockSanity::try_from(cursor.read_u8().unwrap()).unwrap()
     }
 
-    pub fn set_sanity_type(&mut self, sanity_type: BlockSanity) -> () {
+    pub fn set_sanity_type(&mut self, sanity_type: BlockSanity) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(24);
         cursor
@@ -132,12 +132,12 @@ impl DbRootPage {
     }
 
     pub fn get_compression_type(&self) -> u8 {
-        let mut cursor = Cursor::new(&self.page.get_page_bytes()[..]);
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(25);
         cursor.read_u8().unwrap()
     }
 
-    pub fn set_compression_type(&mut self, compression_type: u8) -> () {
+    pub fn set_compression_type(&mut self, compression_type: u8) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(25);
         cursor

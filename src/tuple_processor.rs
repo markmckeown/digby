@@ -16,8 +16,8 @@ impl TupleProcessor {
     const MAX_VALUE_SIZE: usize = 1024;
 
     pub fn generate_tuple(
-        key: &Vec<u8>,
-        value: &Vec<u8>,
+        key: &[u8],
+        value: &[u8],
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
         version: u64,
@@ -54,19 +54,18 @@ impl TupleProcessor {
             overflow_type = Overflow::ValueOverflow
         }
 
-        let overflow_tuple: OverflowTuple;
-        if compressor.compressor_type != CompressorType::None {
+        let overflow_tuple: OverflowTuple = if compressor.compressor_type != CompressorType::None {
             let overflow_key = compressor.compress(key);
             let overflow_value = compressed_value;
-            overflow_tuple = OverflowTuple::new(
+            OverflowTuple::new(
                 &overflow_key,
                 &overflow_value,
                 version,
                 Overflow::KeyValueCompressed,
-            );
+            )
         } else {
-            overflow_tuple = OverflowTuple::new(&key, &value, version, Overflow::None);
-        }
+            OverflowTuple::new(key, value, version, Overflow::None)
+        };
 
         let overflow_page_no = OverflowPageHandler::store_overflow_tuple(
             overflow_tuple,
@@ -85,28 +84,28 @@ impl TupleProcessor {
             );
         }
 
-        return Tuple::new_with_overflow(
+        Tuple::new_with_overflow(
             key,
             overflow_page_no.to_le_bytes().to_vec().as_ref(),
             version,
             overflow_type,
-        );
+        )
     }
 
-    pub fn is_oversized_key(key: &Vec<u8>) -> bool {
+    pub fn is_oversized_key(key: &[u8]) -> bool {
         if key.len() > u8::MAX as usize {
             return true;
         }
-        return false;
+        false
     }
 
-    pub fn generate_short_key(key: &Vec<u8>) -> Vec<u8> {
+    pub fn generate_short_key(key: &[u8]) -> Vec<u8> {
         assert!(key.len() > u8::MAX as usize);
         let key_hash = Sha256::digest(key);
         let mut new_key: Vec<u8> = Vec::with_capacity(u8::MAX as usize);
         new_key.extend_from_slice(&key[0..u8::MAX as usize - 32]);
         new_key.extend_from_slice(&key_hash);
         assert!(new_key.len() == u8::MAX as usize);
-        return new_key;
+        new_key
     }
 }

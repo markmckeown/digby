@@ -14,11 +14,11 @@ impl XxHashSanity {
         let mut cursor = Cursor::new(page.get_block_bytes_mut());
         cursor.set_position(offset);
         cursor
-            .write_u32::<LittleEndian>(checksum as u32)
+            .write_u32::<LittleEndian>(checksum)
             .expect("Failed to write checksum");
     }
 
-    pub fn verify_checksum(page: &mut Page) -> () {
+    pub fn verify_checksum(page: &mut Page) {
         let calculated_checksum = xxh32(&page.get_page_bytes()[0..], 0);
         let offset = page.block_size as u64 - 4;
         let mut cursor = std::io::Cursor::new(page.get_block_bytes());

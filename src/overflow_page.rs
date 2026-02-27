@@ -22,7 +22,7 @@ impl PageTrait for OverflowPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) -> () {
+    fn set_page_number(&mut self, page_no: u64) {
         self.page.set_page_number(page_no)
     }
 
@@ -34,7 +34,7 @@ impl PageTrait for OverflowPage {
         self.page.get_version()
     }
 
-    fn set_version(&mut self, version: u64) -> () {
+    fn set_version(&mut self, version: u64) {
         self.page.set_version(version);
     }
 }
@@ -66,12 +66,11 @@ impl OverflowPage {
             panic!("Invalid page type for OverflowPage");
         }
 
-        let overflow_page = OverflowPage { page };
-        overflow_page
+        OverflowPage { page }
     }
 
     pub fn get_next_page(&self) -> u64 {
-        let mut cursor = std::io::Cursor::new(&self.page.get_page_bytes()[..]);
+        let mut cursor = std::io::Cursor::new(self.page.get_page_bytes());
         cursor.set_position(16);
         cursor.read_u64::<byteorder::LittleEndian>().unwrap()
     }
@@ -87,14 +86,14 @@ impl OverflowPage {
     pub fn get_used_size(&self) -> u16 {
         let slice = &self.page.get_page_bytes()[24..26];
         let bytes: [u8; 2] = slice.try_into().unwrap();
-        return u16::from_le_bytes(bytes);
+        u16::from_le_bytes(bytes)
     }
 
     pub fn set_used_size(&mut self, used_size: u16) {
         let mut cursor = std::io::Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(24);
         cursor
-            .write_u16::<byteorder::LittleEndian>(used_size as u16)
+            .write_u16::<byteorder::LittleEndian>(used_size)
             .expect("Failed to write used size");
     }
 
@@ -111,10 +110,9 @@ impl OverflowPage {
 
     pub fn get_tuple_bytes(&self) -> Vec<u8> {
         let size = self.get_used_size();
-        let bytes = self.get_page_bytes()
-            [OverflowPage::HEADER_SIZE..OverflowPage::HEADER_SIZE + size as usize]
-            .to_vec();
-        return bytes;
+
+        self.get_page_bytes()[OverflowPage::HEADER_SIZE..OverflowPage::HEADER_SIZE + size as usize]
+            .to_vec()
     }
 }
 

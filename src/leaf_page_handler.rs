@@ -20,7 +20,7 @@ impl LeafPageHandler {
         let deleted_tuple = LeafPageHandler::add_to_page(tuple, &mut pages, page_config);
         UpdateResult {
             tree_leaf_pages: pages,
-            deleted_tuple: deleted_tuple,
+            deleted_tuple,
         }
     }
 
@@ -29,7 +29,7 @@ impl LeafPageHandler {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         version: u64,
-    ) -> () {
+    ) {
         for page in pages {
             let old_page_no = page.get_page_number();
             if old_page_no != 0 {
@@ -60,7 +60,7 @@ impl LeafPageHandler {
 
         // Cannot fit, but we may be replacing the key so try deleting it.
         if existing_tuple.is_some() {
-            page.delete_key(&tuple.get_key().to_vec());
+            page.delete_key(tuple.get_key());
             // key was deleted. now check it fits.
             if page.can_fit(tuple.get_byte_size()) {
                 page.store_tuple(tuple);
@@ -83,7 +83,7 @@ impl LeafPageHandler {
 
         // We grab the left most key of the entries removed from the first page and
         // add the entries to the page.
-        let left_key_for_new_page = &tuples_to_right.get(0).unwrap().get_key().to_vec()[..];
+        let left_key_for_new_page = &tuples_to_right.first().unwrap().get_key().to_vec()[..];
         new_page.add_sorted_tuples(&mut tuples_to_right);
 
         // Tuple is to the left of the split entries so try and add to the original page.
@@ -112,7 +112,7 @@ impl LeafPageHandler {
         // Tuple cannot fit into new page, new page is the last in the list
         // and will be split again when function is recursively called.
         new_pages.push(new_page);
-        return LeafPageHandler::add_to_page(tuple, new_pages, page_config);
+        LeafPageHandler::add_to_page(tuple, new_pages, page_config)
     }
 }
 

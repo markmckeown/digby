@@ -12,7 +12,7 @@ use crate::tuple::{Tuple, TupleTrait};
 pub struct StoreTupleProcessor {}
 
 impl StoreTupleProcessor {
-    pub fn get_tuple(key: &Vec<u8>, first: Page, page_cache: &mut PageCache) -> Option<Tuple> {
+    pub fn get_tuple(key: &[u8], first: Page, page_cache: &mut PageCache) -> Option<Tuple> {
         // Set the page to be the first page, the root page.
         let mut page = first;
 
@@ -26,7 +26,7 @@ impl StoreTupleProcessor {
             // If its a tree dir page then descend to the next
             // level.
             let dir_page = TreeDirPage::from_page(page);
-            page = page_cache.get_page(dir_page.get_next_page(&key))
+            page = page_cache.get_page(dir_page.get_next_page(key))
         }
     }
 
@@ -54,13 +54,13 @@ impl StoreTupleProcessor {
 
         // The root page is a tree dir page.
         let root_dir_page = TreeDirPage::from_page(first);
-        return StoreTupleProcessor::store_tuple_tree(
+        StoreTupleProcessor::store_tuple_tree(
             tuple,
             root_dir_page,
             free_page_tracker,
             page_cache,
             new_version,
-        );
+        )
     }
 
     // The root page of the tree is a tree dir then descend into the tree
@@ -151,7 +151,7 @@ impl StoreTupleProcessor {
 
         // If after walking the stack there is only one dir_entry then the root has not split - we can just return its page number.
         if dir_entries.len() == 1 {
-            return dir_entries.get(0).unwrap().get_page_no();
+            return dir_entries.first().unwrap().get_page_no();
         }
 
         // We have hit the top of the stack but have two dir entries, the root has split.
@@ -173,7 +173,7 @@ impl StoreTupleProcessor {
             new_version,
         );
         assert!(dir_entries.len() == 1);
-        return dir_entries.get(0).unwrap().get_page_no();
+        dir_entries.first().unwrap().get_page_no()
     }
 
     // Write out the dir pages, we are passed TreeDirPageRef. When splitting
@@ -191,23 +191,21 @@ impl StoreTupleProcessor {
         // We want to generate a set of tree dir entries
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut dir_page in dir_pages {
-            let tree_dir_entry: TreeDirEntry;
-            if dir_page.left_key.is_none() {
+            let tree_dir_entry: TreeDirEntry = if dir_page.left_key.is_none() {
                 // If key is none then this was the old page that was split.
-                tree_dir_entry = TreeDirEntry::new(
+                TreeDirEntry::new(
                     dir_page.page.get_dir_left_key().unwrap(),
                     dir_page.page.get_page_number(),
-                );
+                )
             } else {
                 // This is a new dir page that came from a split.
-                tree_dir_entry =
-                    TreeDirEntry::new(dir_page.left_key.unwrap(), dir_page.page.get_page_number());
-            }
+                TreeDirEntry::new(dir_page.left_key.unwrap(), dir_page.page.get_page_number())
+            };
             entries.push(tree_dir_entry);
             // Write the page to disk.
             page_cache.put_page(dir_page.page.get_page());
         }
-        return entries;
+        entries
     }
 
     // Get new page numbers for the leaf pages and return the old page numbers
@@ -231,7 +229,7 @@ impl StoreTupleProcessor {
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
             page_cache.put_page(leaf_page.get_page());
         }
-        return entries;
+        entries
     }
 
     // The root page of the tree is a leaf page - this means either:
@@ -267,7 +265,7 @@ impl StoreTupleProcessor {
             // The root leaf page has not split - grab the new page number for the root leaf page.
             let page_number = update_result
                 .tree_leaf_pages
-                .get(0)
+                .first()
                 .unwrap()
                 .get_page_number();
             // Write the new root leaf page to disk
@@ -306,7 +304,7 @@ impl StoreTupleProcessor {
             new_version,
         );
         assert!(dir_entries.len() == 1);
-        return dir_entries.get(0).unwrap().get_page_no();
+        dir_entries.first().unwrap().get_page_no()
     }
 }
 

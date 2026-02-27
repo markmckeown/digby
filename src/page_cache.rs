@@ -35,7 +35,7 @@ impl PageCache {
         self.block_layer.read_page(page_number)
     }
 
-    pub fn put_page(&mut self, page: &mut Page) -> () {
+    pub fn put_page(&mut self, page: &mut Page) {
         self.block_layer.write_page(page);
     }
 
@@ -43,11 +43,11 @@ impl PageCache {
         self.block_layer.get_total_page_count()
     }
 
-    pub fn sync_data(&mut self) -> () {
+    pub fn sync_data(&mut self) {
         self.block_layer.sync_data()
     }
 
-    pub fn sync_all(&mut self) -> () {
+    pub fn sync_all(&mut self) {
         self.block_layer.sync_all()
     }
 }
