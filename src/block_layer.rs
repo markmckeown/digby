@@ -1,21 +1,21 @@
-use crate::file_layer::FileLayer;
-use crate::page::Page; 
-use crate::page::PageTrait;
 use crate::block_sanity::BlockSanity;
+use crate::file_layer::FileLayer;
+use crate::page::Page;
+use crate::page::PageTrait;
 
 // The block layer sits above the file layer.
 // Data is stored to the file as blocks, the blocks
-// contain pages. 
+// contain pages.
 // Everything above the block layer works in pages,
 // the file_layer works in blocks and the block_layer
 // maps between blocks and pages.
-// The difference between a page and a block is the 
+// The difference between a page and a block is the
 // page is contained in the block as the start of the
 // block - there are some bytes at the end of the
 // the block not contained in the page that hold either
 // checksum information for the page or encryption
 // information for the page.
-// 
+//
 //
 // | Page | Checksum/Encryption Bytes |
 //
@@ -27,15 +27,14 @@ use crate::block_sanity::BlockSanity;
 // will be part of the encryption algorithm
 //
 // The block size is determined at DB creation time,
-// on Linux 4096 bytes can be sent to disk atomically - 
+// on Linux 4096 bytes can be sent to disk atomically -
 // there is recent support for untorn writes that could
 // support 16K writes atomically. The page size depoends
 // on the block size and the block sanity used.
-// 
+//
 // The block layer is also respnsible for generating
 // free pages.
 //
-
 
 // This struct is used to communicate to anything that is
 // interested what the block size and page size is.
@@ -49,17 +48,17 @@ pub struct BlockLayer {
     file_layer: FileLayer,
     page_config: PageConfig,
     block_sanity: BlockSanity,
-    key: Vec<u8>,  // The encryption key if encryption is being used.
+    key: Vec<u8>, // The encryption key if encryption is being used.
 }
 
 impl BlockLayer {
     pub fn new(file_layer: FileLayer, block_size: usize) -> Self {
-        BlockLayer { 
-            file_layer, 
+        BlockLayer {
+            file_layer,
             block_sanity: BlockSanity::XxH32Checksum,
-            page_config: PageConfig { 
-                block_size: block_size, 
-                page_size:  block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum)
+            page_config: PageConfig {
+                block_size: block_size,
+                page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
             },
             key: Vec::new(),
         }
@@ -69,30 +68,31 @@ impl BlockLayer {
         let mut enc_key = vec![0u8; 16];
         // Note we only use the first 16 bytes of the key for AES-128-GCM
         if key.len() >= 16 {
-            enc_key.copy_from_slice(&key[0 .. 16]);
+            enc_key.copy_from_slice(&key[0..16]);
         } else {
             // If the key is less than 16 bytes, pad with zeros
-            enc_key[0 .. key.len()].copy_from_slice(&key[..]);
+            enc_key[0..key.len()].copy_from_slice(&key[..]);
         }
-        BlockLayer { 
-            file_layer, 
+        BlockLayer {
+            file_layer,
             block_sanity: BlockSanity::Aes128Gcm,
-            page_config: PageConfig { 
-                block_size: block_size, 
-                page_size:  block_size - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm)
+            page_config: PageConfig {
+                block_size: block_size,
+                page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
             },
             key: enc_key,
         }
     }
 
-
     pub fn get_page_config(&self) -> &PageConfig {
-        return &self.page_config
+        return &self.page_config;
     }
 
     pub fn read_page(&mut self, page_number: u64) -> Page {
         let mut page = Page::create_new(&self.page_config);
-        self.file_layer.read_page_from_disk(&mut page, page_number).expect("Failed to read page");
+        self.file_layer
+            .read_page_from_disk(&mut page, page_number)
+            .expect("Failed to read page");
         self.check_sanity(&mut page);
         page
     }
@@ -103,14 +103,19 @@ impl BlockLayer {
 
     pub fn write_page(&mut self, page: &mut Page) -> () {
         let page_number = page.get_page_number();
-        assert!(page_number < self.file_layer.get_page_count(), "Writing page outside the file.");
+        assert!(
+            page_number < self.file_layer.get_page_count(),
+            "Writing page outside the file."
+        );
 
         self.set_sanity(page);
-        self.file_layer.write_page_to_disk(page, page_number).expect("Failed to write page");
+        self.file_layer
+            .write_page_to_disk(page, page_number)
+            .expect("Failed to write page");
     }
 
     // There has been a request for more free pages during a commit - there are
-    // no free pages in the system. This will initialise the pages (possibly not 
+    // no free pages in the system. This will initialise the pages (possibly not
     // needed and a waste of time) and extend the file with a sync - note, that
     // if the commit does not complete then these pages will be leaked.
     pub fn generate_free_pages(&mut self, no_new_pages: u64) -> Vec<u64> {
@@ -146,15 +151,15 @@ impl BlockLayer {
         self.file_layer.sync_all();
         ()
     }
-}   
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DbMasterPage;
     use crate::file_layer::FileLayer;
     use crate::page::{Page, PageType};
-    use crate::DbMasterPage;
-    use tempfile::tempfile; 
+    use tempfile::tempfile;
 
     #[test]
     fn test_block_layer_put_get() {
@@ -172,7 +177,6 @@ mod tests {
         let retrieved_page = block_layer.read_page(page_number);
         assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
-
 
     #[test]
     fn test_create_new_pages() {
@@ -198,6 +202,4 @@ mod tests {
         block_layer.generate_free_pages(1);
         block_layer.write_page(page.get_page());
     }
-
-
 }

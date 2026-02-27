@@ -1,9 +1,8 @@
-use byteorder::{LittleEndian, ReadBytesExt};
-use std::io::{Cursor};
-use std::convert::TryFrom;
 use crate::block_layer::PageConfig;
 use crate::version_holder::VersionHolder;
-
+use byteorder::{LittleEndian, ReadBytesExt};
+use std::convert::TryFrom;
+use std::io::Cursor;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum PageType {
@@ -43,13 +42,12 @@ impl TryFrom<u8> for PageType {
 
 pub trait PageTrait {
     fn get_page_bytes(&self) -> &[u8];
-    fn get_page_number(& self) -> u64;
-    fn set_page_number(&mut self, page_no: u64) -> (); 
+    fn get_page_number(&self) -> u64;
+    fn set_page_number(&mut self, page_no: u64) -> ();
     fn get_page(&mut self) -> &mut Page;
-    fn get_version(& self) -> u64;
+    fn get_version(&self) -> u64;
     fn set_version(&mut self, version: u64) -> ();
 }
-
 
 // | Page No (u64) | VersionHolder (8 bytes) | Body | )
 pub struct Page {
@@ -70,25 +68,23 @@ impl PageTrait for Page {
     }
 
     fn set_page_number(&mut self, page_no: u64) -> () {
-        self.bytes[0..0+8].copy_from_slice(&page_no.to_le_bytes());
+        self.bytes[0..0 + 8].copy_from_slice(&page_no.to_le_bytes());
     }
-
 
     fn get_page(&mut self) -> &mut Page {
         self
     }
 
-    fn get_version(& self) -> u64 {
-        VersionHolder::from_bytes(self.bytes[8..8+8].to_vec()).get_version()
+    fn get_version(&self) -> u64 {
+        VersionHolder::from_bytes(self.bytes[8..8 + 8].to_vec()).get_version()
     }
 
     fn set_version(&mut self, version: u64) -> () {
-        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8+8].to_vec());
+        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8 + 8].to_vec());
         version_holder.set_version(version);
-        self.bytes[8..8+8].copy_from_slice(&version_holder.get_bytes());
+        self.bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
     }
 }
-
 
 impl Page {
     pub fn create_new(page_meta: &PageConfig) -> Self {
@@ -116,7 +112,7 @@ impl Page {
     }
 
     pub fn get_page_bytes_mut(&mut self) -> &mut [u8] {
-        &mut self.bytes[0 .. self.page_size]
+        &mut self.bytes[0..self.page_size]
     }
 
     pub fn get_block_bytes(&self) -> &[u8] {
@@ -127,18 +123,17 @@ impl Page {
         &mut self.bytes
     }
 
-    
     pub fn get_type(&self) -> PageType {
-        PageType::try_from(VersionHolder::from_bytes(self.bytes[8..8+8].to_vec()).get_flags()).unwrap()
+        PageType::try_from(VersionHolder::from_bytes(self.bytes[8..8 + 8].to_vec()).get_flags())
+            .unwrap()
     }
 
     pub fn set_type(&mut self, page_type: PageType) {
-        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8+8].to_vec());
+        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8 + 8].to_vec());
         version_holder.set_flags(page_type as u8);
-        self.bytes[8..8+8].copy_from_slice(&version_holder.get_bytes());
+        self.bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -154,5 +149,4 @@ mod tests {
         assert_eq!(page.get_page_number(), 42);
         assert_eq!(page.get_type() as u8, PageType::TreeLeaf as u8);
     }
-
 }

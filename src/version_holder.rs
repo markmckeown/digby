@@ -1,25 +1,24 @@
 pub struct VersionHolder {
-    bytes: [u8; 8]
+    bytes: [u8; 8],
 }
-
 
 impl VersionHolder {
     const MAX_IN_7_BYTES: u64 = (1 << 56) - 1; // This is 2^56 - 1
 
-    pub fn new (flags: u8, version: u64) -> Self {
-        assert!(version < VersionHolder::MAX_IN_7_BYTES, "Version is too larget to store in 7 bytes.");
+    pub fn new(flags: u8, version: u64) -> Self {
+        assert!(
+            version < VersionHolder::MAX_IN_7_BYTES,
+            "Version is too larget to store in 7 bytes."
+        );
         let mut bytes_8: [u8; 8] = version.to_le_bytes();
         bytes_8[7] = flags;
-        VersionHolder { 
-            bytes: bytes_8
-        }
+        VersionHolder { bytes: bytes_8 }
     }
 
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
-       VersionHolder { 
-            bytes: bytes[0..8].try_into().unwrap()
-        } 
-
+        VersionHolder {
+            bytes: bytes[0..8].try_into().unwrap(),
+        }
     }
 
     pub fn get_bytes(&self) -> Vec<u8> {
@@ -35,7 +34,10 @@ impl VersionHolder {
     }
 
     pub fn set_version(&mut self, version: u64) -> () {
-        assert!(version < VersionHolder::MAX_IN_7_BYTES, "Version is too larget to store in 7 bytes.");
+        assert!(
+            version < VersionHolder::MAX_IN_7_BYTES,
+            "Version is too larget to store in 7 bytes."
+        );
         let flags = self.bytes[7];
         self.bytes = version.to_le_bytes();
         self.bytes[7] = flags;
@@ -47,7 +49,6 @@ impl VersionHolder {
         u64::from_le_bytes(bytes_le_8)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -71,6 +72,5 @@ mod tests {
         version_holder.set_version(89);
         assert!(92 == version_holder.get_flags());
         assert!(89 == version_holder.get_version());
-
     }
 }

@@ -1,15 +1,15 @@
 use crate::block_layer::PageConfig;
-use crate::page::PageType;
 use crate::page::Page;
 use crate::page::PageTrait;
-use std::io::Cursor;
+use crate::page::PageType;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use std::io::Cursor;
 
-// | Page No (8 bytes) | VersionHolder (8 bytes) | GlobalTreeRootPage (8 bytes) | 
+// | Page No (8 bytes) | VersionHolder (8 bytes) | GlobalTreeRootPage (8 bytes) |
 // | TableDirPage(8 bytes) | FreePageDir (8 bytes) |
 // Could have more FreePageDir in future.
 pub struct DbMasterPage {
-    page: Page
+    page: Page,
 }
 
 impl PageTrait for DbMasterPage {
@@ -21,7 +21,7 @@ impl PageTrait for DbMasterPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self,  page_no: u64) -> () {
+    fn set_page_number(&mut self, page_no: u64) -> () {
         self.page.set_page_number(page_no)
     }
 
@@ -29,18 +29,23 @@ impl PageTrait for DbMasterPage {
         &mut self.page
     }
 
-    fn get_version(& self) -> u64 {
-        self.page.get_version()     
+    fn get_version(&self) -> u64 {
+        self.page.get_version()
     }
 
     fn set_version(&mut self, version: u64) -> () {
-        self.page.set_version(version);   
+        self.page.set_version(version);
     }
 }
 
 impl DbMasterPage {
     pub fn create_new(page_config: &PageConfig, page_number: u64, version: u64) -> Self {
-        DbMasterPage::new(page_config.block_size, page_config.page_size, page_number, version)
+        DbMasterPage::new(
+            page_config.block_size,
+            page_config.page_size,
+            page_number,
+            version,
+        )
     }
 
     fn new(block_size: usize, page_size: usize, page_number: u64, version: u64) -> Self {
@@ -89,11 +94,12 @@ impl DbMasterPage {
         self.set_u64_at_offset(DbMasterPage::TABLE_DIR_PAGE, page_no);
     }
 
-
     fn set_u64_at_offset(&mut self, offset: u64, value: u64) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(offset);
-        cursor.write_u64::<LittleEndian>(value).expect("Failed to write table dir page number");
+        cursor
+            .write_u64::<LittleEndian>(value)
+            .expect("Failed to write table dir page number");
     }
 
     fn get_u64_at_offset(&self, offset: u64) -> u64 {
@@ -101,7 +107,7 @@ impl DbMasterPage {
         cursor.set_position(offset);
         cursor.read_u64::<LittleEndian>().unwrap()
     }
-    
+
     pub fn flip_page_number(&mut self) -> () {
         let page_number = self.get_page_number();
         let new_page_number: u64;
@@ -112,7 +118,6 @@ impl DbMasterPage {
         }
         self.page.set_page_number(new_page_number);
     }
-
 }
 
 #[cfg(test)]

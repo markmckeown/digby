@@ -1,4 +1,3 @@
-
 pub struct TreeDirEntry {
     key: Vec<u8>,
     page_no: u64,
@@ -8,7 +7,7 @@ pub struct TreeDirEntry {
 impl TreeDirEntry {
     pub fn new(key: Vec<u8>, page_no: u64) -> Self {
         assert!(key.len() <= u8::MAX as usize);
-        let mut serialized = Vec::new(); 
+        let mut serialized = Vec::new();
         serialized.extend_from_slice(&page_no.to_le_bytes());
         serialized.push(key.len() as u8);
         serialized.extend_from_slice(&key);
@@ -16,13 +15,13 @@ impl TreeDirEntry {
         TreeDirEntry {
             key,
             page_no,
-            serialized
+            serialized,
         }
     }
 
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        use std::io::{Cursor, Read}; 
         use byteorder::{LittleEndian, ReadBytesExt};
+        use std::io::{Cursor, Read};
 
         let mut cursor = Cursor::new(&bytes[..]);
         let page_no = cursor.read_u64::<LittleEndian>().unwrap();
@@ -30,11 +29,11 @@ impl TreeDirEntry {
         let mut key = vec![0u8; key_len as usize];
         cursor.read_exact(&mut key).unwrap();
 
-        TreeDirEntry { 
+        TreeDirEntry {
             key,
             page_no,
-            serialized: bytes
-         }
+            serialized: bytes,
+        }
     }
 
     pub fn get_key(&self) -> &[u8] {

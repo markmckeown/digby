@@ -6,17 +6,19 @@ pub struct FileLayer {
     block_count: u64,
 }
 
-
 impl FileLayer {
     pub fn new(file: std::fs::File, block_size: usize) -> Self {
         let metadata = file.metadata().expect("Failed to get metadata for file.");
         let file_size = metadata.len();
-        assert!(file_size % block_size as u64 == 0, "File size is not a multiple of page size.");
-        let block_count : u64 = (file_size / block_size as u64).try_into().unwrap();
-        FileLayer { 
+        assert!(
+            file_size % block_size as u64 == 0,
+            "File size is not a multiple of page size."
+        );
+        let block_count: u64 = (file_size / block_size as u64).try_into().unwrap();
+        FileLayer {
             file,
             block_size,
-            block_count
+            block_count,
         }
     }
 
@@ -26,10 +28,17 @@ impl FileLayer {
 
     pub fn append_new_page(&mut self, page: &Page, page_number: u64) -> () {
         use std::io::{Seek, SeekFrom, Write};
-        assert!(page_number == self.block_count, "page_number should match page_count");
+        assert!(
+            page_number == self.block_count,
+            "page_number should match page_count"
+        );
         let offset = page_number * self.block_size as u64;
-        self.file.seek(SeekFrom::Start(offset)).expect("Failed to seek for append_new_page");
-        self.file.write_all(&page.get_block_bytes()).expect("Failed to write for append_new_page");
+        self.file
+            .seek(SeekFrom::Start(offset))
+            .expect("Failed to seek for append_new_page");
+        self.file
+            .write_all(&page.get_block_bytes())
+            .expect("Failed to write for append_new_page");
         self.block_count = self.block_count + 1;
     }
 
@@ -37,22 +46,34 @@ impl FileLayer {
         use std::io::{Seek, SeekFrom, Write};
 
         let offset = page_number * self.block_size as u64;
-        self.file.seek(SeekFrom::Start(offset)).expect("Failed to seek for write_page_to_disk");
-        self.file.write_all(&page.get_block_bytes()).expect("Failed to write for write_page_to_disk");
+        self.file
+            .seek(SeekFrom::Start(offset))
+            .expect("Failed to seek for write_page_to_disk");
+        self.file
+            .write_all(&page.get_block_bytes())
+            .expect("Failed to write for write_page_to_disk");
         Ok(())
     }
 
-    pub fn read_page_from_disk(&mut self, page: &mut Page, page_number: u64) -> std::io::Result<()> {
+    pub fn read_page_from_disk(
+        &mut self,
+        page: &mut Page,
+        page_number: u64,
+    ) -> std::io::Result<()> {
         assert!(page_number < self.block_count);
         use std::io::{Read, Seek, SeekFrom};
 
         let offset = page_number * self.block_size as u64;
-        self.file.seek(SeekFrom::Start(offset)).expect("Failed to seek for read");
-        self.file.read_exact(page.get_block_bytes_mut()).expect("Failed to read");
+        self.file
+            .seek(SeekFrom::Start(offset))
+            .expect("Failed to seek for read");
+        self.file
+            .read_exact(page.get_block_bytes_mut())
+            .expect("Failed to read");
         Ok(())
     }
 
-    pub fn sync_all(&self)  {
+    pub fn sync_all(&self) {
         self.file.sync_all().expect("Failed to sync")
     }
 
@@ -65,9 +86,9 @@ impl FileLayer {
 mod tests {
     use super::*;
     const BLOCK_SIZE: usize = 4096;
-    use tempfile::tempfile;   
     use rand::Rng;
     use rand::distr::Alphanumeric;
+    use tempfile::tempfile;
 
     #[test]
     fn test_file_layer_write_and_read() {
@@ -80,14 +101,19 @@ mod tests {
             .take(BLOCK_SIZE as usize)
             .map(char::from)
             .collect();
-        page.get_block_bytes_mut().copy_from_slice(test_data.as_bytes()); // Fill the page with test data
+        page.get_block_bytes_mut()
+            .copy_from_slice(test_data.as_bytes()); // Fill the page with test data
 
         // Write the page to disk
-        file_layer.write_page_to_disk(&mut page, 0).expect("Failed to write page");
+        file_layer
+            .write_page_to_disk(&mut page, 0)
+            .expect("Failed to write page");
 
         // Read the page back from disk
         let mut read_page = Page::new(BLOCK_SIZE, BLOCK_SIZE);
-        file_layer.read_page_from_disk(&mut read_page, 0).expect("Failed to read page");
+        file_layer
+            .read_page_from_disk(&mut read_page, 0)
+            .expect("Failed to read page");
 
         // Verify that the read data matches the written data
         assert_eq!(page.get_block_bytes(), read_page.get_block_bytes());

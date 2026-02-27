@@ -1,16 +1,15 @@
 use crate::block_layer::{BlockLayer, PageConfig};
 use crate::page::Page;
 
-
 pub struct PageCache {
     block_layer: BlockLayer,
 }
 
 // PageCache does not cache any pages - any gets are retrieved from
-// disk and any puts go to disk. 
+// disk and any puts go to disk.
 // In the future when it does hold a cache of pages then need to think
 // about mutability. Any client doing a look up can get a  immutable
-// reference to a page, any client looking to make changes can get a 
+// reference to a page, any client looking to make changes can get a
 // copy of the page.
 impl PageCache {
     pub fn new(block_layer: BlockLayer) -> Self {
@@ -53,15 +52,15 @@ impl PageCache {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{file_layer::FileLayer, page::{self, PageTrait}};
+    use crate::{
+        file_layer::FileLayer,
+        page::{self, PageTrait},
+    };
     use tempfile::tempfile;
     const PAGE_SIZE: usize = 4096;
-    
 
     #[test]
     fn test_page_cache_read_write() {
@@ -83,5 +82,4 @@ mod tests {
         assert_eq!(read_page.get_page_number(), page_number);
         assert_eq!(read_page.get_page_bytes(), page.get_page_bytes());
     }
-    
 }

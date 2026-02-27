@@ -1,14 +1,14 @@
 use crate::block_layer::PageConfig;
 use crate::page::{Page, PageTrait, PageType};
-use byteorder::{ReadBytesExt, WriteBytesExt};
-use std::io::Cursor;
 use crate::tuple::Tuple;
 use crate::tuple::TupleTrait;
+use byteorder::{ReadBytesExt, WriteBytesExt};
+use std::io::Cursor;
 
 // TreeLeafPage structure
 //
 // Header is 20 bytes:
-// | Page No (8 bytes) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) | 
+// | Page No (8 bytes) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) |
 //
 // TreeLeafPage body is of the format:
 //
@@ -17,7 +17,7 @@ use crate::tuple::TupleTrait;
 // Tuples grow down the Page, while the Tuple Index grows up the page - with the free space in between.
 //
 pub struct TreeLeafPage {
-    page: Page
+    page: Page,
 }
 
 impl PageTrait for TreeLeafPage {
@@ -25,24 +25,24 @@ impl PageTrait for TreeLeafPage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(& self) -> u64 {
+    fn get_page_number(&self) -> u64 {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self,  page_no: u64) -> () {
+    fn set_page_number(&mut self, page_no: u64) -> () {
         self.page.set_page_number(page_no)
     }
 
     fn get_page(&mut self) -> &mut Page {
-        &mut self.page       
+        &mut self.page
     }
 
-    fn get_version(& self) -> u64 {
-        self.page.get_version()         
+    fn get_version(&self) -> u64 {
+        self.page.get_version()
     }
 
     fn set_version(&mut self, version: u64) -> () {
-        self.page.set_version(version);         
+        self.page.set_version(version);
     }
 }
 
@@ -58,7 +58,7 @@ impl TreeLeafPage {
     fn new(block_size: usize, page_size: usize, page_number: u64) -> Self {
         let mut page = Page::new(block_size, page_size);
         page.set_type(PageType::TreeLeaf);
-        page.set_page_number(page_number);      
+        page.set_page_number(page_number);
         let mut data_page = TreeLeafPage { page };
         data_page.set_entries(0);
         data_page.set_free_space((page_size - TreeLeafPage::HEADER_SIZE) as u16);
@@ -68,13 +68,12 @@ impl TreeLeafPage {
     // Create a TreeLeafPage from a Page - read bytes from disk,
     // determine it is a TreeLeafPage, and wrap it.
     pub fn from_page(page: Page) -> Self {
-        if page.get_type() != PageType::TreeLeaf  {
+        if page.get_type() != PageType::TreeLeaf {
             panic!("Page type is not TreeLeaf");
         }
         TreeLeafPage { page }
     }
 
-    
     pub fn is_empty(&self) -> bool {
         return self.get_entries() == 0;
     }
@@ -88,7 +87,9 @@ impl TreeLeafPage {
     fn set_entries(&mut self, entries: u16) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(16);
-        cursor.write_u16::<byteorder::LittleEndian>(entries).expect("Failed to write entries");
+        cursor
+            .write_u16::<byteorder::LittleEndian>(entries)
+            .expect("Failed to write entries");
     }
 
     fn get_free_space(&self) -> u16 {
@@ -100,7 +101,9 @@ impl TreeLeafPage {
     fn set_free_space(&mut self, free_space: u16) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(18);
-        cursor.write_u16::<byteorder::LittleEndian>(free_space).expect("Failed to write free space");
+        cursor
+            .write_u16::<byteorder::LittleEndian>(free_space)
+            .expect("Failed to write free space");
     }
 
     pub fn can_fit(&self, size: usize) -> bool {
@@ -108,25 +111,33 @@ impl TreeLeafPage {
         free_space >= size + 2
     }
 
-    // Add a tuple to the DataPage. 
+    // Add a tuple to the DataPage.
     // Will crash if not enough space.
     // This is low level API. Use store_tuple to add or update a tuple.
     fn add_tuple(&mut self, tuple: &Tuple) -> () {
         let page_size = self.page.page_size;
         let tuple_size: usize = tuple.get_byte_size();
-        assert!(self.can_fit(tuple_size), "Cannot add Tuple to page, not enough space.");
-            
+        assert!(
+            self.can_fit(tuple_size),
+            "Cannot add Tuple to page, not enough space."
+        );
+
         let current_entries = self.get_entries();
         let current_entries_size: usize = current_entries as usize * 2; // Each entry has 2 bytes for index
         let free_space = self.get_free_space();
 
-
-        let tuple_offset : usize = (page_size as usize) - (free_space as usize + current_entries_size);
+        let tuple_offset: usize =
+            (page_size as usize) - (free_space as usize + current_entries_size);
         let page_bytes = self.page.get_page_bytes_mut();
-        page_bytes[tuple_offset..tuple_offset + tuple_size as usize].copy_from_slice(tuple.get_serialized());
+        page_bytes[tuple_offset..tuple_offset + tuple_size as usize]
+            .copy_from_slice(tuple.get_serialized());
 
-        let mut cursor = Cursor::new(&mut page_bytes[page_size as usize - (current_entries_size + 2 as usize)..]);
-        cursor.write_u16::<byteorder::LittleEndian>(tuple_offset as u16).expect("Failed to write tuple offset");
+        let mut cursor = Cursor::new(
+            &mut page_bytes[page_size as usize - (current_entries_size + 2 as usize)..],
+        );
+        cursor
+            .write_u16::<byteorder::LittleEndian>(tuple_offset as u16)
+            .expect("Failed to write tuple offset");
         self.set_entries(current_entries + 1);
         self.set_free_space(free_space - (tuple_size as u16 + 2));
     }
@@ -148,19 +159,20 @@ impl TreeLeafPage {
         let value_len = tuple_cursor.read_u16::<byteorder::LittleEndian>().unwrap() as usize;
         let tuple_size = key_len + value_len + 8 + 2 + 1; // key + value + version + key_len + value_len
 
-        Tuple::from_bytes(self.page.get_page_bytes()[tuple_offset..tuple_offset + tuple_size].to_vec())
+        Tuple::from_bytes(
+            self.page.get_page_bytes()[tuple_offset..tuple_offset + tuple_size].to_vec(),
+        )
     }
 
     // Store a tuple in the DataPage. If a tuple with the same key exists, it is replaced.
     // Tuples are kept in sorted order by key.
-    // Get all tuples in page, remove any with same key, add new tuple, sort, 
+    // Get all tuples in page, remove any with same key, add new tuple, sort,
     // clear page and re-add all tuples.
     // If tuple does not fit then crash.
     pub fn store_tuple(&mut self, new_tuple: Tuple) -> () {
         let tuple_size: usize = new_tuple.get_byte_size();
         let page_size = self.page.page_size;
         assert!(self.can_fit(tuple_size), "Cannot fit tuple in page");
-    
 
         let sorted_tuples = self.build_sorted_tuples(new_tuple);
         // Clear the page and re-add all tuples
@@ -191,7 +203,7 @@ impl TreeLeafPage {
 
     pub fn get_right_half_tuples(&mut self) -> Vec<Tuple> {
         let entries = self.get_entries();
-        let start = (entries+1)/2;
+        let start = (entries + 1) / 2;
         let mut tuples = Vec::new();
         let mut free_space = self.get_free_space();
         for i in start..entries {
@@ -201,7 +213,7 @@ impl TreeLeafPage {
         }
         self.set_free_space(free_space);
         self.set_entries(start);
-        tuples 
+        tuples
     }
 
     // Get all tuples in the DataPage - used for rebuilding the page when adding or updating a tuple.
@@ -285,13 +297,32 @@ mod tests {
     #[test]
     fn test_get_tuple() {
         let mut data_page = TreeLeafPage::new(4096, 4096, 1);
-        
 
-        data_page.store_tuple(Tuple::new(b"a".to_vec().as_ref(), b"value-a".to_vec().as_ref(), 1));
-        data_page.store_tuple(Tuple::new(b"b".to_vec().as_ref(), b"value-b".to_vec().as_ref(), 2));
-        data_page.store_tuple(Tuple::new(b"c".to_vec().as_ref(), b"value-c".to_vec().as_ref(), 3));
-        data_page.store_tuple(Tuple::new(b"d".to_vec().as_ref(), b"value-d".to_vec().as_ref(), 4));
-        data_page.store_tuple(Tuple::new(b"e".to_vec().as_ref(), b"value-e".to_vec().as_ref(), 5));
+        data_page.store_tuple(Tuple::new(
+            b"a".to_vec().as_ref(),
+            b"value-a".to_vec().as_ref(),
+            1,
+        ));
+        data_page.store_tuple(Tuple::new(
+            b"b".to_vec().as_ref(),
+            b"value-b".to_vec().as_ref(),
+            2,
+        ));
+        data_page.store_tuple(Tuple::new(
+            b"c".to_vec().as_ref(),
+            b"value-c".to_vec().as_ref(),
+            3,
+        ));
+        data_page.store_tuple(Tuple::new(
+            b"d".to_vec().as_ref(),
+            b"value-d".to_vec().as_ref(),
+            4,
+        ));
+        data_page.store_tuple(Tuple::new(
+            b"e".to_vec().as_ref(),
+            b"value-e".to_vec().as_ref(),
+            5,
+        ));
 
         assert_eq!(data_page.get_entries(), 5);
         let key_to_find = b"a".to_vec();
@@ -331,14 +362,22 @@ mod tests {
     #[test]
     fn test_get_right_half() {
         let mut data_page = TreeLeafPage::new(4096, 4096, 1);
-        
-        data_page.store_tuple(Tuple::new(b"a".to_vec().as_ref(), b"value-a".to_vec().as_ref(), 1));
+
+        data_page.store_tuple(Tuple::new(
+            b"a".to_vec().as_ref(),
+            b"value-a".to_vec().as_ref(),
+            1,
+        ));
         let tuples: Vec<Tuple> = data_page.get_right_half_tuples();
         assert!(tuples.is_empty());
         assert!(data_page.get_entries() == 1);
         data_page.get_tuple(&b"a".to_vec()).unwrap();
 
-        data_page.store_tuple(Tuple::new(b"b".to_vec().as_ref(), b"value-b".to_vec().as_ref(), 2));
+        data_page.store_tuple(Tuple::new(
+            b"b".to_vec().as_ref(),
+            b"value-b".to_vec().as_ref(),
+            2,
+        ));
         data_page.get_tuple(&b"a".to_vec()).unwrap();
         let tuples: Vec<Tuple> = data_page.get_right_half_tuples();
         assert!(tuples.len() == 1);
@@ -346,12 +385,19 @@ mod tests {
         assert!(data_page.get_entries() == 1);
         data_page.get_tuple(&b"a".to_vec()).unwrap();
 
-        
-        data_page.store_tuple(Tuple::new(b"b".to_vec().as_ref(), b"value-b".to_vec().as_ref(), 2));
+        data_page.store_tuple(Tuple::new(
+            b"b".to_vec().as_ref(),
+            b"value-b".to_vec().as_ref(),
+            2,
+        ));
         assert!(data_page.get_entries() == 2);
         data_page.get_tuple(&b"a".to_vec()).unwrap();
         data_page.get_tuple(&b"b".to_vec()).unwrap();
-        data_page.store_tuple(Tuple::new(b"c".to_vec().as_ref(), b"value-c".to_vec().as_ref(), 3));
+        data_page.store_tuple(Tuple::new(
+            b"c".to_vec().as_ref(),
+            b"value-c".to_vec().as_ref(),
+            3,
+        ));
         assert!(data_page.get_entries() == 3);
         let tuples: Vec<Tuple> = data_page.get_right_half_tuples();
         assert!(tuples.len() == 1);
@@ -359,21 +405,39 @@ mod tests {
         assert!(data_page.get_entries() == 2);
         data_page.get_tuple(&b"a".to_vec()).unwrap();
         data_page.get_tuple(&b"b".to_vec()).unwrap();
-
     }
-
 
     #[test]
     fn test_delete_tuple() {
-        let mut data_page = TreeLeafPage::new(4096,4092, 1);
+        let mut data_page = TreeLeafPage::new(4096, 4092, 1);
 
         assert!(data_page.get_left_key().is_none());
-        
-        data_page.store_tuple(Tuple::new(b"a".to_vec().as_ref(), b"value-a".to_vec().as_ref(), 1));
-        data_page.store_tuple(Tuple::new(b"b".to_vec().as_ref(), b"value-b".to_vec().as_ref(), 2));
-        data_page.store_tuple(Tuple::new(b"c".to_vec().as_ref(), b"value-c".to_vec().as_ref(), 3));
-        data_page.store_tuple(Tuple::new(b"d".to_vec().as_ref(), b"value-d".to_vec().as_ref(), 4));
-        data_page.store_tuple(Tuple::new(b"e".to_vec().as_ref(), b"value-e".to_vec().as_ref(), 5));
+
+        data_page.store_tuple(Tuple::new(
+            b"a".to_vec().as_ref(),
+            b"value-a".to_vec().as_ref(),
+            1,
+        ));
+        data_page.store_tuple(Tuple::new(
+            b"b".to_vec().as_ref(),
+            b"value-b".to_vec().as_ref(),
+            2,
+        ));
+        data_page.store_tuple(Tuple::new(
+            b"c".to_vec().as_ref(),
+            b"value-c".to_vec().as_ref(),
+            3,
+        ));
+        data_page.store_tuple(Tuple::new(
+            b"d".to_vec().as_ref(),
+            b"value-d".to_vec().as_ref(),
+            4,
+        ));
+        data_page.store_tuple(Tuple::new(
+            b"e".to_vec().as_ref(),
+            b"value-e".to_vec().as_ref(),
+            5,
+        ));
 
         data_page.get_tuple(&b"a".to_vec()).unwrap();
         assert_eq!(b"a".to_vec(), data_page.get_left_key().unwrap());
@@ -401,5 +465,4 @@ mod tests {
         assert!(data_page.get_tuple(&b"b".to_vec()).is_none());
         assert!(data_page.get_tuple(&b"d".to_vec()).is_none());
     }
-
 }

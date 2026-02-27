@@ -3,7 +3,6 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
-
 // From Page Header - size 26
 // | Page No (8bytes) | VersionHolder (8 bytes) | Next Overflow Page (8 bytes) | SizeUsed (u16) |
 //
@@ -11,7 +10,7 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 //
 // If previous or next overflow page is 0, it means there is no previous or next overflow page.
 pub struct OverflowPage {
-    page: Page
+    page: Page,
 }
 
 impl PageTrait for OverflowPage {
@@ -19,11 +18,11 @@ impl PageTrait for OverflowPage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(& self) -> u64 {
+    fn get_page_number(&self) -> u64 {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self,  page_no: u64) -> () {
+    fn set_page_number(&mut self, page_no: u64) -> () {
         self.page.set_page_number(page_no)
     }
 
@@ -31,12 +30,12 @@ impl PageTrait for OverflowPage {
         &mut self.page
     }
 
-    fn get_version(& self) -> u64 {
-        self.page.get_version()     
+    fn get_version(&self) -> u64 {
+        self.page.get_version()
     }
 
     fn set_version(&mut self, version: u64) -> () {
-        self.page.set_version(version);     
+        self.page.set_version(version);
     }
 }
 
@@ -44,7 +43,12 @@ impl OverflowPage {
     const HEADER_SIZE: usize = 26;
 
     pub fn create_new(page_config: &PageConfig, page_number: u64, version: u64) -> Self {
-        OverflowPage::new(page_config.block_size, page_config.page_size, page_number, version)
+        OverflowPage::new(
+            page_config.block_size,
+            page_config.page_size,
+            page_number,
+            version,
+        )
     }
 
     fn new(block_size: usize, page_size: usize, page_number: u64, version: u64) -> Self {
@@ -56,7 +60,6 @@ impl OverflowPage {
         overflow_page.set_version(version);
         overflow_page
     }
-
 
     pub fn from_page(page: Page) -> Self {
         if page.get_type() != crate::page::PageType::Overflow {
@@ -76,19 +79,23 @@ impl OverflowPage {
     pub fn set_next_page(&mut self, page_number: u64) {
         let mut cursor = std::io::Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(16);
-        cursor.write_u64::<byteorder::LittleEndian>(page_number).expect("Failed to write next overflow page number");
+        cursor
+            .write_u64::<byteorder::LittleEndian>(page_number)
+            .expect("Failed to write next overflow page number");
     }
 
     pub fn get_used_size(&self) -> u16 {
         let slice = &self.page.get_page_bytes()[24..26];
         let bytes: [u8; 2] = slice.try_into().unwrap();
-        return u16::from_le_bytes(bytes)
+        return u16::from_le_bytes(bytes);
     }
 
     pub fn set_used_size(&mut self, used_size: u16) {
         let mut cursor = std::io::Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(24);
-        cursor.write_u16::<byteorder::LittleEndian>(used_size as u16).expect("Failed to write used size");
+        cursor
+            .write_u16::<byteorder::LittleEndian>(used_size as u16)
+            .expect("Failed to write used size");
     }
 
     pub fn get_free_space(&self) -> usize {
@@ -96,14 +103,17 @@ impl OverflowPage {
     }
 
     pub fn add_bytes(&mut self, bytes: &[u8], size: usize) {
-        self.get_page().get_page_bytes_mut()[OverflowPage::HEADER_SIZE .. OverflowPage::HEADER_SIZE + size].copy_from_slice(bytes);
+        self.get_page().get_page_bytes_mut()
+            [OverflowPage::HEADER_SIZE..OverflowPage::HEADER_SIZE + size]
+            .copy_from_slice(bytes);
         self.set_used_size(size as u16);
     }
 
     pub fn get_tuple_bytes(&self) -> Vec<u8> {
         let size = self.get_used_size();
-        let bytes = 
-        self.get_page_bytes()[OverflowPage::HEADER_SIZE .. OverflowPage::HEADER_SIZE + size as usize].to_vec();
+        let bytes = self.get_page_bytes()
+            [OverflowPage::HEADER_SIZE..OverflowPage::HEADER_SIZE + size as usize]
+            .to_vec();
         return bytes;
     }
 }

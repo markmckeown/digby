@@ -1,6 +1,5 @@
 use crate::{Aes128GcmSanity, Page, XxHashSanity};
 
-
 // Used to check a block read from disk is not
 // corrupt. This is done either by recording
 // a checksum of the page within the block in the
@@ -46,22 +45,21 @@ impl BlockSanity {
         match self {
             BlockSanity::XxH32Checksum => {
                 XxHashSanity::verify_checksum(page);
-            },
+            }
             BlockSanity::Aes128Gcm => {
                 Aes128GcmSanity::decrypt_page(page, key);
-            },
+            }
         }
     }
-
 
     pub fn set_block_sanity(&self, page: &mut Page, key: &Vec<u8>) -> () {
         match self {
             BlockSanity::XxH32Checksum => {
                 XxHashSanity::set_checksum(page);
-            },
+            }
             BlockSanity::Aes128Gcm => {
                 Aes128GcmSanity::encrypt_page(page, key);
-            },
+            }
         }
     }
 }
