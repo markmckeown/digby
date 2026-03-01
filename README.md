@@ -7,13 +7,14 @@ Digby is an embedded key-value store written in Rust, built as a learning projec
 *   **B+ Tree Based**: Efficient key-value storage and retrieval.
 *   **Global & Table-based Stores**: Supports a single global B+ Tree as well as independent trees (tables).
 *   **Large Item Support**: Keys and values can be up to 4GB, handled via overflow pages. Large keys are indexed using a combination of their prefix and a SHA256 hash.
-*   **Copy-On-Write (COW)**: Ensures data safety and consistency during writes using a bottom-up shadowing approach.
-*   **Safe Deletion**: Implements deletion without requiring complex tree rebalancing.
+*   **Copy-On-Write (COW)**: For data integrity. Based on "B-trees, Shadowing, and Clones" but implementation is actually bottom up rather than top down and uses a stack rather than recursion.
+*   **Safe Deletion**: Implements deletion without requiring complex tree rebalancing, based on "Deletion Without Rebalancing in Multiway Search Trees".
 *   **Data Integrity and Security**:
     *   Uses xxhash32 checksums for page integrity verification.
     *   Optional AES-128-GCM encryption for all stored content, which includes its own integrity checks.
 *   **Configurable**: Block/page size is configurable.
 *   **Compression**: Optional lz4 compression for large keys and values.
+*   **Large Store Support**: Page numbers are 64 bits to support very large databases.
 
 ## Usage
 
@@ -62,16 +63,17 @@ fn main() {
 
 This project is under active development. Future plans include:
 
-*   **MVCC (Multi-Version Concurrency Control)**: Extend the simple versioning system.
+*   **MVCC (Multi-Version Concurrency Control)**: Extend existing simple versioning system.
 *   **Performance Optimizations**:
     *   Implement a proper page cache.
-    *   Add support for tail/head compression in B+ Tree pages.
-    *   Rewrite internal and leaf page implementations for better efficiency.
-    *   Investigate `io_uring` for high-performance async I/O.
-    *   Explore update optimizations similar to Bcachefs (e.g., using LSM Tree concepts).
+    *   Add support for tail/head compression in B+ Tree pages based on https://www.cs.purdue.edu/homes/csjgwang/pubs/SIGMOD24_BtreeCompression.pdf
+    *   Rewrite internal and leaf page implementations for better efficiency, move memory around in the page rather than rewriting the while page.
+    *   Investigate `io_uring` for async I/O.
+    *   Explore update optimizations similar to Bcachefs (e.g., using LSM Tree concepts). Use large leaf pages that have built in log.
+    *   Use some of the 64 bit page number for caching, eg "pointer swizzling".
 *   **Concurrency**: Add support for multi-threaded access.
 *   **Filesystem Integration**: Investigate using Linux untorn writes. 
-*   **Code Quality**: Continue to refactor and improve the Rust implementation.
+*   **Code Quality**: Improve the Rust implementation.
 
 ## License
 
