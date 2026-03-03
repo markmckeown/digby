@@ -52,6 +52,7 @@ impl Db {
                 .write(true)
                 .read(true)
                 .create(true)
+                .truncate(true) // Not necessary as file does not exist but clippy wants it.
                 .open(path)
                 .expect("Failed to open or create DB file");
             is_new = true;
