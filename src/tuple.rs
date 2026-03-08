@@ -107,11 +107,11 @@ impl TupleTrait for Tuple {
 impl Tuple {
     pub fn new(key: &[u8], value: &[u8], version: u64) -> Self {
         assert!(
-            key.len() < u16::MAX as usize,
-            "Key size larger than u16 can hold."
+            key.len() <= u8::MAX as usize,
+            "Key size larger than u8 can hold."
         );
         assert!(
-            value.len() < u16::MAX as usize,
+            value.len() <= u16::MAX as usize,
             "Value size larger than u16 can hold."
         );
         let mut serialized: Vec<u8> = Vec::with_capacity(1 + key.len() + 2 + value.len() + 8);
@@ -126,11 +126,11 @@ impl Tuple {
 
     pub fn new_with_overflow(key: &[u8], value: &[u8], version: u64, overflow: Overflow) -> Self {
         assert!(
-            key.len() < u16::MAX as usize,
-            "Key size larger than u16 can hold."
+            key.len() <= u8::MAX as usize,
+            "Key size larger than u8 can hold."
         );
         assert!(
-            value.len() < u16::MAX as usize,
+            value.len() <= u16::MAX as usize,
             "Value size larger than u16 can hold."
         );
         let mut serialized = Vec::with_capacity(1 + key.len() + 2 + value.len() + 8);
