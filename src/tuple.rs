@@ -24,6 +24,10 @@ use crate::version_holder::VersionHolder;
 // 4. Key and value overflow - store SHA256 of key and page number
 //    of overflow page as value.
 //
+// If the key overflows we store the first 224 bytes of tkey followed
+// by the 32 bytes of the SHA256 of the key. This mean lexical sorting
+// works up to 224 bytes.
+//
 // When we come to store a tuple we know which Overflow type it is.
 // When we want to look up a tuple given the key we know whether
 // the key would overflow and can use the SHA256 of the key.
@@ -105,6 +109,11 @@ impl TupleTrait for Tuple {
 }
 
 impl Tuple {
+    // key_len - 1 byte
+    // value_len - 2 bytes
+    // version - 8 bytes, 7 bytes for the version 1 byte for overflow type
+    // key of size key_len
+    // value of size value_len
     pub fn new(key: &[u8], value: &[u8], version: u64) -> Self {
         assert!(
             key.len() <= u8::MAX as usize,
