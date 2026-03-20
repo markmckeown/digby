@@ -17,8 +17,21 @@ impl VersionHolder {
         ))
     }
 
+    pub fn from_slice(bytes: &[u8]) -> Self {
+        Self(u64::from_le_bytes(
+            bytes
+                .try_into()
+                .expect("slice with incorrect length"),
+        ))
+    }
+
+
     pub fn get_bytes(&self) -> Vec<u8> {
         self.0.to_le_bytes().to_vec()
+    }
+
+    pub fn get_bytes_slice(&self) -> [u8; 8] {
+        self.0.to_le_bytes()
     }
 
     pub fn get_flags(&self) -> u8 {

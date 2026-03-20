@@ -21,6 +21,7 @@ pub enum PageType {
     FreeDir = 6,
     // B+ tree internal node page.
     TreeDirPage = 7,
+    LeafPage = 8,
 }
 
 impl TryFrom<u8> for PageType {
@@ -35,6 +36,7 @@ impl TryFrom<u8> for PageType {
             5 => Ok(PageType::Overflow),
             6 => Ok(PageType::FreeDir),
             7 => Ok(PageType::TreeDirPage),
+            8 => Ok(PageType::LeafPage),
             _ => Err(()),
         }
     }
@@ -124,14 +126,14 @@ impl Page {
     }
 
     pub fn get_type(&self) -> PageType {
-        PageType::try_from(VersionHolder::from_bytes(self.bytes[8..8 + 8].to_vec()).get_flags())
+        PageType::try_from(VersionHolder::from_slice(&self.bytes[8..8 + 8]).get_flags())
             .unwrap()
     }
 
     pub fn set_type(&mut self, page_type: PageType) {
-        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8 + 8].to_vec());
+        let mut version_holder = VersionHolder::from_slice(&self.bytes[8..8 + 8]);
         version_holder.set_flags(page_type as u8);
-        self.bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
+        self.bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes_slice());
     }
 }
 
