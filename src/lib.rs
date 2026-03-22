@@ -54,3 +54,5 @@ pub mod tree_delete_handler;
 pub use tree_delete_handler::TreeDeleteHandler;
 pub mod clear_handler;
 pub use clear_handler::ClearHandler;
+pub mod leaf_page;
+pub use leaf_page::LeafPage;

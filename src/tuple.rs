@@ -80,7 +80,7 @@ pub struct Tuple {
 impl TupleTrait for Tuple {
     fn get_key(&self) -> &[u8] {
         let key_len = self.serialized[0] as usize;
-        &self.serialized[11..11 + key_len]
+        &self.serialized[3..3 + key_len]
     }
 
     fn get_value(&self) -> &[u8] {
@@ -89,7 +89,8 @@ impl TupleTrait for Tuple {
     }
 
     fn get_version(&self) -> u64 {
-        VersionHolder::from_bytes(self.serialized[3..3 + 8].to_vec()).get_version()
+        let key_len = self.serialized[0] as usize;
+        VersionHolder::from_bytes(self.serialized[3 + key_len..3 + key_len + 8].to_vec()).get_version()
     }
 
     fn get_serialized(&self) -> &[u8] {
@@ -101,8 +102,9 @@ impl TupleTrait for Tuple {
     }
 
     fn get_overflow(&self) -> Overflow {
+        let key_len = self.serialized[0] as usize;
         Overflow::try_from(
-            VersionHolder::from_bytes(self.serialized[3..3 + 8].to_vec()).get_flags(),
+            VersionHolder::from_bytes(self.serialized[3 + key_len..3 + key_len + 8].to_vec()).get_flags(),
         )
         .unwrap()
     }
@@ -111,8 +113,8 @@ impl TupleTrait for Tuple {
 impl Tuple {
     // key_len - 1 byte
     // value_len - 2 bytes
-    // version - 8 bytes, 7 bytes for the version 1 byte for overflow type
     // key of size key_len
+    // version - 8 bytes, 7 bytes for the version 1 byte for overflow type
     // value of size value_len
     pub fn new(key: &[u8], value: &[u8], version: u64) -> Self {
         assert!(
@@ -127,8 +129,8 @@ impl Tuple {
         serialized.push(key.len() as u8);
         serialized.extend_from_slice(&(value.len() as u16).to_le_bytes());
         let version_holder = VersionHolder::new(0, version);
-        serialized.extend_from_slice(&version_holder.get_bytes()[0..8]);
         serialized.extend_from_slice(key);
+        serialized.extend_from_slice(&version_holder.get_bytes()[0..8]);
         serialized.extend_from_slice(value);
         Tuple { serialized }
     }
@@ -146,8 +148,8 @@ impl Tuple {
         serialized.push(key.len() as u8);
         serialized.extend_from_slice(&(value.len() as u16).to_le_bytes());
         let version_holder = VersionHolder::new(overflow as u8, version);
-        serialized.extend_from_slice(&version_holder.get_bytes()[0..8]);
         serialized.extend_from_slice(key);
+        serialized.extend_from_slice(&version_holder.get_bytes()[0..8]);
         serialized.extend_from_slice(value);
         Tuple { serialized }
     }
