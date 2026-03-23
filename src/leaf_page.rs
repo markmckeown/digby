@@ -127,6 +127,13 @@ impl LeafPage {
         &self.page.get_page_bytes()[key_offset..key_offset + slot.key_len as usize]
     }
 
+    pub fn get_key_prefix(&self) -> &[u8] {
+        assert!(self.get_entries() > 0, "No entries in the page to get prefix from.");
+        let prefix_length = self.get_prefix_length() as usize;
+        let slot_0 = self.get_slot_at_index(0);
+        &self.get_key_at_slot(&slot_0)[0 .. prefix_length]
+    }
+
     
     pub fn add_key_value_at_index(&mut self, index: usize, key: &[u8], value: &[u8]) {
         // Sanity check
@@ -135,14 +142,14 @@ impl LeafPage {
         let free_space = self.get_free_space() as usize;
         assert!(new_entry_total_size <= free_space);
 
-        // Find were the key/value entry can be added.
+        // Find offset where the key/value entry can be added.
         let entries = self.get_entries() as usize;
         let header_plus_slots_size = LeafPage::HEADER_SIZE + entries * LeafPage::SLOT_SIZE;
         let entries_size = self.page.page_size - (header_plus_slots_size + free_space);
         let old_entries_offset = self.page.page_size - entries_size;
         let new_entry_offset = old_entries_offset - new_entry_size;
         
-        // Add key/value of offset
+        // Add key/value at the offset
         self.page.get_page_bytes_mut()[new_entry_offset..new_entry_offset + key.len()].copy_from_slice(key);
         self.page.get_page_bytes_mut()[new_entry_offset + key.len()..new_entry_offset + key.len() + value.len()].copy_from_slice(value);
         
@@ -155,6 +162,44 @@ impl LeafPage {
         self.set_entries((entries + 1) as u16);
         self.set_free_space(free_space as u16 - new_entry_total_size as u16);
     }
+
+    pub fn remove_key_value_at_index(&mut self, index: usize) {
+        let entries = self.get_entries() as usize;
+        assert!(index < entries);
+        let slot = self.get_slot_at_index(index);
+        let entry_size = slot.key_len as usize + slot.val_len as usize;
+        
+        let free_space = self.get_free_space() as usize;
+        let header_plus_slots_size = LeafPage::HEADER_SIZE + entries * LeafPage::SLOT_SIZE;
+        let entries_size = self.page.page_size - (header_plus_slots_size + free_space);
+        let entries_offset = self.page.page_size - entries_size;
+        let entry_offset = slot.offset as usize;
+        // Shift entries to left to remove the entry at index.
+        // | Head | Entry_to_remove | Tail |
+        // ->
+        // | Head | Tail |
+        let head = entry_offset - entries_offset;
+        self.page.get_page_bytes_mut().copy_within(entries_offset .. entries_offset + head, entries_offset + entry_size);
+
+
+        // Shift slots to left to remove the slot at index.
+        self.shift_slots_left_from(index);
+        
+        // Need to update the slots in the head to reflect the shift in entries.
+        let mut slot_offset = LeafPage::HEADER_SIZE;
+        for _i in 0..index {
+            let offset_bytes = &self.page.get_page_bytes()[slot_offset..slot_offset + 2];
+            let offset = u16::from_le_bytes(offset_bytes.try_into().unwrap());
+            let offset_bytes = (offset + entry_size as u16).to_le_bytes();
+            self.page.get_page_bytes_mut()[slot_offset..slot_offset + 2].copy_from_slice(&offset_bytes);
+            slot_offset += LeafPage::SLOT_SIZE;
+        }
+
+        // Update entries and free space.
+        self.set_entries((entries - 1) as u16);
+        self.set_free_space((free_space + entry_size + LeafPage::SLOT_SIZE) as u16);
+    }
+
 
 
     pub fn shift_slots_right_from(&mut self, from_index: usize) {
@@ -211,6 +256,16 @@ mod tests {
         let slot1 = leaf_page.get_slot_at_index(1);
         assert_eq!(leaf_page.get_key_at_slot(&slot1), key1);
         assert_eq!(leaf_page.get_value_at_slot(&slot1), value1);
+
+        leaf_page.remove_key_value_at_index(0);
+        assert_eq!(leaf_page.get_entries(), 1);
+        let slot0 = leaf_page.get_slot_at_index(0);
+        assert_eq!(leaf_page.get_key_at_slot(&slot0), key1);
+        assert_eq!(leaf_page.get_value_at_slot(&slot0), value1);
+
+        leaf_page.remove_key_value_at_index(0);
+        assert_eq!(leaf_page.get_entries(), 0);
+        assert_eq!(leaf_page.get_free_space(), 4000 - (LeafPage::HEADER_SIZE as u16));
     }
 
 
