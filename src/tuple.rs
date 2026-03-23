@@ -75,6 +75,11 @@ pub trait TupleTrait {
 
 #[derive(Clone)]
 pub struct Tuple {
+    // key_len - 1 byte
+    // value_len - 2 bytes
+    // key of size key_len
+    // version - 8 bytes, 7 bytes for the version 1 byte for overflow type
+    // value of size value_len
     serialized: Vec<u8>,
 }
 
@@ -96,7 +101,7 @@ impl TupleTrait for Tuple {
 
     fn get_version(&self) -> u64 {
         let key_len = self.serialized[0] as usize;
-        VersionHolder::from_bytes(self.serialized[3 + key_len..3 + key_len + 8].to_vec()).get_version()
+        VersionHolder::from_slice(&self.serialized[3 + key_len..3 + key_len + 8]).get_version()
     }
 
     fn get_serialized(&self) -> &[u8] {
@@ -110,18 +115,13 @@ impl TupleTrait for Tuple {
     fn get_overflow(&self) -> Overflow {
         let key_len = self.serialized[0] as usize;
         Overflow::try_from(
-            VersionHolder::from_bytes(self.serialized[3 + key_len..3 + key_len + 8].to_vec()).get_flags(),
+            VersionHolder::from_slice(&self.serialized[3 + key_len..3 + key_len + 8]).get_flags(),
         )
         .unwrap()
     }
 }
 
 impl Tuple {
-    // key_len - 1 byte
-    // value_len - 2 bytes
-    // key of size key_len
-    // version - 8 bytes, 7 bytes for the version 1 byte for overflow type
-    // value of size value_len
     pub fn new(key: &[u8], value: &[u8], version: u64) -> Self {
         assert!(
             key.len() <= u8::MAX as usize,

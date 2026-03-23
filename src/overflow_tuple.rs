@@ -28,7 +28,7 @@ impl TupleTrait for OverflowTuple {
 
     fn get_version(&self) -> u64 {
         let key_len: usize = u32::from_le_bytes(self.serialized[0..4].try_into().unwrap()) as usize;
-        VersionHolder::from_bytes(self.serialized[8 + key_len..8 + key_len + 8].to_vec()).get_version()
+        VersionHolder::from_slice(&self.serialized[8 + key_len..8 + key_len + 8]).get_version()
     }
 
     fn get_version_value(&self) -> &[u8] {
@@ -47,7 +47,7 @@ impl TupleTrait for OverflowTuple {
     fn get_overflow(&self) -> Overflow {
         let key_len: usize = u32::from_le_bytes(self.serialized[0..4].try_into().unwrap()) as usize;
         Overflow::try_from(
-            VersionHolder::from_bytes(self.serialized[8 + key_len..8 + key_len + 8].to_vec()).get_flags(),
+            VersionHolder::from_slice(&self.serialized[8 + key_len..8 + key_len + 8]).get_flags(),
         )
         .unwrap()
     }
