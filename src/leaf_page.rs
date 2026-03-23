@@ -1,6 +1,8 @@
 use crate::{Page, block_layer::PageConfig};
 use crate::page::PageType;
 use crate::page::PageTrait;
+use crate::tuple::Tuple;
+use crate::tuple::TupleTrait;
 
 pub struct LeafPage {
     page: Page,
@@ -44,7 +46,6 @@ pub struct Slot {
 // | prefix_length (u8) | slot | slot | slot | ...
 // | heap
 // | key | value | key | value |
-
 impl LeafPage {
     const HEADER_SIZE: usize = 21; // 8 + 8 + 2 + 2 + 1
     const SLOT_SIZE: usize = 5; // 2 + 1 + 2
@@ -134,7 +135,53 @@ impl LeafPage {
         &self.get_key_at_slot(&slot_0)[0 .. prefix_length]
     }
 
-    
+    pub fn add_tuple_at_index(&mut self, index: usize, tuple: &Tuple) {
+        let prefix_length = self.get_prefix_length() as usize;
+        assert!(tuple.get_key().len() >= prefix_length, "Tuple key length is smaller than the prefix length of the page.");
+        assert!(tuple.get_key().starts_with(self.get_key_prefix()), "Tuple key does not match the prefix of the page.");
+        self.add_key_value_at_index(index, &tuple.get_key()[prefix_length..], tuple.get_version_value());
+    }
+
+
+    pub fn get_index_for_key(&self, key: &[u8]) -> (bool, usize) {
+        let prefix_length = self.get_prefix_length() as usize;
+        assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
+        assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+        let key_suffix = &key[prefix_length..];
+        let entries = self.get_entries() as usize;
+        let mut index: usize = 0;
+        for i in 0..entries {
+            let slot = self.get_slot_at_index(i);
+            let key_at_slot = self.get_key_at_slot(&slot);
+            if key_at_slot == key_suffix {
+                return (true, i);
+            } else if key_at_slot > key_suffix {
+                return (false, index);
+            }
+            index = i;            
+        }
+        (false, index)        
+    }
+
+    pub fn add_tuple(&mut self, tuple: &Tuple) {
+        let (found, index) = self.get_index_for_key(tuple.get_key());
+        assert!(!found, "Key already exists in the page.");
+        self.add_tuple_at_index(index, tuple);
+    }
+
+
+
+    pub fn get_tuple_at_index(&self, index: usize) -> Tuple {
+        let slot = self.get_slot_at_index(index);
+        let key_prefix = self.get_key_prefix();
+        let key = self.get_key_at_slot(&slot);
+        let value = self.get_value_at_slot(&slot);
+        let mut full_key = Vec::with_capacity(key_prefix.len() + key.len());
+        full_key.extend_from_slice(key_prefix);
+        full_key.extend_from_slice(key);
+        Tuple::new(&full_key, &value[8..], u64::from_le_bytes(value[0..8].try_into().unwrap()))
+    }
+
     pub fn add_key_value_at_index(&mut self, index: usize, key: &[u8], value: &[u8]) {
         // Sanity check
         let new_entry_size = key.len() + value.len();
