@@ -65,6 +65,7 @@ impl TryFrom<u8> for Overflow {
 
 pub trait TupleTrait {
     fn get_key(&self) -> &[u8];
+    fn get_version_value(&self) -> &[u8];
     fn get_value(&self) -> &[u8];
     fn get_version(&self) -> u64;
     fn get_serialized(&self) -> &[u8];
@@ -85,7 +86,12 @@ impl TupleTrait for Tuple {
 
     fn get_value(&self) -> &[u8] {
         let key_len = self.serialized[0] as usize;
-        &self.serialized[11 + key_len..]
+        &self.serialized[3 + key_len + 8 ..]
+    }
+
+    fn get_version_value(&self) -> &[u8] {
+        let key_len = self.serialized[0] as usize;
+        &self.serialized[3 + key_len ..]
     }
 
     fn get_version(&self) -> u64 {
