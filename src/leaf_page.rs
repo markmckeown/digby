@@ -3,6 +3,7 @@ use crate::page::PageType;
 use crate::page::PageTrait;
 use crate::tuple::Tuple;
 use crate::tuple::TupleTrait;
+use std::cmp::Ordering;
 
 pub struct LeafPage {
     page: Page,
@@ -129,8 +130,10 @@ impl LeafPage {
     }
 
     pub fn get_key_prefix(&self) -> &[u8] {
-        assert!(self.get_entries() > 0, "No entries in the page to get prefix from.");
         let prefix_length = self.get_prefix_length() as usize;
+        if prefix_length == 0 {
+            return &[];
+        }
         let slot_0 = self.get_slot_at_index(0);
         &self.get_key_at_slot(&slot_0)[0 .. prefix_length]
     }
@@ -145,20 +148,22 @@ impl LeafPage {
 
     pub fn get_index_for_key(&self, key: &[u8]) -> (bool, usize) {
         let prefix_length = self.get_prefix_length() as usize;
-        assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
-        assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+        if prefix_length > 0 {
+            assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
+            assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+        }
         let key_suffix = &key[prefix_length..];
         let entries = self.get_entries() as usize;
         let mut index: usize = 0;
         for i in 0..entries {
             let slot = self.get_slot_at_index(i);
             let key_at_slot = self.get_key_at_slot(&slot);
-            if key_at_slot == key_suffix {
-                return (true, i);
-            } else if key_at_slot > key_suffix {
-                return (false, index);
+            let result = key_suffix.cmp(key_at_slot);
+            match result {
+                Ordering::Less => index = i,
+                Ordering::Equal => return (true, i),
+                Ordering::Greater => return (false, index),
             }
-            index = i;            
         }
         (false, index)        
     }
@@ -271,6 +276,22 @@ impl LeafPage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_add_tuple() {
+        let page_config = PageConfig { block_size: 4096, page_size: 4000 };
+        let mut leaf_page = LeafPage::create_new(&page_config, 1);
+        let key1 = b"key1";
+        let value1 = b"value1";
+        let tuple1 = Tuple::new(key1, value1, 123);
+        leaf_page.add_tuple(&tuple1);
+        assert_eq!(leaf_page.get_entries(), 1);
+        let retrieved_tuple1 = leaf_page.get_tuple_at_index(0);
+        assert_eq!(retrieved_tuple1.get_key(), key1);
+        assert_eq!(retrieved_tuple1.get_value(), value1);
+        assert_eq!(retrieved_tuple1.get_version(), 123);
+    }
+
 
     #[test]
     fn test_data_page() {
