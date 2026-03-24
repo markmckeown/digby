@@ -163,6 +163,11 @@ impl Tuple {
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
         Tuple { serialized: bytes }
     }
+
+    pub fn equals(&self, other: &Tuple) -> bool {
+        self.serialized == other.serialized
+    }
+
 }
 
 #[cfg(test)]
