@@ -78,11 +78,11 @@ impl PageTrait for Page {
     }
 
     fn get_version(&self) -> u64 {
-        VersionHolder::from_bytes(self.bytes[8..8 + 8].to_vec()).get_version()
+        VersionHolder::from_bytes(&self.bytes[8..8 + 8]).get_version()
     }
 
     fn set_version(&mut self, version: u64) {
-        let mut version_holder = VersionHolder::from_bytes(self.bytes[8..8 + 8].to_vec());
+        let mut version_holder = VersionHolder::from_bytes(&self.bytes[8..8 + 8]);
         version_holder.set_version(version);
         self.bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
     }
@@ -126,14 +126,14 @@ impl Page {
     }
 
     pub fn get_type(&self) -> PageType {
-        PageType::try_from(VersionHolder::from_slice(&self.bytes[8..8 + 8]).get_flags())
+        PageType::try_from(VersionHolder::from_bytes(&self.bytes[8..8 + 8]).get_flags())
             .unwrap()
     }
 
     pub fn set_type(&mut self, page_type: PageType) {
-        let mut version_holder = VersionHolder::from_slice(&self.bytes[8..8 + 8]);
+        let mut version_holder = VersionHolder::from_bytes(&self.bytes[8..8 + 8]);
         version_holder.set_flags(page_type as u8);
-        self.bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes_slice());
+        self.bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
     }
 }
 

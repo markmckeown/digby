@@ -101,7 +101,7 @@ impl TupleTrait for Tuple {
 
     fn get_version(&self) -> u64 {
         let key_len = self.serialized[0] as usize;
-        VersionHolder::from_slice(&self.serialized[3 + key_len..3 + key_len + 8]).get_version()
+        VersionHolder::from_bytes(&self.serialized[3 + key_len..3 + key_len + 8]).get_version()
     }
 
     fn get_serialized(&self) -> &[u8] {
@@ -115,7 +115,7 @@ impl TupleTrait for Tuple {
     fn get_overflow(&self) -> Overflow {
         let key_len = self.serialized[0] as usize;
         Overflow::try_from(
-            VersionHolder::from_slice(&self.serialized[3 + key_len..3 + key_len + 8]).get_flags(),
+            VersionHolder::from_bytes(&self.serialized[3 + key_len..3 + key_len + 8]).get_flags(),
         )
         .unwrap()
     }

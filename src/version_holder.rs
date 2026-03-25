@@ -8,16 +8,8 @@ impl VersionHolder {
         Self((u64::from(flags) << 56) | (version & Self::BOTTOM_56_MASK))
     }
 
-    pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        Self(u64::from_le_bytes(
-            bytes
-                .as_slice()
-                .try_into()
-                .expect("slice with incorrect length"),
-        ))
-    }
 
-    pub fn from_slice(bytes: &[u8]) -> Self {
+    pub fn from_bytes(bytes: &[u8]) -> Self {
         Self(u64::from_le_bytes(
             bytes
                 .try_into()
@@ -25,12 +17,7 @@ impl VersionHolder {
         ))
     }
 
-
-    pub fn get_bytes(&self) -> Vec<u8> {
-        self.0.to_le_bytes().to_vec()
-    }
-
-    pub fn get_bytes_slice(&self) -> [u8; 8] {
+    pub fn get_bytes(&self) -> [u8; 8] {
         self.0.to_le_bytes()
     }
 

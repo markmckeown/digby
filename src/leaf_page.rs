@@ -230,7 +230,6 @@ impl LeafPage {
          true
     }
 
-
     pub fn remove_key_value_at_index(&mut self, index: usize) {
         let entries = self.get_entries() as usize;
         assert!(index < entries);
@@ -295,16 +294,11 @@ impl LeafPage {
 
     pub fn shift_slots_left_from(&mut self, from_index: usize) {
         let entries = self.get_entries() as usize;
-        if entries == from_index {
-            return;
-        }
         self.page.get_page_bytes_mut().copy_within(
             LeafPage::HEADER_SIZE + (from_index + 1) * LeafPage::SLOT_SIZE..LeafPage::HEADER_SIZE + entries * LeafPage::SLOT_SIZE,
             LeafPage::HEADER_SIZE + from_index * LeafPage::SLOT_SIZE
         );
     }
-
-    
 }
 
 #[cfg(test)]
