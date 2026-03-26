@@ -101,6 +101,7 @@ impl LeafPage {
     }
     
     pub fn get_slot_at_index(&self, index: usize) -> Slot {
+        assert!(index < self.get_entries() as usize);
         let slot_offset = LeafPage::HEADER_SIZE + index * LeafPage::SLOT_SIZE;
         let offset_bytes = &self.page.get_page_bytes()[slot_offset..slot_offset + 2];
         let offset = u16::from_le_bytes(offset_bytes.try_into().unwrap());
@@ -138,22 +139,18 @@ impl LeafPage {
         &self.get_key_at_slot(&slot_0)[0 .. prefix_length]
     }
 
-    pub fn add_tuple_at_index(&mut self, index: usize, tuple: &Tuple) {
+    pub fn add_tuple(&mut self, tuple: &Tuple) {
         let prefix_length = self.get_prefix_length() as usize;
         assert!(tuple.get_key().len() >= prefix_length, "Tuple key length is smaller than the prefix length of the page.");
         assert!(tuple.get_key().starts_with(self.get_key_prefix()), "Tuple key does not match the prefix of the page.");
-        self.add_key_value_at_index(index, &tuple.get_key()[prefix_length..], tuple.get_version_value());
+        let key_suffix = &tuple.get_key()[prefix_length..];
+        let (found, index) = self.get_index_for_key(key_suffix);
+        assert!(!found, "Key already exists in the page.");
+        self.add_key_value_at_index(index, key_suffix, tuple.get_version_value());
+        
     }
 
-
-    pub fn get_index_for_key(&self, key: &[u8]) -> (bool, usize) {
-        let prefix_length = self.get_prefix_length() as usize;
-        if prefix_length > 0 {
-            assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
-            assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
-        }
-    
-        let key_suffix = &key[prefix_length..];
+    pub fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
         let entries = self.get_entries() as usize;
 
         // binary search for the key suffix in the slots
@@ -176,11 +173,19 @@ impl LeafPage {
         (false, low)
     }
 
-    pub fn add_tuple(&mut self, tuple: &Tuple) {
-        let (found, index) = self.get_index_for_key(tuple.get_key());
-        assert!(!found, "Key already exists in the page.");
-        self.add_tuple_at_index(index, tuple);
-    }
+
+    pub fn get_tuple_for_key(&self, key: &[u8]) -> Option<Tuple> {
+        let prefix_length = self.get_prefix_length() as usize;
+        if prefix_length > 0 {
+            assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
+            assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+        }
+        let (found, index) = self.get_index_for_key(&key[prefix_length..]);
+        if !found {
+            return None;
+        }
+        Some(self.get_tuple_at_index(index))
+    }    
 
     pub fn get_tuple_at_index(&self, index: usize) -> Tuple {
         let slot = self.get_slot_at_index(index);
@@ -221,8 +226,18 @@ impl LeafPage {
         self.set_free_space(free_space as u16 - new_entry_total_size as u16);
     }
 
+
+    /**
+     * Remove key and value. Returns true of the key was found and removed, 
+     * false if the key was not found.
+     */
     pub fn remove_key(&mut self, key: &[u8]) -> bool {
-         let (found, index) = self.get_index_for_key(key);
+        let prefix_length = self.get_prefix_length() as usize;
+        if prefix_length > 0 {
+            assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
+            assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+        }
+         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
          if !found {
              return false;
          }
@@ -230,6 +245,11 @@ impl LeafPage {
          true
     }
 
+    /**
+     * The approach removes the bytes from the page and shovels the entries
+     * around to fill the gap. An alternative approach is to leave the 
+     * hole in the entries and attempt to fill it in when adding new entries.
+     */
     pub fn remove_key_value_at_index(&mut self, index: usize) {
         let entries = self.get_entries() as usize;
         assert!(index < entries);
@@ -241,6 +261,11 @@ impl LeafPage {
         let entries_size = self.page.page_size - (header_plus_slots_size + free_space);
         let entries_offset = self.page.page_size - entries_size;
         let entry_offset = slot.offset as usize;
+
+        // Shift slots to left to remove the slot at index.
+        self.shift_slots_left_from(index);
+        let new_entry_count = entries - 1;
+
         // Shift entries to left to remove the entry at index.
         // | Head | Entry_to_remove | Tail |
         // ->
@@ -249,16 +274,13 @@ impl LeafPage {
             // No Head, just shift the tail to the left.
             // If the entry to remove is the last entry, we can just update the free space and entries without shifting.
             self.set_free_space((free_space + entry_size + LeafPage::SLOT_SIZE) as u16);
-            self.set_entries((entries - 1) as u16);
+            self.set_entries((new_entry_count) as u16);
             return;
         }
+
+        // Need to move some bytes in the entries and update the slot offsets for the entries in the head that are being shifted.
         let head = entry_offset - entries_offset;
         self.page.get_page_bytes_mut().copy_within(entries_offset .. entries_offset + head, entries_offset + entry_size);
-
-
-        // Shift slots to left to remove the slot at index.
-        self.shift_slots_left_from(index);
-        let new_entry_count = entries - 1;
         
         // Need to update the slots in the head to reflect the shift in entries.
         let mut slot_offset = LeafPage::HEADER_SIZE;
@@ -305,47 +327,40 @@ impl LeafPage {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_add_tuple() {
+   
+     #[test]
+     fn test_add_and_remove_tuple() {
         let page_config = PageConfig { block_size: 4096, page_size: 4000 };
         let mut leaf_page = LeafPage::create_new(&page_config, 1);
-        let key1 = b"bkey1";
-        let value1 = b"bvalue1";
-        let tuple1 = Tuple::new(key1, value1, 123);
-        leaf_page.add_tuple(&tuple1);
-        assert_eq!(leaf_page.get_entries(), 1);
-        let retrieved_tuple1 = leaf_page.get_tuple_at_index(0);
-        assert!(retrieved_tuple1.equals(&tuple1));
+        let tuple_a = Tuple::new(b"a", b"a_value", 123);
+        let tuple_b = Tuple::new(b"b", b"b_value", 123);
+        let tuple_c = Tuple::new(b"c", b"c_value", 123);
 
-        let key2 = b"akey2";
-        let value2 = b"avalue2";
-        let tuple2 = Tuple::new(key2, value2, 456);
-        leaf_page.add_tuple(&tuple2);
+        assert!(leaf_page.get_tuple_for_key(tuple_a.get_key()).is_none());
+        leaf_page.add_tuple(&tuple_a);
+        assert_eq!(leaf_page.get_entries(), 1);
+        assert!(leaf_page.get_tuple_for_key(tuple_a.get_key()).unwrap().equals(&tuple_a));
+        assert!(leaf_page.get_tuple_for_key(tuple_b.get_key()).is_none());
+        assert!(leaf_page.get_tuple_for_key(tuple_c.get_key()).is_none());
+
+        leaf_page.add_tuple(&tuple_c);
         assert_eq!(leaf_page.get_entries(), 2);
-        let retrieved_tuple2 = leaf_page.get_tuple_at_index(0);
-        assert!(retrieved_tuple2.equals(&tuple2));
-        let retrieved_tuple1_again = leaf_page.get_tuple_at_index(1);
-        assert!(retrieved_tuple1_again.equals(&tuple1));
+        assert!(leaf_page.get_tuple_for_key(tuple_a.get_key()).unwrap().equals(&tuple_a));
+        assert!(leaf_page.get_tuple_for_key(tuple_b.get_key()).is_none());
+        assert!(leaf_page.get_tuple_for_key(tuple_c.get_key()).unwrap().equals(&tuple_c));
         
-        let key3 = b"ckey3";
-        let value3 = b"cvalue3";
-        let tuple3 = Tuple::new(key3, value3, 789);
-        leaf_page.add_tuple(&tuple3);
+        leaf_page.add_tuple(&tuple_b);
         assert_eq!(leaf_page.get_entries(), 3);
-        let retrieved_tuple3 = leaf_page.get_tuple_at_index(2);
-        assert!(retrieved_tuple3.equals(&tuple3));
+        assert!(leaf_page.get_tuple_for_key(tuple_a.get_key()).unwrap().equals(&tuple_a));
+        assert!(leaf_page.get_tuple_for_key(tuple_b.get_key()).unwrap().equals(&tuple_b));
+        assert!(leaf_page.get_tuple_for_key(tuple_c.get_key()).unwrap().equals(&tuple_c));
 
-        leaf_page.remove_key_value_at_index(0);
+        assert!(leaf_page.remove_key(tuple_b.get_key()));
         assert_eq!(leaf_page.get_entries(), 2);
-        leaf_page.remove_key_value_at_index(1);
-        assert_eq!(leaf_page.get_entries(), 1);
-        let retrieved_tuple1_again = leaf_page.get_tuple_at_index(0);
-        assert!(retrieved_tuple1_again.equals(&tuple1));
-
-        assert!(leaf_page.remove_key(tuple1.get_key()));
-        assert_eq!(leaf_page.get_entries(), 0);
-    }
-
+        assert!(leaf_page.get_tuple_for_key(tuple_a.get_key()).unwrap().equals(&tuple_a));
+        assert!(leaf_page.get_tuple_for_key(tuple_b.get_key()).is_none());
+        assert!(leaf_page.get_tuple_for_key(tuple_c.get_key()).unwrap().equals(&tuple_c));
+     }
 
 
 }
