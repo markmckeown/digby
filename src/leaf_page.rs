@@ -47,6 +47,14 @@ pub struct Slot {
 // | prefix_length (u8) | slot | slot | slot | ...
 // | heap
 // | key | value | key | value |
+//
+// The page uses delta compression for keys, the prefix_length field indicates the length of the common 
+// prefix for all keys in the page. The slot only stores the suffix of the key after the prefix. This allows 
+// us to save space on the keys when there are many keys with a common prefix, which is often the 
+// case in B+ trees where keys in the same leaf page often share a common prefix due to the way they are 
+// inserted and split. The get_index_for_key method performs a binary search on the key suffixes in the slots to find 
+// the index of a key, which allows for efficient lookups while still benefiting from the space savings of 
+// delta compression.
 impl LeafPage {
     const HEADER_SIZE: usize = 21; // 8 + 8 + 2 + 2 + 1
     const SLOT_SIZE: usize = 5; // 2 (offset) + 1 (key_len) + 2 (val_len)
@@ -72,35 +80,35 @@ impl LeafPage {
         LeafPage { page }
     }
 
-    pub fn get_entries(&self) -> u16 {
+    fn get_entries(&self) -> u16 {
         let bytes = &self.page.get_page_bytes()[16..18];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
-    pub fn set_entries(&mut self, entries: u16) {
+    fn set_entries(&mut self, entries: u16) {
         let bytes = entries.to_le_bytes();
         self.page.get_page_bytes_mut()[16..18].copy_from_slice(&bytes);
     }
 
-    pub fn get_free_space(&self) -> u16 {
+    fn get_free_space(&self) -> u16 {
         let bytes = &self.page.get_page_bytes()[18..20];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
-    pub fn set_free_space(&mut self, free_space: u16) {
+    fn set_free_space(&mut self, free_space: u16) {
         let bytes = free_space.to_le_bytes();
         self.page.get_page_bytes_mut()[18..20].copy_from_slice(&bytes);
     }
 
-    pub fn get_prefix_length(&self) -> u8 {
+    fn get_prefix_length(&self) -> u8 {
         self.page.get_page_bytes()[20]
     }
 
-    pub fn set_prefix_length(&mut self, prefix_length: u8) {
+    fn _set_prefix_length(&mut self, prefix_length: u8) {
         self.page.get_page_bytes_mut()[20] = prefix_length;
     }
     
-    pub fn get_slot_at_index(&self, index: usize) -> Slot {
+    fn get_slot_at_index(&self, index: usize) -> Slot {
         assert!(index < self.get_entries() as usize);
         let slot_offset = LeafPage::HEADER_SIZE + index * LeafPage::SLOT_SIZE;
         let offset_bytes = &self.page.get_page_bytes()[slot_offset..slot_offset + 2];
@@ -111,7 +119,7 @@ impl LeafPage {
         Slot { offset, key_len, val_len }
     }
 
-    pub fn set_slot_at_index(&mut self, index: usize, slot: Slot) {
+    fn set_slot_at_index(&mut self, index: usize, slot: Slot) {
         let slot_offset = LeafPage::HEADER_SIZE + index * LeafPage::SLOT_SIZE;
         let offset_bytes = slot.offset.to_le_bytes();
         self.page.get_page_bytes_mut()[slot_offset..slot_offset + 2].copy_from_slice(&offset_bytes);
@@ -120,17 +128,17 @@ impl LeafPage {
         self.page.get_page_bytes_mut()[slot_offset + 3..slot_offset + 5].copy_from_slice(&val_len_bytes);
     }
 
-    pub fn get_value_at_slot(&self, slot: &Slot) -> &[u8] {
+    fn get_value_at_slot(&self, slot: &Slot) -> &[u8] {
         let val_offset = (slot.offset + slot.key_len as u16) as usize;
         &self.page.get_page_bytes()[val_offset..val_offset + slot.val_len as usize]
     }
 
-    pub fn get_key_at_slot(&self, slot: &Slot) -> &[u8] {
+    fn get_key_at_slot(&self, slot: &Slot) -> &[u8] {
         let key_offset = slot.offset as usize;
         &self.page.get_page_bytes()[key_offset..key_offset + slot.key_len as usize]
     }
 
-    pub fn get_key_prefix(&self) -> &[u8] {
+    fn get_key_prefix(&self) -> &[u8] {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length == 0 {
             return &[];
@@ -139,7 +147,7 @@ impl LeafPage {
         &self.get_key_at_slot(&slot_0)[0 .. prefix_length]
     }
 
-    pub fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
+    fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
         let entries = self.get_entries() as usize;
 
         // binary search for the key suffix in the slots
@@ -161,7 +169,7 @@ impl LeafPage {
         (false, low)
     }
 
-    pub fn shift_slots_right_from(&mut self, from_index: usize) {
+    fn shift_slots_right_from(&mut self, from_index: usize) {
         let entries = self.get_entries() as usize;
         if entries == from_index {
             return;
@@ -172,7 +180,7 @@ impl LeafPage {
         );
     }
 
-    pub fn shift_slots_left_from(&mut self, from_index: usize) {
+    fn shift_slots_left_from(&mut self, from_index: usize) {
         let entries = self.get_entries() as usize;
         self.page.get_page_bytes_mut().copy_within(
             LeafPage::HEADER_SIZE + (from_index + 1) * LeafPage::SLOT_SIZE..LeafPage::HEADER_SIZE + entries * LeafPage::SLOT_SIZE,
@@ -186,12 +194,25 @@ impl LeafPage {
         assert!(tuple.get_key().starts_with(self.get_key_prefix()), "Tuple key does not match the prefix of the page.");
         let key_suffix = &tuple.get_key()[prefix_length..];
         let (found, index) = self.get_index_for_key(key_suffix);
-        assert!(!found, "Key already exists in the page.");
-        self.add_key_value_at_index(index, key_suffix, tuple.get_version_value());
         
+        if found {
+            let slot = self.get_slot_at_index(index);
+            if slot.val_len == tuple.get_version_value().len() as u16 {
+                // If the new value has the same length as the old value, we can just overwrite the value in place without needing to shift entries around.
+                // TODO - if size is less we could also just overwrite and leave some unused space.
+                let val_offset = (slot.offset + slot.key_len as u16) as usize;
+                self.page.get_page_bytes_mut()[val_offset..val_offset + slot.val_len as usize].copy_from_slice(tuple.get_version_value());
+                return;
+            } else {
+                // If the new value has a different length than the old value, we need to remove the old entry and add a new entry for the key with the new value.
+                self.remove_key_value_at_index(index);
+
+            }
+        }    
+        self.add_key_value_at_index(index, key_suffix, tuple.get_version_value());
     }
 
-    pub fn add_key_value_at_index(&mut self, index: usize, key: &[u8], value: &[u8]) {
+    fn add_key_value_at_index(&mut self, index: usize, key: &[u8], value: &[u8]) {
         // Sanity check
         let new_entry_size = key.len() + value.len();
         let new_entry_total_size = new_entry_size + LeafPage::SLOT_SIZE;
@@ -233,7 +254,7 @@ impl LeafPage {
         Some(self.get_tuple_at_index(index))
     }    
 
-    pub fn get_tuple_at_index(&self, index: usize) -> Tuple {
+    fn get_tuple_at_index(&self, index: usize) -> Tuple {
         let slot = self.get_slot_at_index(index);
         let key_prefix = self.get_key_prefix();
         let key = self.get_key_at_slot(&slot);
@@ -270,7 +291,7 @@ impl LeafPage {
      * around to fill the gap. An alternative approach is to leave the 
      * hole in the entries and attempt to fill it in when adding new entries.
      */
-    pub fn remove_key_value_at_index(&mut self, index: usize) {
+    fn remove_key_value_at_index(&mut self, index: usize) {
         let entries = self.get_entries() as usize;
         assert!(index < entries);
         let slot = self.get_slot_at_index(index);
@@ -376,4 +397,25 @@ mod tests {
      }
 
 
+     #[test]
+     fn test_overwrite_tuple() {
+        let page_config = PageConfig { block_size: 4096, page_size: 4000 };
+        let mut leaf_page = LeafPage::create_new(&page_config, 1);
+        let tuple_a = Tuple::new(b"a", b"a_value", 123);
+        let tuple_a_same_value_size = Tuple::new(b"a", b"b_value", 123);
+        let tuple_a_updated = Tuple::new(b"a", b"a_value_updated", 124);
+
+        assert!(leaf_page.get_tuple(tuple_a.get_key()).is_none());
+        leaf_page.add_tuple(&tuple_a);
+        assert_eq!(leaf_page.get_entries(), 1);
+        assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
+
+        leaf_page.add_tuple(&tuple_a_same_value_size);
+        assert_eq!(leaf_page.get_entries(), 1);
+        assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a_same_value_size));
+
+        leaf_page.add_tuple(&tuple_a_updated);
+        assert_eq!(leaf_page.get_entries(), 1);
+        assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a_updated));
+     }
 }
