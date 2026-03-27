@@ -3,6 +3,7 @@ use crate::page::PageType;
 use crate::page::PageTrait;
 use crate::tuple::Tuple;
 use crate::tuple::TupleTrait;
+use core::panic;
 use std::cmp::Ordering;
 
 pub struct LeafPage {
@@ -188,7 +189,34 @@ impl LeafPage {
         );
     }
 
+    pub fn tuple_can_fit(&self, tuple: &Tuple) -> bool {
+        let prefix_length = self.get_prefix_length() as usize;
+        if tuple.get_key().len() < prefix_length || !tuple.get_key().starts_with(self.get_key_prefix()) {
+            panic!("Tuple key does not match the prefix of the page or is smaller than the prefix length.");
+        }
+        let key_suffix_len = tuple.get_key().len() - prefix_length;
+        let new_entry_size = key_suffix_len + tuple.get_version_value().len();
+        let new_entry_total_size = new_entry_size + LeafPage::SLOT_SIZE;
+        let free_space = self.get_free_space() as usize;
+
+        if new_entry_total_size <= free_space {
+            return true;
+        }
+
+        // Not enough space - but the tuple may already be in the page, if we replace it with the new value
+        // does the new value need more space than the old value? 
+        let (found, index) = self.get_index_for_key(&tuple.get_key()[prefix_length..]);
+        if found {
+            let slot = self.get_slot_at_index(index);
+            if slot.val_len <= tuple.get_version_value().len() as u16 {
+                return true;
+            } 
+        }
+        false
+    }
+
     pub fn add_tuple(&mut self, tuple: &Tuple) {
+        assert!(self.tuple_can_fit(tuple), "Tuple cannot fit in the page.");
         let prefix_length = self.get_prefix_length() as usize;
         assert!(tuple.get_key().len() >= prefix_length, "Tuple key length is smaller than the prefix length of the page.");
         assert!(tuple.get_key().starts_with(self.get_key_prefix()), "Tuple key does not match the prefix of the page.");
