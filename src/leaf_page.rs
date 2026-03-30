@@ -447,11 +447,13 @@ impl LeafPage {
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
         
+        // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
         let low_key = self.get_key_suffix_at_index(0);
         left_page.set_left_fence_key(low_key);
         left_page.set_right_fence_key(mid_key);
         let left_prefix_length = low_key.iter().zip(mid_key).take_while(|(a, b)| a == b).count();
+        left_page.set_prefix_length(left_prefix_length as u8);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
@@ -713,7 +715,29 @@ mod tests {
         for i in 15..20 {
             assert!(right_page2.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
         }
+        
+        // left_page1
+        assert!(left_page1.has_right_fence());
+        assert!(!left_page1.has_left_fence());
+        assert_eq!(left_page1.get_prefix_length(), 0);
 
+        // left_page2
+        assert!(left_page2.has_left_fence());
+        assert!(left_page2.has_right_fence());
+        assert!(left_page2.get_prefix_length() > 0);
+        assert_eq!(left_page2.get_left_fence_key(), left_page1.get_right_fence_key());
+
+        // right_page1
+        assert!(right_page1.has_right_fence());
+        assert!(right_page1.has_left_fence());
+        assert!(right_page1.get_prefix_length() > 0);
+        assert_eq!(left_page2.get_right_fence_key(), right_page1.get_left_fence_key());
+
+        // right_page2
+        assert!(right_page2.has_left_fence());
+        assert!(!right_page2.has_right_fence());
+        assert_eq!(right_page2.get_prefix_length(), 0);
+        assert_eq!(right_page1.get_right_fence_key(), right_page2.get_left_fence_key());
     }
 
 
