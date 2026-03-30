@@ -159,12 +159,12 @@ impl LeafPage {
         let offset_bytes = (offset as u16).to_le_bytes();
         self.page.get_page_bytes_mut()[24..26].copy_from_slice(&offset_bytes);
         self.page.get_page_bytes_mut()[26] = key.len() as u8;
-        self.set_free_space(free_space as u16- key.len() as u16);
+        self.set_free_space(free_space as u16 - key.len() as u16);
     }
     
 
     pub fn has_right_fence(&self) -> bool {
-        self.page.get_page_bytes()[21] != 0
+        self.page.get_page_bytes()[26] != 0
     }
 
     pub fn get_right_fence_key_offset(&self) -> u16 {
@@ -185,8 +185,8 @@ impl LeafPage {
     pub fn set_prefix_length(&mut self, prefix_length: u8) {
         assert!(prefix_length <= u8::MAX as u8, "Prefix length larger than u8 can hold.");
         assert!(self.get_entries_size() == 0, "Cannot set prefix length on a page that already has entries.");
-        assert!(!self.has_left_fence(), "Cannot set prefix length on a page that has a left fence key.");
-        assert!(self.get_right_fence_key_size() <= prefix_length, "Prefix length cannot be larger than the right fence key size.");
+        assert!(self.has_left_fence(), "Cannot set prefix length on a page that does not have a left fence key.");
+        assert!(prefix_length < self.get_right_fence_key_size(), "Prefix length cannot be larger than the right fence key size.");
         self.page.get_page_bytes_mut()[20] = prefix_length;
     }
     
@@ -660,7 +660,62 @@ impl LeafPage {
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use super::*;
+
+    #[test]
+    fn test_split() {
+        let page_config = PageConfig { block_size: 4096, page_size: 4000 };
+        let mut leaf_page = LeafPage::create_new(&page_config, 1);
+        let mut tuples = vec![];
+        for i in 0..20 {
+            let key = format!("key{}", i).into_bytes();
+            let value = format!("value{}", i).into_bytes();
+            let tuple = Tuple::new(&key, &value, i as u64);
+            assert!(leaf_page.add_tuple(&tuple));
+            tuples.push(tuple);
+        }
+        // The tuples are added in order of increasing key, but the order they are stored in the page is not guaranteed to be the 
+        // same as the order they were added, so we need to sort them by key before we can verify that they are split correctly.
+        tuples.sort_by_key(|t| t.get_key().to_vec());
+        assert!(!leaf_page.has_right_fence());
+        assert!(!leaf_page.has_left_fence());
+        let (left_page, right_page) = leaf_page.split_page();
+        assert_eq!(left_page.get_entries_size(), 10);
+        assert!(left_page.has_right_fence());
+        assert!(!left_page.has_left_fence());
+        assert!(right_page.has_left_fence());
+        assert!(!right_page.has_right_fence());
+        assert_eq!(right_page.get_entries_size(), 10);
+        for i in 0..10 {
+            assert!(left_page.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
+        }
+        for i in 10..20 {
+            assert!(right_page.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
+        }
+
+        let (left_page1, left_page2) = left_page.split_page();
+        assert_eq!(left_page1.get_entries_size(), 5);
+        assert_eq!(left_page2.get_entries_size(), 5);
+        for i in 0..5 {
+            assert!(left_page1.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
+        }
+        for i in 5..10 {
+            assert!(left_page2.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
+        }
+        let (right_page1, right_page2) = right_page.split_page();
+        assert_eq!(right_page1.get_entries_size(), 5);
+        assert_eq!(right_page2.get_entries_size(), 5);
+        for i in 10..15 {
+            assert!(right_page1.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
+        }
+        for i in 15..20 {
+            assert!(right_page2.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
+        }
+
+    }
+
 
    
      #[test]
