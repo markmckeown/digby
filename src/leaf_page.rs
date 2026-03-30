@@ -379,7 +379,10 @@ impl LeafPage {
 
     fn split_page_1(&self) -> (LeafPage, LeafPage) {
         // First page - no left or right pages. This means no
-        // prefix and no right fence key.
+        // prefix, no right fence key and no left fence key.
+        // When split the page on the left will have not left fence but will
+        // have a right fence. The new page on the right will have a left fence
+        // but no right fence. Both pages will have no prefix.
         let mut left_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
         let mut right_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
          
@@ -683,13 +686,15 @@ mod tests {
         tuples.sort_by_key(|t| t.get_key().to_vec());
         assert!(!leaf_page.has_right_fence());
         assert!(!leaf_page.has_left_fence());
+        
         let (left_page, right_page) = leaf_page.split_page();
+        assert_eq!(right_page.get_entries_size(), 10);
         assert_eq!(left_page.get_entries_size(), 10);
         assert!(left_page.has_right_fence());
         assert!(!left_page.has_left_fence());
         assert!(right_page.has_left_fence());
         assert!(!right_page.has_right_fence());
-        assert_eq!(right_page.get_entries_size(), 10);
+        assert_eq!(left_page.get_right_fence_key(), right_page.get_left_fence_key());
         for i in 0..10 {
             assert!(left_page.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
         }
@@ -715,7 +720,7 @@ mod tests {
         for i in 15..20 {
             assert!(right_page2.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
         }
-        
+
         // left_page1
         assert!(left_page1.has_right_fence());
         assert!(!left_page1.has_left_fence());
