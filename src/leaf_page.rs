@@ -475,7 +475,7 @@ impl LeafPage {
     }
 
     fn split_page_4(&self) -> (LeafPage, LeafPage) {
-        // Center Page - has right and left fence and also a prefix. 
+        // Center Page - has right and left fence and also a Prefix. 
         // This means we need to calculate the new prefix length for the left and right pages after the split.
         let mut left_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
         let mut right_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
@@ -513,6 +513,9 @@ impl LeafPage {
 
     pub fn split_page(&self) -> (LeafPage, LeafPage) { 
         assert!(self.get_entries_size() > 2, "Cannot split a page with fewer than 3 entries.");
+        // TODO the individual split methods have a lot of code in common, we can probably 
+        // refactor to share some of the code. The main differences are in how the prefix lengths 
+        // are calculated and fence keys are handled.
 
         // First page - no left or right pages.
         if !self.has_left_fence() && !self.has_right_fence() {
@@ -521,7 +524,6 @@ impl LeafPage {
             // have a prefix.
             return self.split_page_1();
         }
-
 
         // Left Page - has right fence but no left fence.
         if !self.has_left_fence() {
@@ -536,55 +538,6 @@ impl LeafPage {
         // Center Page - has both left and right fences.
         return self.split_page_4();
     }
-
-
-    pub fn split_page_a(&self) -> (LeafPage, LeafPage) {
-        let mut left_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
-        let mut right_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
-        
-        // Split a Left Page
-        // Split Center Page
-        // Split a Right Page
-        
-        let entries = self.get_entries_size() as usize;
-        if entries == 0 {
-            return (left_page, right_page);
-        }
-        let mid = entries / 2;
-
-        // Need to work out the new prefix length for the left page after the split. 
-        // The new prefix length will be the common prefix length of the keys in the left page, 
-        // which can be calculated by comparing the key suffixes of the first key in the left page and the middle key 
-        // in the right page (which is the first key in the right page) until they differ.
-        let key_prefix = self.get_key_prefix();
-        let first_key_suffix = self.get_key_suffix_at_index(0);
-        let mid_key_suffix = self.get_key_suffix_at_index(mid);
-        let new_prefix_length = key_prefix.len() + mid_key_suffix.iter().zip(first_key_suffix).take_while(|(a, b)| a == b).count();
-        // How much of the old key suffix we no longer need to store in the slot because it is now part of the prefix. 
-        // We can calculate this by comparing the new prefix length with the old prefix length and the key suffix length.
-        let suffix_offset = new_prefix_length - key_prefix.len();
-
-        left_page.set_prefix_length(new_prefix_length as u8);
-        for i in 0..mid {
-            let (key, value) = self.get_key_suffix_and_value_at_index(i);
-            // This should avoid moving bytes around - we will be appending slots.
-            left_page.add_key_value_at_index(i, &key[suffix_offset..], value);
-        }
-
-        let last_key_suffix = self.get_key_suffix_at_index(entries - 1);
-        let right_new_prefix_length = key_prefix.len() + last_key_suffix.iter().zip(first_key_suffix).take_while(|(a, b)| a == b).count();
-        right_page.set_prefix_length(right_new_prefix_length as u8);
-        let right_suffix_offset = right_new_prefix_length - key_prefix.len();
-
-        let mut right_offset = 0;
-        for i in mid..entries {
-            let (key, value) = self.get_key_suffix_and_value_at_index(i);
-            right_page.add_key_value_at_index(right_offset, &key[right_suffix_offset..], value);
-            right_offset += 1;
-        }
-        (left_page, right_page)
-    }
-
 
     /**
      * Remove key and value. Returns true of the key was found and removed, 
@@ -683,6 +636,8 @@ mod tests {
         }
         // The tuples are added in order of increasing key, but the order they are stored in the page is not guaranteed to be the 
         // same as the order they were added, so we need to sort them by key before we can verify that they are split correctly.
+        // This is beacuse the tuple key is created as a string - the node treats it as a byte array so 11 comes before 2, so
+        // we sort the tuples to match the order the page will store them in.
         tuples.sort_by_key(|t| t.get_key().to_vec());
         assert!(!leaf_page.has_right_fence());
         assert!(!leaf_page.has_left_fence());
