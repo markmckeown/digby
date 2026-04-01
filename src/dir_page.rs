@@ -2,16 +2,14 @@
 use crate::{Page, block_layer::PageConfig};
 use crate::page::PageType;
 use crate::page::PageTrait;
-use crate::tuple::Tuple;
-use crate::tuple::TupleTrait;
 use core::panic;
 use std::cmp::Ordering;
 
-pub struct LeafPage {
+pub struct DirPage {
     page: Page,
 }
 
-impl PageTrait for LeafPage {
+impl PageTrait for DirPage {
     fn get_page_bytes(&self) -> &[u8] {
         self.page.get_page_bytes()
     }
@@ -37,58 +35,46 @@ impl PageTrait for LeafPage {
     }
 }
 
-pub struct LeafSlot {
+// The value in a DirPage is the page number of the child page so size is known.
+pub struct DirSlot {
     offset: u16,
-    key_len: u8,
-    val_len: u16
+    key_len: u8
 }
 
 
 // Header
 // | Page No (8 bytes) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) |
 // | prefix_length (u8) | left_fence_key_offset (u16) | left_fence_key_size (u8) | right_fence_key_offset (u16) | right_fence_key_size (u8) |
+// | page_to_the_left (u64) |
 // | slot | slot | slot | ...
 // | heap
 // | key | value | key | value | right_fence_key | left_fence_key | ...
 //
-// The page uses delta compression for keys, the prefix_length field indicates the length of the common 
-// prefix for all keys in the page. The slot only stores the suffix of the key after the prefix. This allows 
-// us to save space on the keys when there are many keys with a common prefix, which is often the 
-// case in B+ trees where keys in the same leaf page often share a common prefix due to the way they are 
-// inserted and split. The get_index_for_key method performs a binary search on the key suffixes in the slots to find 
-// the index of a key, which allows for efficient lookups while still benefiting from the space savings of 
-// delta compression.
-//
-// If the page is on the very left of the tree, it will not have a left fence key and the has_left_fence 
-// field will be set to 0. If the page is not on the very left of the tree, it will have a left fence key 
-// and the has_left_fence field will be set to 1. The smallest key in the page.
-//
-// The right fence key is stored in the heap area of the page and its offset and size are stored in the header.
-// If the right fence key size is zero then there is no right fence key, which means this page is on the very 
-// right of the tree. The right fence key is the largest key in the page.
-impl LeafPage {
-    const HEADER_SIZE: usize = 27; // 8 + 8 + 2 + 2 + 1 + 2 +1 + 2 + 1
-    const SLOT_SIZE: usize = 5; // 2 (offset) + 1 (key_len) + 2 (val_len)
+impl DirPage {
+    const HEADER_SIZE: usize = 35; // 8 + 8 + 2 + 2 + 1 + 2 +1 + 2 + 1 + 8
+    const VALUE_SIZE: usize = 8; // u64 page number of child page
+    const SLOT_SIZE: usize = 3; // 2 (offset) + 1 (key_len)
+    
 
     pub fn create_new(page_config: &PageConfig, page_number: u64) -> Self {
-        LeafPage::new(page_config.block_size, page_config.page_size, page_number)
+        DirPage::new(page_config.block_size, page_config.page_size, page_number)
     }
 
     fn new(block_size: usize, page_size: usize, page_number: u64) -> Self {
         let mut page = Page::new(block_size, page_size);
-        page.set_type(PageType::LeafPage);
+        page.set_type(PageType::DirPage);
         page.set_page_number(page_number);
-        let mut leaf_page = LeafPage { page };
-        leaf_page.set_free_space(page_size as u16 - LeafPage::HEADER_SIZE as u16);
-        leaf_page
+        let mut dir_page = DirPage { page };
+        dir_page.set_free_space(page_size as u16 - DirPage::HEADER_SIZE as u16);
+        dir_page
     }
 
 
     pub fn from_page(page: Page) -> Self {
-        if page.get_type() != PageType::LeafPage {
-            panic!("Page type is not Leaf");
+        if page.get_type() != PageType::DirPage {
+            panic!("Page type is not DirPage");
         }
-        LeafPage { page }
+        DirPage { page }
     }
 
     fn get_entries_size(&self) -> u16 {
@@ -115,6 +101,15 @@ impl LeafPage {
         self.page.get_page_bytes()[20]
     }
 
+    fn get_page_to_the_left(&self) -> u64 {
+        let bytes = &self.page.get_page_bytes()[27..35];
+        u64::from_le_bytes(bytes.try_into().unwrap())
+    }
+
+    fn set_page_to_left(&mut self, page_no: u64) {
+        let bytes = page_no.to_le_bytes();
+        self.page.get_page_bytes_mut()[27..35].copy_from_slice(&bytes);
+    }
     
    pub fn set_left_fence_key(&mut self, key: &[u8]) {
         assert!(key.len() <= u8::MAX as usize, "Left fence key size larger than u8 can hold.");
@@ -190,32 +185,28 @@ impl LeafPage {
         self.page.get_page_bytes_mut()[20] = prefix_length;
     }
     
-    fn get_slot_at_index(&self, index: usize) -> LeafSlot {
+    fn get_slot_at_index(&self, index: usize) -> DirSlot {
         assert!(index < self.get_entries_size() as usize);
-        let slot_offset = LeafPage::HEADER_SIZE + index * LeafPage::SLOT_SIZE;
+        let slot_offset = DirPage::HEADER_SIZE + index * DirPage::SLOT_SIZE;
         let offset_bytes = &self.page.get_page_bytes()[slot_offset..slot_offset + 2];
         let offset = u16::from_le_bytes(offset_bytes.try_into().unwrap());
         let key_len = self.page.get_page_bytes()[slot_offset + 2];
-        let val_len_bytes = &self.page.get_page_bytes()[slot_offset + 3..slot_offset + 5];
-        let val_len = u16::from_le_bytes(val_len_bytes.try_into().unwrap());
-        LeafSlot { offset, key_len, val_len }
+        DirSlot { offset, key_len}
     }
 
-    fn set_slot_at_index(&mut self, index: usize, slot: LeafSlot) {
-        let slot_offset = LeafPage::HEADER_SIZE + index * LeafPage::SLOT_SIZE;
+    fn set_slot_at_index(&mut self, index: usize, slot: DirSlot) {
+        let slot_offset = DirPage::HEADER_SIZE + index * DirPage::SLOT_SIZE;
         let offset_bytes = slot.offset.to_le_bytes();
         self.page.get_page_bytes_mut()[slot_offset..slot_offset + 2].copy_from_slice(&offset_bytes);
         self.page.get_page_bytes_mut()[slot_offset + 2] = slot.key_len;
-        let val_len_bytes = slot.val_len.to_le_bytes();
-        self.page.get_page_bytes_mut()[slot_offset + 3..slot_offset + 5].copy_from_slice(&val_len_bytes);
     }
 
-    fn get_value_at_slot(&self, slot: &LeafSlot) -> &[u8] {
+    fn get_value_at_slot(&self, slot: &DirSlot) -> &[u8] {
         let val_offset = (slot.offset + slot.key_len as u16) as usize;
-        &self.page.get_page_bytes()[val_offset..val_offset + slot.val_len as usize]
+        &self.page.get_page_bytes()[val_offset..val_offset + DirPage::VALUE_SIZE]
     }
 
-    fn get_key_at_slot(&self, slot: &LeafSlot) -> &[u8] {
+    fn get_key_at_slot(&self, slot: &DirSlot) -> &[u8] {
         let key_offset = slot.offset as usize;
         &self.page.get_page_bytes()[key_offset..key_offset + slot.key_len as usize]
     }
@@ -256,68 +247,59 @@ impl LeafPage {
             return;
         }
         self.page.get_page_bytes_mut().copy_within(
-            LeafPage::HEADER_SIZE + from_index * LeafPage::SLOT_SIZE..LeafPage::HEADER_SIZE + entries * LeafPage::SLOT_SIZE,
-            LeafPage::HEADER_SIZE + (from_index + 1) * LeafPage::SLOT_SIZE
+            DirPage::HEADER_SIZE + from_index * DirPage::SLOT_SIZE..DirPage::HEADER_SIZE + entries * DirPage::SLOT_SIZE,
+            DirPage::HEADER_SIZE + (from_index + 1) * DirPage::SLOT_SIZE
         );
     }
 
     fn shift_slots_left_from(&mut self, from_index: usize) {
         let entries = self.get_entries_size() as usize;
         self.page.get_page_bytes_mut().copy_within(
-            LeafPage::HEADER_SIZE + (from_index + 1) * LeafPage::SLOT_SIZE..LeafPage::HEADER_SIZE + entries * LeafPage::SLOT_SIZE,
-            LeafPage::HEADER_SIZE + from_index * LeafPage::SLOT_SIZE
+            DirPage::HEADER_SIZE + (from_index + 1) * DirPage::SLOT_SIZE..DirPage::HEADER_SIZE + entries * DirPage::SLOT_SIZE,
+            DirPage::HEADER_SIZE + from_index * DirPage::SLOT_SIZE
         );
     }
  
 
-    pub fn add_tuple(&mut self, tuple: &Tuple) -> bool {
+    pub fn add_child_page(&mut self, key: &[u8], page_no: u64)  -> bool {
         let prefix_length = self.get_prefix_length() as usize;
-        assert!(tuple.get_key().len() >= prefix_length, "Tuple key length is smaller than the prefix length of the page.");
-        assert!(tuple.get_key().starts_with(self.get_key_prefix()), "Tuple key does not match the prefix of the page.");
-        let key_suffix = &tuple.get_key()[prefix_length..];
+        assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
+        assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+        let key_suffix = &key[prefix_length..];
         let (found, index) = self.get_index_for_key(key_suffix);
         
         if found {
             let slot = self.get_slot_at_index(index);
-            if slot.val_len == tuple.get_version_value().len() as u16 {
-                // If the new value has the same length as the old value, we can just overwrite the value in place 
-                // without needing to shift entries around.
-                // TODO - if size is less we could also just overwrite and leave some unused space.
-                let val_offset = (slot.offset + slot.key_len as u16) as usize;
-                self.page.get_page_bytes_mut()[val_offset..val_offset + slot.val_len as usize].copy_from_slice(tuple.get_version_value());
-                return true;
-            } else {
-                // If the new value has a different length than the old value, we need to remove the old entry 
-                // and add a new entry for the key with the new value.
-                self.remove_key_value_at_index(index);
-
-            }
+            let val_offset = (slot.offset + slot.key_len as u16) as usize;
+            let val_bytes = page_no.to_le_bytes();
+            self.page.get_page_bytes_mut()[val_offset..val_offset + 8].copy_from_slice(&val_bytes);
+            return true;
         }    
 
-        let key_suffix_len = tuple.get_key().len() - prefix_length;
-        let new_entry_size = key_suffix_len + tuple.get_version_value().len();
-        let new_entry_total_size = new_entry_size + LeafPage::SLOT_SIZE;
+        let key_suffix_len = key.len() - prefix_length;
+        let new_entry_size = key_suffix_len + 8; // 8 bytes for the page number
+        let new_entry_total_size = new_entry_size + DirPage::SLOT_SIZE;
         let free_space = self.get_free_space() as usize;
 
         if new_entry_total_size > free_space {
             return false;
         }
 
-        self.add_key_value_at_index(index, key_suffix, tuple.get_version_value());
+        self.add_key_value_at_index(index, key_suffix, &page_no.to_le_bytes());
         true
     }
 
     fn calculate_entries_offset(&self) -> usize {
         let free_space = self.get_free_space() as usize;
         let entries = self.get_entries_size() as usize;
-        let header_plus_slots_size = LeafPage::HEADER_SIZE + entries * LeafPage::SLOT_SIZE;
+        let header_plus_slots_size = DirPage::HEADER_SIZE + entries * DirPage::SLOT_SIZE;
         header_plus_slots_size + free_space
     }
 
     fn add_key_value_at_index(&mut self, index: usize, key: &[u8], value: &[u8]) {
         // Sanity check
         let new_entry_size = key.len() + value.len();
-        let new_entry_total_size = new_entry_size + LeafPage::SLOT_SIZE;
+        let new_entry_total_size = new_entry_size + DirPage::SLOT_SIZE;
         let free_space = self.get_free_space() as usize;
         assert!(new_entry_total_size <= free_space);
 
@@ -331,7 +313,7 @@ impl LeafPage {
         self.page.get_page_bytes_mut()[new_entry_offset + key.len()..new_entry_offset + key.len() + value.len()].copy_from_slice(value);
         
         // Create a slot and add it.
-        let slot = LeafSlot { offset: new_entry_offset as u16, key_len: key.len() as u8, val_len: value.len() as u16 };
+        let slot = DirSlot { offset: new_entry_offset as u16, key_len: key.len() as u8};
         self.shift_slots_right_from(index);
         self.set_slot_at_index(index, slot);
 
@@ -341,7 +323,7 @@ impl LeafPage {
     }
 
     
-    pub fn get_tuple(&self, key: &[u8]) -> Option<Tuple> {
+    pub fn get_page_no_for_key(&self, key: &[u8]) -> Option<u64> {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
             assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
@@ -351,18 +333,12 @@ impl LeafPage {
         if !found {
             return None;
         }
-        Some(self.get_tuple_at_index(index))
+        Some(self.get_page_no_at_index(index))
     }    
 
-    fn get_tuple_at_index(&self, index: usize) -> Tuple {
+    fn get_page_no_at_index(&self, index: usize) -> u64 {
         let slot = self.get_slot_at_index(index);
-        let key_prefix = self.get_key_prefix();
-        let key = self.get_key_at_slot(&slot);
-        let value = self.get_value_at_slot(&slot);
-        let mut full_key = Vec::with_capacity(key_prefix.len() + key.len());
-        full_key.extend_from_slice(key_prefix);
-        full_key.extend_from_slice(key);
-        Tuple::new(&full_key, &value[8..], u64::from_le_bytes(value[0..8].try_into().unwrap()))
+        u64::from_le_bytes(self.get_value_at_slot(&slot)[0..8].try_into().unwrap())
     }
 
     pub fn get_key_suffix_and_value_at_index(&self, index: usize) -> (&[u8], &[u8]) {
@@ -377,14 +353,14 @@ impl LeafPage {
         self.get_key_at_slot(&slot)
     }
 
-    fn split_page_1(&self) -> (LeafPage, LeafPage) {
+    fn split_page_1(&self) -> (DirPage, DirPage) {
         // First page - no left or right pages. This means no
         // prefix, no right fence key and no left fence key.
         // When split the page on the left will have not left fence but will
         // have a right fence. The new page on the right will have a left fence
         // but no right fence. Both pages will have no prefix.
-        let mut left_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
-        let mut right_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
          
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
@@ -409,11 +385,11 @@ impl LeafPage {
     }
 
 
-    fn split_page_2(&self) -> (LeafPage, LeafPage) {
+    fn split_page_2(&self) -> (DirPage, DirPage) {
         // Left Page - has right fence but no left fence. This means no prefix
         // and a right fence key.
-        let mut left_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
-        let mut right_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
          
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
@@ -441,11 +417,11 @@ impl LeafPage {
         (left_page, right_page)
     }
 
-    fn split_page_3(&self) -> (LeafPage, LeafPage) {
+    fn split_page_3(&self) -> (DirPage, DirPage) {
         // Right Page - has left fence but no right fence. This means no prefix
         // and no right fence key.
-        let mut left_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
-        let mut right_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
          
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
@@ -474,11 +450,11 @@ impl LeafPage {
         (left_page, right_page)
     }
 
-    fn split_page_4(&self) -> (LeafPage, LeafPage) {
+    fn split_page_4(&self) -> (DirPage, DirPage) {
         // Center Page - has right and left fence and also a Prefix. 
         // This means we need to calculate the new prefix length for the left and right pages after the split.
-        let mut left_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
-        let mut right_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
          
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
@@ -511,7 +487,7 @@ impl LeafPage {
 
 
 
-    pub fn split_page(&self) -> (LeafPage, LeafPage) { 
+    pub fn split_page(&self) -> (DirPage, DirPage) { 
         assert!(self.get_entries_size() > 2, "Cannot split a page with fewer than 3 entries.");
         // TODO the individual split methods have a lot of code in common, we can probably 
         // refactor to share some of the code. The main differences are in how the prefix lengths 
@@ -566,10 +542,10 @@ impl LeafPage {
         let entries = self.get_entries_size() as usize;
         assert!(index < entries);
         let slot = self.get_slot_at_index(index);
-        let entry_size = slot.key_len as usize + slot.val_len as usize;
+        let entry_size = slot.key_len as usize + DirPage::VALUE_SIZE as usize;
         
         let free_space = self.get_free_space() as usize;
-        let header_plus_slots_size = LeafPage::HEADER_SIZE + entries * LeafPage::SLOT_SIZE;
+        let header_plus_slots_size = DirPage::HEADER_SIZE + entries * DirPage::SLOT_SIZE;
         let entries_size = self.page.page_size - (header_plus_slots_size + free_space);
         let entries_offset = self.page.page_size - entries_size;
         let entry_offset = slot.offset as usize;
@@ -585,7 +561,7 @@ impl LeafPage {
         if entry_offset == entries_offset {
             // No Head, just shift the tail to the left.
             // If the entry to remove is the last entry, we can just update the free space and entries without shifting.
-            self.set_free_space((free_space + entry_size + LeafPage::SLOT_SIZE) as u16);
+            self.set_free_space((free_space + entry_size + DirPage::SLOT_SIZE) as u16);
             self.set_entries_size((new_entry_count) as u16);
             return;
         }
@@ -595,7 +571,7 @@ impl LeafPage {
         self.page.get_page_bytes_mut().copy_within(entries_offset .. entries_offset + head, entries_offset + entry_size);
         
         // Need to update the slots in the head to reflect the shift in entries.
-        let mut slot_offset = LeafPage::HEADER_SIZE;
+        let mut slot_offset = DirPage::HEADER_SIZE;
         for _i in 0..new_entry_count {
             let slot_offset_bytes = &self.page.get_page_bytes()[slot_offset..slot_offset + 2];
             let slot_entry_offset = u16::from_le_bytes(slot_offset_bytes.try_into().unwrap());
@@ -605,12 +581,73 @@ impl LeafPage {
                 let new_offset_bytes = new_offset.to_le_bytes();
                 self.page.get_page_bytes_mut()[slot_offset..slot_offset + 2].copy_from_slice(&new_offset_bytes);
             }
-            slot_offset += LeafPage::SLOT_SIZE;
+            slot_offset += DirPage::SLOT_SIZE;
         }
 
         // Update entries and free space.
         self.set_entries_size(new_entry_count as u16);
-        self.set_free_space((free_space + entry_size + LeafPage::SLOT_SIZE) as u16);
+        self.set_free_space((free_space + entry_size + DirPage::SLOT_SIZE) as u16);
+    }
+
+
+
+    pub fn get_next_page(&self, key: &[u8]) -> u64 {
+        let entries = self.get_entries_size();
+        if entries == 0 {
+            return self.get_page_to_the_left();
+        }
+
+        let slot = self.get_slot_at_index(0);
+        let first_key = self.get_key_at_slot(&slot);
+        if key < first_key {
+            return self.get_page_to_the_left();
+        }
+
+        let last_entry = self.get_slot_at_index(entries as usize - 1);
+        let last_key = self.get_key_at_slot(&last_entry);
+        if key > last_key {
+            return self.get_page_no_at_index(entries as usize - 1);
+        }
+
+        let (found, index) = self.get_index_for_key(key);
+        if found {
+            self.get_page_no_at_index(index)
+        } else {
+            self.get_page_no_at_index(index - 1)
+        }
+    }
+
+
+    pub fn remove_key_page(&mut self, key: &[u8], page_no: u64) {
+        let entries = self.get_entries_size();
+
+        // There should only be the left most page.
+        if entries == 0 {
+            assert!(page_no == self.get_page_to_the_left());
+            self.set_page_to_left(0);
+            return;
+        }
+
+        // If removing the left most page need to move the next page into its place.
+        // There is a next page as entries > 0 from above.
+        if page_no == self.get_page_to_the_left() {
+            let slot = self.get_slot_at_index(0);
+            assert!(key < self.get_key_at_slot(&slot));
+            let new_left_most_page = self.get_value_at_slot(&slot);
+            self.set_page_to_left(u64::from_le_bytes(new_left_most_page.try_into().unwrap()));
+            self.remove_key_value_at_index(0);
+            return;
+        }
+
+        // Now get the index for the key and remove the entry.
+        let (found, index) = self.get_index_for_key(key);
+        if found {
+            assert_eq!(page_no, self.get_page_no_at_index(index));
+            self.remove_key_value_at_index(index);
+        } else {
+            assert_eq!(page_no, self.get_page_no_at_index(index - 1));
+            self.remove_key_value_at_index(index - 1);
+        }
     }
 
 
@@ -618,223 +655,123 @@ impl LeafPage {
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
-
     use super::*;
 
     #[test]
-    fn test_split() {
-        let page_config = PageConfig { block_size: 4096, page_size: 4000 };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1);
-        let mut tuples = vec![];
-        for i in 0..20 {
-            let key = format!("key{}", i).into_bytes();
-            let value = format!("value{}", i).into_bytes();
-            let tuple = Tuple::new(&key, &value, i as u64);
-            assert!(leaf_page.add_tuple(&tuple));
-            tuples.push(tuple);
-        }
-        // The tuples are added in order of increasing key, but the order they are stored in the page is not guaranteed to be the 
-        // same as the order they were added, so we need to sort them by key before we can verify that they are split correctly.
-        // This is beacuse the tuple key is created as a string - the node treats it as a byte array so 11 comes before 2, so
-        // we sort the tuples to match the order the page will store them in.
-        tuples.sort_by_key(|t| t.get_key().to_vec());
-        assert!(!leaf_page.has_right_fence());
-        assert!(!leaf_page.has_left_fence());
-        
-        let (left_page, right_page) = leaf_page.split_page();
-        assert_eq!(right_page.get_entries_size(), 10);
-        assert_eq!(left_page.get_entries_size(), 10);
-        assert!(left_page.has_right_fence());
-        assert!(!left_page.has_left_fence());
-        assert!(right_page.has_left_fence());
-        assert!(!right_page.has_right_fence());
-        assert_eq!(left_page.get_right_fence_key(), right_page.get_left_fence_key());
-        for i in 0..10 {
-            assert!(left_page.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
-        }
-        for i in 10..20 {
-            assert!(right_page.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
-        }
+    fn test_create_new() {
+        let page_config = PageConfig { block_size: 1024, page_size: 1024 };
+        let dir_page = DirPage::create_new(&page_config, 1);
+        assert_eq!(dir_page.get_page_number(), 1);
+        assert_eq!(dir_page.get_version(), 0);
+        assert_eq!(dir_page.get_entries_size(), 0);
+        assert_eq!(dir_page.get_free_space(), 1024 - DirPage::HEADER_SIZE as u16);
+    }
 
-        let (left_page1, left_page2) = left_page.split_page();
-        assert_eq!(left_page1.get_entries_size(), 5);
-        assert_eq!(left_page2.get_entries_size(), 5);
-        for i in 0..5 {
-            assert!(left_page1.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
-        }
-        for i in 5..10 {
-            assert!(left_page2.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
-        }
-        let (right_page1, right_page2) = right_page.split_page();
-        assert_eq!(right_page1.get_entries_size(), 5);
-        assert_eq!(right_page2.get_entries_size(), 5);
-        for i in 10..15 {
-            assert!(right_page1.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
-        }
-        for i in 15..20 {
-            assert!(right_page2.get_tuple(tuples.get(i).unwrap().get_key()).unwrap().equals(&tuples.get(i).unwrap()));
-        }
-
-        // left_page1
-        assert!(left_page1.has_right_fence());
-        assert!(!left_page1.has_left_fence());
-        assert_eq!(left_page1.get_prefix_length(), 0);
-
-        // left_page2
-        assert!(left_page2.has_left_fence());
-        assert!(left_page2.has_right_fence());
-        assert!(left_page2.get_prefix_length() > 0);
-        assert_eq!(left_page2.get_left_fence_key(), left_page1.get_right_fence_key());
-
-        // right_page1
-        assert!(right_page1.has_right_fence());
-        assert!(right_page1.has_left_fence());
-        assert!(right_page1.get_prefix_length() > 0);
-        assert_eq!(left_page2.get_right_fence_key(), right_page1.get_left_fence_key());
-
-        // right_page2
-        assert!(right_page2.has_left_fence());
-        assert!(!right_page2.has_right_fence());
-        assert_eq!(right_page2.get_prefix_length(), 0);
-        assert_eq!(right_page1.get_right_fence_key(), right_page2.get_left_fence_key());
+    #[test]
+    fn test_add_child_page() {
+        let page_config = PageConfig { block_size: 1024, page_size: 1024 };
+        let mut dir_page = DirPage::create_new(&page_config, 1);
+        let key1 = b"key1";
+        let key2 = b"key2";
+        let page_no1 = 2;
+        let page_no2 = 3;
+        dir_page.set_left_fence_key(key1);
+        dir_page.set_right_fence_key(b"key3");
+        dir_page.set_prefix_length(3);
+        dir_page.set_page_to_left(1);
+        dir_page.add_child_page(key1, page_no1);
+        dir_page.add_child_page(key2, page_no2);
+        assert_eq!(dir_page.get_entries_size(), 2);
+        assert_eq!(dir_page.get_page_no_for_key(key1).unwrap(), page_no1);
+        assert_eq!(dir_page.get_page_no_for_key(key2).unwrap(), page_no2);
+        assert_eq!(dir_page.get_left_fence_key(), key1);
+        assert_eq!(dir_page.get_right_fence_key(), b"key3");
+        assert_eq!(dir_page.get_prefix_length(), 3);
+        assert_eq!(dir_page.get_page_to_the_left(), 1);
     }
 
 
-   
-     #[test]
-     fn test_add_and_remove_tuple() {
-        let page_config = PageConfig { block_size: 4096, page_size: 4000 };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1);
-        let tuple_a = Tuple::new(b"a", b"a_value", 123);
-        let tuple_b = Tuple::new(b"b", b"b_value", 123);
-        let tuple_c = Tuple::new(b"c", b"c_value", 123);
+    #[test]
+    fn test_get_next_page() {
+        let page_config = PageConfig { block_size: 1024, page_size: 1024 };
+        let mut dir_page = DirPage::create_new(&page_config, 1);
 
-        assert!(leaf_page.get_tuple(tuple_a.get_key()).is_none());
-        assert!(leaf_page.add_tuple(&tuple_a));
-        assert_eq!(leaf_page.get_entries_size(), 1);
-        assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
-        assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
+        // Add left page.
+        dir_page.set_page_to_left(1);
+        
+        // Add keys
+        let key1 = b"key2";
+        let page_no1 = 2;
+        dir_page.add_child_page(key1, page_no1);
+        let key2 = b"key5";
+        let page_no2 = 5;
+        dir_page.add_child_page(key2, page_no2);
+        let key3 = b"key7";
+        let page_no3 = 7;
+        dir_page.add_child_page(key3, page_no3);
+        let key4 = b"key8";
+        let page_no8 = 8;
+        dir_page.add_child_page(key4, page_no8);
 
-        assert!(leaf_page.add_tuple(&tuple_c));
-        assert_eq!(leaf_page.get_entries_size(), 2);
-        assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
-        assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
+        assert_eq!(dir_page.get_next_page(b"key0"), 1);
+        assert_eq!(dir_page.get_next_page(b"key1"), 1);
+        assert_eq!(dir_page.get_next_page(b"key2"), 2);
+        assert_eq!(dir_page.get_next_page(b"key3"), 2);
+        assert_eq!(dir_page.get_next_page(b"key4"), 2);
+        assert_eq!(dir_page.get_next_page(b"key5"), 5);
+        assert_eq!(dir_page.get_next_page(b"key6"), 5);
+        assert_eq!(dir_page.get_next_page(b"key7"), 7);
+        assert_eq!(dir_page.get_next_page(b"key8"), 8);
+        assert_eq!(dir_page.get_next_page(b"key9"), 8);
 
-        assert!(leaf_page.add_tuple(&tuple_b));
-        assert_eq!(leaf_page.get_entries_size(), 3);
-        assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
-        assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
+        dir_page.remove_key_page(b"key0", 1);
+        assert_eq!(dir_page.get_page_to_the_left(), 2);
 
-        assert!(leaf_page.remove_key(tuple_b.get_key()));
-        assert_eq!(leaf_page.get_entries_size(), 2);
-        assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
-        assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
+        dir_page.remove_key_page(b"key6", 5);
+        assert_eq!(dir_page.get_next_page(b"key6"), 2);
 
-        assert!(leaf_page.remove_key(tuple_c.get_key()));
-        assert_eq!(leaf_page.get_entries_size(), 1);
-        assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
-        assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
-
-        assert!(leaf_page.remove_key(tuple_a.get_key()));
-        assert_eq!(leaf_page.get_entries_size(), 0);
-        assert!(leaf_page.get_tuple(tuple_a.get_key()).is_none());
-        assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
-     }
-
-
-     #[test]
-     fn test_overwrite_tuple() {
-        let page_config = PageConfig { block_size: 4096, page_size: 4000 };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1);
-        let tuple_a = Tuple::new(b"a", b"a_value", 123);
-        let tuple_b = Tuple::new(b"b", b"b_value", 123);
-        let tuple_c = Tuple::new(b"c", b"c_value", 123);
-        let tuple_c_same_value_size = Tuple::new(b"c", b"c_valu1", 123);
-        let tuple_c_updated = Tuple::new(b"c", b"c_value_updated", 124);
-        let tuple_d = Tuple::new(b"d", b"d_value", 123);
-        let tuple_e = Tuple::new(b"e", b"e_value", 123);
-
-
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
-        assert!(leaf_page.add_tuple(&tuple_c));
-        assert_eq!(leaf_page.get_entries_size(), 1);
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
-
-        assert!(leaf_page.add_tuple(&tuple_c_same_value_size));
-        assert_eq!(leaf_page.get_entries_size(), 1);
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_same_value_size));
-
-        assert!(leaf_page.add_tuple(&tuple_c_updated));
-        assert_eq!(leaf_page.get_entries_size(), 1);
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_updated));
-
-        assert!(leaf_page.remove_key(tuple_c.get_key()));
-        assert_eq!(leaf_page.get_entries_size(), 0);
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
-
-        assert!(leaf_page.add_tuple(&tuple_c));
-        assert_eq!(leaf_page.get_entries_size(), 1);
-        assert!(leaf_page.add_tuple(&tuple_d));
-        assert_eq!(leaf_page.get_entries_size(), 2);
-        assert!(leaf_page.add_tuple(&tuple_e));
-        assert_eq!(leaf_page.get_entries_size(), 3);
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
-        assert!(leaf_page.get_tuple(tuple_d.get_key()).unwrap().equals(&tuple_d));
-        assert!(leaf_page.get_tuple(tuple_e.get_key()).unwrap().equals(&tuple_e));
-        assert!(leaf_page.add_tuple(&tuple_c_same_value_size));
-        assert_eq!(leaf_page.get_entries_size(), 3);
-        assert!(leaf_page.add_tuple(&tuple_c_updated));
-        assert_eq!(leaf_page.get_entries_size(), 3);
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_updated));
-        assert!(leaf_page.get_tuple(tuple_d.get_key()).unwrap().equals(&tuple_d));
-        assert!(leaf_page.get_tuple(tuple_e.get_key()).unwrap().equals(&tuple_e));
-
-        assert!(leaf_page.remove_key(tuple_c.get_key()));
-        assert!(leaf_page.remove_key(tuple_d.get_key()));
-        assert!(leaf_page.remove_key(tuple_e.get_key()));
-        assert_eq!(leaf_page.get_entries_size(), 0);
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
-        assert!(leaf_page.get_tuple(tuple_d.get_key()).is_none());
-        assert!(leaf_page.get_tuple(tuple_e.get_key()).is_none());
-
-
-        assert!(leaf_page.add_tuple(&tuple_a));
-        assert!(leaf_page.add_tuple(&tuple_b));
-        assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
-        assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
-        assert!(leaf_page.add_tuple(&tuple_c));
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
-        assert!(leaf_page.add_tuple(&tuple_c_same_value_size));
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_same_value_size));
-        assert!(leaf_page.add_tuple(&tuple_c_updated));
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_updated));
-        assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
-        assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
-
-        assert!(leaf_page.remove_key(tuple_b.get_key()));
-        assert!(leaf_page.remove_key(tuple_c.get_key()));
-        assert!(leaf_page.remove_key(tuple_a.get_key()));
-        assert_eq!(leaf_page.get_entries_size(), 0);
-
-        assert!(leaf_page.add_tuple(&tuple_b));
-        assert!(leaf_page.add_tuple(&tuple_c));
-        assert!(leaf_page.add_tuple(&tuple_d));
-        assert_eq!(leaf_page.get_entries_size(), 3);
-        assert!(leaf_page.add_tuple(&tuple_c_same_value_size));
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_same_value_size));
-        assert!(leaf_page.add_tuple(&tuple_c_updated));
-        assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_updated));
-        assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
-        assert!(leaf_page.get_tuple(tuple_d.get_key()).unwrap().equals(&tuple_d));
-     }
+        dir_page.remove_key_page(b"key9", 8);
+        assert_eq!(dir_page.get_next_page(b"key8"), 7);
+        
+    }
 
 
 
+
+    #[test]
+    fn test_split_page() {
+        let page_config = PageConfig { block_size: 1024, page_size: 1024 };
+        let mut dir_page = DirPage::create_new(&page_config, 1);
+        for i in 0..20 {
+            let key = (i as u64).to_le_bytes().to_vec();
+            dir_page.add_child_page(&key, i as u64);
+        }
+        let (left_page, right_page) = dir_page.split_page();
+        assert_eq!(left_page.get_entries_size(), 10);
+        assert_eq!(right_page.get_entries_size(), 10);
+        for i in 0..10 {
+            let key = (i as u64).to_le_bytes().to_vec();
+            assert_eq!(left_page.get_page_no_for_key(&key).unwrap(), i as u64);
+        }
+        for i in 10..20 {
+            let key = (i as u64).to_le_bytes().to_vec();
+            assert_eq!(right_page.get_page_no_for_key(&key).unwrap(), i as u64);
+        }
+    }
+
+    #[test]
+    fn test_remove_key() {
+        let page_config = PageConfig { block_size: 1024, page_size: 1024 };
+        let mut dir_page = DirPage::create_new(&page_config, 1);
+        for i in 0..10 {
+            let key = format!("key{}", i).into_bytes();
+            dir_page.add_child_page(&key, i as u64);
+        }
+        assert!(dir_page.remove_key(b"key5"));
+        assert_eq!(dir_page.get_entries_size(), 9);
+        assert!(dir_page.get_page_no_for_key(b"key5").is_none());
+        // Removing a non-existent key should return false and not change the entries.
+        assert!(!dir_page.remove_key(b"non_existent_key"));
+        assert_eq!(dir_page.get_entries_size(), 9);
+    }   
 }

@@ -22,6 +22,7 @@ pub enum PageType {
     // B+ tree internal node page.
     TreeDirPage = 7,
     LeafPage = 8,
+    DirPage = 9,
 }
 
 impl TryFrom<u8> for PageType {
@@ -37,6 +38,7 @@ impl TryFrom<u8> for PageType {
             6 => Ok(PageType::FreeDir),
             7 => Ok(PageType::TreeDirPage),
             8 => Ok(PageType::LeafPage),
+            9 => Ok(PageType::DirPage),
             _ => Err(()),
         }
     }

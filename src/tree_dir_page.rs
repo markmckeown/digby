@@ -161,7 +161,8 @@ impl TreeDirPage {
         // pop first entry
         let entry = deque.pop_front().unwrap();
 
-        // Empty page - there must be more than one entry. Set first to be the left of
+        // This is an empty page - there must be more than one entry since this page
+        // can only be created with a split. Set first to be the left of
         // page then add other entries
         if self.get_entries() == 0 {
             if deque.is_empty() {
@@ -177,12 +178,14 @@ impl TreeDirPage {
             return;
         }
 
+        // First entry is an update of an existing page.
         // Need to check if first entry is to the left of the left key, if it is then set left page.
         if entry.get_key() < self.get_dir_left_key().unwrap().as_ref() {
             self.set_page_to_left(entry.get_page_no());
         } else {
             self.set_page_no_for_key(entry.get_key().to_vec(), entry.get_page_no());
         }
+        // We need to add the rest of the entries to this page.
         while !deque.is_empty() {
             self.add_tree_dir_in_page(deque.pop_front().unwrap());
         }
