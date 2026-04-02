@@ -82,10 +82,10 @@ impl LeafPage {
         let mut leaf_page = LeafPage { page };
         leaf_page.set_free_space(page_size as u16 - LeafPage::HEADER_SIZE as u16);
         leaf_page.set_entries_size(0);
-        leaf_page.set_prefix_length(0);
         leaf_page.set_entries_size(0);   
         leaf_page.set_left_fence_key(&[]);
         leaf_page.set_right_fence_key(&[]);
+        leaf_page.set_prefix_length(0);
         leaf_page
     }
 
@@ -191,8 +191,7 @@ impl LeafPage {
     pub fn set_prefix_length(&mut self, prefix_length: u8) {
         assert!(prefix_length <= u8::MAX as u8, "Prefix length larger than u8 can hold.");
         assert!(self.get_entries_size() == 0, "Cannot set prefix length on a page that already has entries.");
-        assert!(self.has_left_fence(), "Cannot set prefix length on a page that does not have a left fence key.");
-        assert!(prefix_length < self.get_right_fence_key_size(), "Prefix length cannot be larger than the right fence key size.");
+        assert!(prefix_length <= self.get_right_fence_key_size(), "Prefix length cannot be larger than the right fence key size.");
         self.page.get_page_bytes_mut()[20] = prefix_length;
     }
     
