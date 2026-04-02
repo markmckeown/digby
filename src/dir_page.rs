@@ -56,16 +56,22 @@ impl DirPage {
     const SLOT_SIZE: usize = 3; // 2 (offset) + 1 (key_len)
     
 
-    pub fn create_new(page_config: &PageConfig, page_number: u64) -> Self {
-        DirPage::new(page_config.block_size, page_config.page_size, page_number)
+    pub fn create_new(page_config: &PageConfig, page_number: u64,  version: u64) -> Self {
+        DirPage::new(page_config.block_size, page_config.page_size, page_number,  version)
     }
 
-    fn new(block_size: usize, page_size: usize, page_number: u64) -> Self {
+    fn new(block_size: usize, page_size: usize, page_number: u64,  version: u64) -> Self {
         let mut page = Page::new(block_size, page_size);
         page.set_type(PageType::DirPage);
         page.set_page_number(page_number);
         let mut dir_page = DirPage { page };
         dir_page.set_free_space(page_size as u16 - DirPage::HEADER_SIZE as u16);
+        dir_page.set_version(version);
+        dir_page.set_page_to_left(0);
+        dir_page.set_prefix_length(0);
+        dir_page.set_entries_size(0);   
+        dir_page.set_left_fence_key(&[]);
+        dir_page.set_right_fence_key(&[]);
         dir_page
     }
 
@@ -353,14 +359,16 @@ impl DirPage {
         self.get_key_at_slot(&slot)
     }
 
-    fn split_page_1(&self) -> (DirPage, DirPage) {
+    fn split_page_1(&self, version: u64) -> (DirPage, DirPage) {
         // First page - no left or right pages. This means no
         // prefix, no right fence key and no left fence key.
         // When split the page on the left will have not left fence but will
         // have a right fence. The new page on the right will have a left fence
         // but no right fence. Both pages will have no prefix.
-        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
-        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
+            0, version);
+        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
+            0, version);
          
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
@@ -385,11 +393,13 @@ impl DirPage {
     }
 
 
-    fn split_page_2(&self) -> (DirPage, DirPage) {
+    fn split_page_2(&self, version: u64) -> (DirPage, DirPage) {
         // Left Page - has right fence but no left fence. This means no prefix
         // and a right fence key.
-        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
-        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
+            0, version);
+        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
+            0, version);
          
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
@@ -417,11 +427,13 @@ impl DirPage {
         (left_page, right_page)
     }
 
-    fn split_page_3(&self) -> (DirPage, DirPage) {
+    fn split_page_3(&self, version: u64) -> (DirPage, DirPage) {
         // Right Page - has left fence but no right fence. This means no prefix
         // and no right fence key.
-        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
-        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
+            0, version);
+        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
+            0, version);
          
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
@@ -450,11 +462,13 @@ impl DirPage {
         (left_page, right_page)
     }
 
-    fn split_page_4(&self) -> (DirPage, DirPage) {
+    fn split_page_4(&self, version: u64) -> (DirPage, DirPage) {
         // Center Page - has right and left fence and also a Prefix. 
         // This means we need to calculate the new prefix length for the left and right pages after the split.
-        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
-        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0);
+        let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
+            0, version);
+        let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
+            0, version);
          
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
@@ -487,7 +501,7 @@ impl DirPage {
 
 
 
-    pub fn split_page(&self) -> (DirPage, DirPage) { 
+    pub fn split_page(&self, version: u64) -> (DirPage, DirPage) { 
         assert!(self.get_entries_size() > 2, "Cannot split a page with fewer than 3 entries.");
         // TODO the individual split methods have a lot of code in common, we can probably 
         // refactor to share some of the code. The main differences are in how the prefix lengths 
@@ -498,21 +512,21 @@ impl DirPage {
             // There will be no prefix. When the page is split the
             // there will be a Left Page and a Right neither will
             // have a prefix.
-            return self.split_page_1();
+            return self.split_page_1(version);
         }
 
         // Left Page - has right fence but no left fence.
         if !self.has_left_fence() {
-            return self.split_page_2();
+            return self.split_page_2(version);
         }
 
         // Right Page - has left fence but no right fence.
         if !self.has_right_fence() {
-            return self.split_page_3();
+            return self.split_page_3(version);
         }
 
         // Center Page - has both left and right fences.
-        return self.split_page_4();
+        return self.split_page_4(version);
     }
 
     /**
@@ -660,7 +674,7 @@ mod tests {
     #[test]
     fn test_create_new() {
         let page_config = PageConfig { block_size: 1024, page_size: 1024 };
-        let dir_page = DirPage::create_new(&page_config, 1);
+        let dir_page = DirPage::create_new(&page_config, 1, 0);
         assert_eq!(dir_page.get_page_number(), 1);
         assert_eq!(dir_page.get_version(), 0);
         assert_eq!(dir_page.get_entries_size(), 0);
@@ -670,7 +684,7 @@ mod tests {
     #[test]
     fn test_add_child_page() {
         let page_config = PageConfig { block_size: 1024, page_size: 1024 };
-        let mut dir_page = DirPage::create_new(&page_config, 1);
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
         let key1 = b"key1";
         let key2 = b"key2";
         let page_no1 = 2;
@@ -694,7 +708,7 @@ mod tests {
     #[test]
     fn test_get_next_page() {
         let page_config = PageConfig { block_size: 1024, page_size: 1024 };
-        let mut dir_page = DirPage::create_new(&page_config, 1);
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
 
         // Add left page.
         dir_page.set_page_to_left(1);
@@ -741,12 +755,12 @@ mod tests {
     #[test]
     fn test_split_page() {
         let page_config = PageConfig { block_size: 1024, page_size: 1024 };
-        let mut dir_page = DirPage::create_new(&page_config, 1);
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
         for i in 0..20 {
             let key = (i as u64).to_le_bytes().to_vec();
             dir_page.add_child_page(&key, i as u64);
         }
-        let (left_page, right_page) = dir_page.split_page();
+        let (left_page, right_page) = dir_page.split_page(0);
         assert_eq!(left_page.get_entries_size(), 10);
         assert_eq!(right_page.get_entries_size(), 10);
         for i in 0..10 {
@@ -762,7 +776,7 @@ mod tests {
     #[test]
     fn test_remove_key() {
         let page_config = PageConfig { block_size: 1024, page_size: 1024 };
-        let mut dir_page = DirPage::create_new(&page_config, 1);
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
         for i in 0..10 {
             let key = format!("key{}", i).into_bytes();
             dir_page.add_child_page(&key, i as u64);
