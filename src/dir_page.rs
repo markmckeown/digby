@@ -403,7 +403,7 @@ impl DirPage {
     fn split_page_1(&self, version: u64) -> (DirPage, DirPage) {
         // First page - no left or right pages. This means no
         // prefix, no right fence key and no left fence key.
-        // When split the page on the left will have not left fence but will
+        // When split the page on the left will have no left fence but will
         // have a right fence. The new page on the right will have a left fence
         // but no right fence. Both pages will have no prefix.
         let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
@@ -415,6 +415,7 @@ impl DirPage {
         let mid = entries / 2;
 
         let mid_key = self.get_key_suffix_at_index(mid);
+        left_page.set_page_to_left(self.get_page_to_the_left());
         left_page.set_right_fence_key(mid_key);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -423,8 +424,9 @@ impl DirPage {
         }
 
         right_page.set_left_fence_key(mid_key);
+        right_page.set_page_to_left(self.get_page_no_at_index(mid));
         let mut right_offset = 0;
-        for i in mid..entries {
+        for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             right_page.add_key_value_at_index(right_offset, &key, value);
             right_offset += 1;
@@ -445,6 +447,7 @@ impl DirPage {
         let mid = entries / 2;
         
         let mid_key = self.get_key_suffix_at_index(mid);
+        left_page.set_page_to_left(self.get_page_to_the_left());
         left_page.set_right_fence_key(mid_key);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -457,8 +460,9 @@ impl DirPage {
         right_page.set_left_fence_key(mid_key);
         let right_prefix_length = mid_key.iter().zip(right_fence_key).take_while(|(a, b)| a == b).count();
         right_page.set_prefix_length(right_prefix_length as u8);
+        right_page.set_page_to_left(self.get_page_no_at_index(mid));
         let mut right_offset = 0;
-        for i in mid..entries {
+        for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             right_page.add_key_value_at_index(right_offset, &key[right_prefix_length..], value);
             right_offset += 1;
@@ -481,6 +485,7 @@ impl DirPage {
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
         let low_key = self.get_key_suffix_at_index(0);
+        left_page.set_page_to_left(self.get_page_to_the_left());
         left_page.set_left_fence_key(low_key);
         left_page.set_right_fence_key(mid_key);
         let left_prefix_length = low_key.iter().zip(mid_key).take_while(|(a, b)| a == b).count();
@@ -492,8 +497,9 @@ impl DirPage {
         }
 
         right_page.set_left_fence_key(mid_key);
+        right_page.set_page_to_left(self.get_page_no_at_index(mid));
         let mut right_offset = 0;
-        for i in mid..entries {
+        for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             right_page.add_key_value_at_index(right_offset, &key, value);
             right_offset += 1;
@@ -517,6 +523,7 @@ impl DirPage {
         let low_key = self.get_key_suffix_at_index(0);
         left_page.set_left_fence_key(low_key);
         left_page.set_right_fence_key(mid_key);
+        left_page.set_page_to_left(self.get_page_to_the_left());
         let left_prefix_length = low_key.iter().zip(mid_key).take_while(|(a, b)| a == b).count();
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -529,8 +536,9 @@ impl DirPage {
         let right_prefix_length = mid_key.iter().zip(self.get_right_fence_key()).take_while(|(a, b)| a == b).count();
         right_page.set_prefix_length(right_prefix_length as u8);
         let right_suffix_offset = right_prefix_length - self.get_prefix_length() as usize;       
+        right_page.set_page_to_left(self.get_page_no_at_index(mid));
         let mut right_offset = 0;
-        for i in mid..entries {
+        for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             right_page.add_key_value_at_index(right_offset, &key[right_suffix_offset..], value);
             right_offset += 1;
@@ -775,12 +783,12 @@ mod tests {
         }
         let (left_page, right_page) = dir_page.split_page(0);
         assert_eq!(left_page.get_entries_size(), 10);
-        assert_eq!(right_page.get_entries_size(), 10);
-        for i in 0..10 {
+        assert_eq!(right_page.get_entries_size(), 9);
+        for i in 1..10 {
             let key = (i as u64).to_le_bytes().to_vec();
             assert_eq!(left_page.get_page_no_for_key(&key).unwrap(), i as u64);
         }
-        for i in 10..20 {
+        for i in 11..20 {
             let key = (i as u64).to_le_bytes().to_vec();
             assert_eq!(right_page.get_page_no_for_key(&key).unwrap(), i as u64);
         }
