@@ -266,24 +266,56 @@ impl DirPage {
         );
     }
  
+    // There are two ways to in which a child page no can be added to the dir page,
+    // - if we are updating an existing entry, we need to find the correct entry (the key may not be an exact match)
+    // - if a child page has split then we need to update on entry and add a new entry. 
+    pub fn update_child_page_no(&mut self, key: &[u8], page_no: u64)  {
+        let prefix_length = self.get_prefix_length() as usize;
+        assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
+        assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+        let key_suffix = &key[prefix_length..];
+        
+        let entries = self.get_entries_size() as usize;
+        // Page empty - we can just add the page number as the left most page and return.
+        if entries == 0 {
+            self.set_page_to_left(page_no);
+            return;
+        }
+
+        // Get first key and check if the key belongs to the left most page.
+         let slot = self.get_slot_at_index(0);
+         if key_suffix < self.get_key_at_slot(&slot) {
+             // The key belongs to the left most page. We just need to update the page number for the left most page.
+             self.set_page_to_left(page_no);
+             return;
+         }
+
+        // The key does not belong to the left most page. We need to find the correct entry and update the page number.
+        let (found, index) = self.get_index_for_key(key_suffix);
+        let index_to_update;
+        if found {
+            index_to_update = index;
+        } else {
+            index_to_update = index - 1;
+        }
+        let slot_to_update = self.get_slot_at_index(index_to_update);
+        let val_offset = (slot_to_update.offset + slot_to_update.key_len as u16) as usize;
+        let val_bytes = page_no.to_le_bytes();      
+        self.page.get_page_bytes_mut()[val_offset..val_offset + DirPage::VALUE_SIZE].copy_from_slice(&val_bytes);
+    }
+
 
     pub fn add_child_page(&mut self, key: &[u8], page_no: u64)  -> bool {
+        // We need to consider this when adding the first entry and when adding an entry that becomes the new leftmost entry.
         let prefix_length = self.get_prefix_length() as usize;
         assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
         assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
         let key_suffix = &key[prefix_length..];
         let (found, index) = self.get_index_for_key(key_suffix);
-        
-        if found {
-            let slot = self.get_slot_at_index(index);
-            let val_offset = (slot.offset + slot.key_len as u16) as usize;
-            let val_bytes = page_no.to_le_bytes();
-            self.page.get_page_bytes_mut()[val_offset..val_offset + 8].copy_from_slice(&val_bytes);
-            return true;
-        }    
-
+        assert!(found == false, "Key already exists in the page when adding a new child page");
+          
         let key_suffix_len = key.len() - prefix_length;
-        let new_entry_size = key_suffix_len + 8; // 8 bytes for the page number
+        let new_entry_size = key_suffix_len + DirPage::VALUE_SIZE; // 8 bytes for the page number
         let new_entry_total_size = new_entry_size + DirPage::SLOT_SIZE;
         let free_space = self.get_free_space() as usize;
 
@@ -294,6 +326,10 @@ impl DirPage {
         self.add_key_value_at_index(index, key_suffix, &page_no.to_le_bytes());
         true
     }
+
+
+
+
 
     fn calculate_entries_offset(&self) -> usize {
         let free_space = self.get_free_space() as usize;
@@ -529,26 +565,10 @@ impl DirPage {
         return self.split_page_4(version);
     }
 
-    /**
-     * Remove key and value. Returns true of the key was found and removed, 
-     * false if the key was not found.
-     */
-    pub fn remove_key(&mut self, key: &[u8]) -> bool {
-        let prefix_length = self.get_prefix_length() as usize;
-        if prefix_length > 0 {
-            assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
-            assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
-        }
-         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
-         if !found {
-             return false;
-         }
-         self.remove_key_value_at_index(index);
-         true
-    }
+    
 
     /**
-     * The approach removes the bytes from the page and shovels the entries
+     * The approach removes the bytes from the page and moves the entries
      * around to fill the gap. An alternative approach is to leave the 
      * hole in the entries and attempt to fill it in when adding new entries.
      */
@@ -648,6 +668,7 @@ impl DirPage {
             let slot = self.get_slot_at_index(0);
             assert!(key < self.get_key_at_slot(&slot));
             let new_left_most_page = self.get_value_at_slot(&slot);
+            // TODO should just copy bytes instead of uwrapping and rewrapping the page number.
             self.set_page_to_left(u64::from_le_bytes(new_left_most_page.try_into().unwrap()));
             self.remove_key_value_at_index(0);
             return;
@@ -772,20 +793,4 @@ mod tests {
             assert_eq!(right_page.get_page_no_for_key(&key).unwrap(), i as u64);
         }
     }
-
-    #[test]
-    fn test_remove_key() {
-        let page_config = PageConfig { block_size: 1024, page_size: 1024 };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
-        for i in 0..10 {
-            let key = format!("key{}", i).into_bytes();
-            dir_page.add_child_page(&key, i as u64);
-        }
-        assert!(dir_page.remove_key(b"key5"));
-        assert_eq!(dir_page.get_entries_size(), 9);
-        assert!(dir_page.get_page_no_for_key(b"key5").is_none());
-        // Removing a non-existent key should return false and not change the entries.
-        assert!(!dir_page.remove_key(b"non_existent_key"));
-        assert_eq!(dir_page.get_entries_size(), 9);
-    }   
 }
