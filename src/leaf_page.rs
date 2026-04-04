@@ -382,18 +382,31 @@ impl LeafPage {
         self.get_key_at_slot(&slot)
     }
 
+    fn get_key_at_index(&self, index: usize) -> Vec<u8> {
+        let slot = self.get_slot_at_index(index);
+        let key_suffix =self.get_key_at_slot(&slot);
+        let key_prefix = self.get_key_prefix();
+        let mut full_key = Vec::with_capacity(key_prefix.len() + key_suffix.len());
+        full_key.extend_from_slice(key_prefix);
+        full_key.extend_from_slice(key_suffix);
+        full_key
+    }
+
+
     fn split_page_1(&self,version: u64) -> (LeafPage, LeafPage) {
         // First page - no left or right pages. This means no
         // prefix, no right fence key and no left fence key.
-        // When split the page on the left will have not left fence but will
+        // When split the page on the left will have not have a left fence but will
         // have a right fence. The new page on the right will have a left fence
         // but no right fence. Both pages will have no prefix.
+        assert!(self.get_key_prefix().len() == 0, "Page has a prefix when splitting page with no fences.");
         let mut left_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0, version);
         let mut right_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0, version);
          
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
 
+        // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
         left_page.set_right_fence_key(mid_key);
         for i in 0..mid {
@@ -417,12 +430,14 @@ impl LeafPage {
     fn split_page_2(&self,version: u64) -> (LeafPage, LeafPage) {
         // Left Page - has right fence but no left fence. This means no prefix
         // and a right fence key.
+        assert!(self.get_key_prefix().len() == 0, "Page has a prefix when splitting page with only a right fence.");
         let mut left_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0, version);
         let mut right_page = LeafPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 0, version);
          
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
         
+        // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
         left_page.set_right_fence_key(mid_key);
         for i in 0..mid {
@@ -455,8 +470,10 @@ impl LeafPage {
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
         
+        // Create page to the left.
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
+        // Should we use the left fence key from the current page?
         let low_key = self.get_key_suffix_at_index(0);
         left_page.set_left_fence_key(low_key);
         left_page.set_right_fence_key(mid_key);
@@ -468,7 +485,9 @@ impl LeafPage {
             left_page.add_key_value_at_index(i, &key[left_prefix_length..], value);
         }
 
+        // Create page to the right.
         right_page.set_left_fence_key(mid_key);
+        right_page.set_prefix_length(0);
         let mut right_offset = 0;
         for i in mid..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -488,18 +507,20 @@ impl LeafPage {
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
         
-        let mid_key = self.get_key_suffix_at_index(mid);
-        let low_key = self.get_key_suffix_at_index(0);
-        left_page.set_left_fence_key(low_key);
-        left_page.set_right_fence_key(mid_key);
-        let left_prefix_length = low_key.iter().zip(mid_key).take_while(|(a, b)| a == b).count();
+        let mid_key = self.get_key_at_index(mid);
+        let low_key = self.get_key_at_index(0);
+        left_page.set_left_fence_key(&low_key);
+        left_page.set_right_fence_key(&mid_key);
+        let left_prefix_length = low_key.as_slice().iter().zip(mid_key.as_slice()).take_while(|(a, b)| a == b).count();
+        let left_suffix_offset = left_prefix_length - self.get_prefix_length() as usize;
+        left_page.set_prefix_length(left_prefix_length as u8);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
-            left_page.add_key_value_at_index(i, &key[left_prefix_length..], value);
+            left_page.add_key_value_at_index(i, &key[left_suffix_offset..], value);
         }
 
-        right_page.set_left_fence_key(mid_key);
+        right_page.set_left_fence_key(&mid_key);
         right_page.set_right_fence_key(self.get_right_fence_key());
         let right_prefix_length = mid_key.iter().zip(self.get_right_fence_key()).take_while(|(a, b)| a == b).count();
         right_page.set_prefix_length(right_prefix_length as u8);

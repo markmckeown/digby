@@ -416,7 +416,9 @@ impl DirPage {
         // First page - no left or right pages. This means no
         // prefix, no right fence key and no left fence key.
         // When split the page on the left will have no left fence but will
-        // have a right fence. The new page on the right will have a left fence
+        // have a right fence. 
+        // The current page has no prefix.
+        // When split the new page on the right will have a left fence
         // but no right fence. Both pages will have no prefix.
         let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
             0, version);
@@ -426,17 +428,26 @@ impl DirPage {
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
 
+        // Get the key suffix for mid key - there is no prefix
+        // so this will be the full key.
         let mid_key = self.get_key_suffix_at_index(mid);
+        // Page to the left remains the same for the new page on the left.
         left_page.set_page_to_left(self.get_page_to_the_left());
+        // Set the right fence to the mid_key which will be the left key 
+        // for the new page on the right.
         left_page.set_right_fence_key(mid_key);
+        left_page.set_prefix_length(0);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
             left_page.add_key_value_at_index(i, &key, value);
         }
 
+        // For the right page there is no right fence or prefix.
+        // Set the left fence to the mid_key - this also the page to the left.
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
         right_page.set_left_fence_key(mid_key);
+        right_page.set_prefix_length(0);
         let mut right_offset = 0;
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -448,8 +459,13 @@ impl DirPage {
     }
 
     fn split_page_2(&self, version: u64) -> (DirPage, DirPage) {
-        // Left Page - has right fence but no left fence. This means no prefix
+        // Left Page. Has right fence but no left fence. There is no prefix
         // and a right fence key.
+        // New page to the left will have no left fence and the right fence will be the mid key, it
+        // will have no prefix.
+        // New page to the right will have a left fence which is the mid key and the right of the 
+        // current page. The new right page will have a prefix.
+        assert!(self.get_key_prefix().len() == 0, "Page has a prefix when splitting page with only a right fence.");
         let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
             0, version);
         let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
