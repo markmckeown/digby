@@ -42,6 +42,23 @@ impl LeafPageHandler {
         }
     }
 
+    pub fn map_leaf_pages(
+        pages: &mut Vec<LeafPage>,
+        free_page_tracker: &mut FreePageTracker,
+        page_cache: &mut PageCache,
+        version: u64,
+    ) {
+        for page in pages {
+            let old_page_no = page.get_page_number();
+            if old_page_no != 0 {
+                free_page_tracker.return_free_page_no(old_page_no);
+            }
+            let new_page_no = free_page_tracker.get_free_page(page_cache);
+            page.set_page_number(new_page_no);
+            page.set_version(version);
+        }
+    }
+
     fn add_to_page(
         tuple: Tuple,
         new_pages: &mut Vec<TreeLeafPage>,
