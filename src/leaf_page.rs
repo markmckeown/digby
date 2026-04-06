@@ -97,7 +97,7 @@ impl LeafPage {
         LeafPage { page }
     }
 
-    fn get_entries_size(&self) -> u16 {
+    pub fn get_entries_size(&self) -> u16 {
         let bytes = &self.page.get_page_bytes()[16..18];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
@@ -362,8 +362,15 @@ impl LeafPage {
     pub fn get_tuple(&self, key: &[u8]) -> Option<Tuple> {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
-            assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
-            assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+            // We are looking for a key in a page that does not have the key - prefix is off.
+            if key.len() < prefix_length {
+                return None;
+            }
+            if !key.starts_with(self.get_key_prefix()) {
+                return None;
+            }
+            //assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
+            //assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
         }
         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
         if !found {
@@ -403,6 +410,16 @@ impl LeafPage {
         full_key.extend_from_slice(key_prefix);
         full_key.extend_from_slice(key_suffix);
         full_key
+    }
+
+     pub fn get_all_tuples(&self) -> Vec<Tuple> {
+        let entries = self.get_entries_size();
+        let mut tuples = Vec::new();
+        for i in 0..entries {
+            let tuple = self.get_tuple_at_index(i as usize);
+            tuples.push(tuple);
+        }
+        tuples
     }
 
 
@@ -582,7 +599,7 @@ impl LeafPage {
      * Remove key and value. Returns true of the key was found and removed, 
      * false if the key was not found.
      */
-    pub fn delete_key(&mut self, key: &[u8]) -> bool {
+    pub fn delete_key(&mut self, key: &[u8]) -> Option<Tuple> {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
             assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
@@ -590,10 +607,11 @@ impl LeafPage {
         }
          let (found, index) = self.get_index_for_key(&key[prefix_length..]);
          if !found {
-             return false;
+             return None;
          }
+         let tuple = self.get_tuple_at_index(index);
          self.remove_key_value_at_index(index);
-         true
+         Some(tuple)
     }
 
     /**
@@ -768,19 +786,19 @@ mod tests {
         assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
 
-        assert!(leaf_page.delete_key(tuple_b.get_key()));
+        assert!(leaf_page.delete_key(tuple_b.get_key()).is_some());
         assert_eq!(leaf_page.get_entries_size(), 2);
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
 
-        assert!(leaf_page.delete_key(tuple_c.get_key()));
+        assert!(leaf_page.delete_key(tuple_c.get_key()).is_some());
         assert_eq!(leaf_page.get_entries_size(), 1);
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
         assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
 
-        assert!(leaf_page.delete_key(tuple_a.get_key()));
+        assert!(leaf_page.delete_key(tuple_a.get_key()).is_some());
         assert_eq!(leaf_page.get_entries_size(), 0);
         assert!(leaf_page.get_tuple(tuple_a.get_key()).is_none());
         assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
@@ -814,7 +832,7 @@ mod tests {
         assert_eq!(leaf_page.get_entries_size(), 1);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_updated));
 
-        assert!(leaf_page.delete_key(tuple_c.get_key()));
+        assert!(leaf_page.delete_key(tuple_c.get_key()).is_some());
         assert_eq!(leaf_page.get_entries_size(), 0);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
 
@@ -835,9 +853,9 @@ mod tests {
         assert!(leaf_page.get_tuple(tuple_d.get_key()).unwrap().equals(&tuple_d));
         assert!(leaf_page.get_tuple(tuple_e.get_key()).unwrap().equals(&tuple_e));
 
-        assert!(leaf_page.delete_key(tuple_c.get_key()));
-        assert!(leaf_page.delete_key(tuple_d.get_key()));
-        assert!(leaf_page.delete_key(tuple_e.get_key()));
+        assert!(leaf_page.delete_key(tuple_c.get_key()).is_some());
+        assert!(leaf_page.delete_key(tuple_d.get_key()).is_some());
+        assert!(leaf_page.delete_key(tuple_e.get_key()).is_some());
         assert_eq!(leaf_page.get_entries_size(), 0);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
         assert!(leaf_page.get_tuple(tuple_d.get_key()).is_none());
@@ -857,9 +875,9 @@ mod tests {
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
 
-        assert!(leaf_page.delete_key(tuple_b.get_key()));
-        assert!(leaf_page.delete_key(tuple_c.get_key()));
-        assert!(leaf_page.delete_key(tuple_a.get_key()));
+        assert!(leaf_page.delete_key(tuple_b.get_key()).is_some());
+        assert!(leaf_page.delete_key(tuple_c.get_key()).is_some());
+        assert!(leaf_page.delete_key(tuple_a.get_key()).is_some());
         assert_eq!(leaf_page.get_entries_size(), 0);
 
         assert!(leaf_page.add_tuple(&tuple_b).0);

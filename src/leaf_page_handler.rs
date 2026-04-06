@@ -2,23 +2,22 @@ use crate::block_layer::PageConfig;
 use crate::free_page_tracker::FreePageTracker;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
-use crate::tree_leaf_page::TreeLeafPage;
 use crate::leaf_page::LeafPage;
 use crate::tuple::{Tuple, TupleTrait};
 
 pub struct LeafPageHandler {}
 
 pub struct UpdateResult {
-    pub tree_leaf_pages: Vec<TreeLeafPage>,
+    pub tree_leaf_pages: Vec<LeafPage>,
     pub deleted_tuple: Option<Tuple>,
 }
 
 impl LeafPageHandler {
     // This happens after overflow handling, so we know the tuple will fit in a page.
-    pub fn add_tuple(page: TreeLeafPage, tuple: Tuple, page_config: &PageConfig) -> UpdateResult {
-        let mut pages: Vec<TreeLeafPage> = Vec::new();
+    pub fn add_tuple(page: LeafPage, tuple: Tuple, page_config: &PageConfig) -> UpdateResult {
+        let mut pages: Vec<LeafPage> = Vec::new();
         pages.push(page);
-        let deleted_tuple = LeafPageHandler::add_to_page(tuple, &mut pages, page_config);
+        let deleted_tuple = LeafPageHandler::add_to_leaf_page(tuple, &mut pages, page_config);
         UpdateResult {
             tree_leaf_pages: pages,
             deleted_tuple,
@@ -27,23 +26,6 @@ impl LeafPageHandler {
 
 
     pub fn map_pages(
-        pages: &mut Vec<TreeLeafPage>,
-        free_page_tracker: &mut FreePageTracker,
-        page_cache: &mut PageCache,
-        version: u64,
-    ) {
-        for page in pages {
-            let old_page_no = page.get_page_number();
-            if old_page_no != 0 {
-                free_page_tracker.return_free_page_no(old_page_no);
-            }
-            let new_page_no = free_page_tracker.get_free_page(page_cache);
-            page.set_page_number(new_page_no);
-            page.set_version(version);
-        }
-    }
-
-    pub fn map_leaf_pages(
         pages: &mut Vec<LeafPage>,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
@@ -60,82 +42,8 @@ impl LeafPageHandler {
         }
     }
 
-    fn add_to_page(
-        tuple: Tuple,
-        new_pages: &mut Vec<TreeLeafPage>,
-        page_config: &PageConfig,
-    ) -> Option<Tuple> {
-        assert!(!new_pages.is_empty());
-        let page = new_pages.last_mut().unwrap();
-        // Need to get the existing tuple in case there are overflow pages to clean up.
-        let existing_tuple = page.get_tuple(tuple.get_key());
 
-        // Tuple can fit into page, no split needed. If the key is already in the page
-        // then it would be delete in the store_tuple
-        if page.can_fit(tuple.get_byte_size()) {
-            page.store_tuple(tuple);
-            return existing_tuple;
-        }
-
-        // Cannot fit, but we may be replacing the key so try deleting it.
-        if existing_tuple.is_some() {
-            page.delete_key(tuple.get_key());
-            // key was deleted. now check it fits.
-            if page.can_fit(tuple.get_byte_size()) {
-                page.store_tuple(tuple);
-                return existing_tuple;
-            }
-        }
-
-        // Split the page and get the entries to the right
-        let mut tuples_to_right = page.get_right_half_tuples();
-        // Create a new page to hold the entries to the right
-        let mut new_page = TreeLeafPage::create_new(page_config, 0);
-        if tuples_to_right.is_empty() {
-            // Edge case, the page cannot be split as it has only one entry. The new page
-            // is empty so add tuple to it. We can assume it can fit into a page.
-            assert!(new_page.can_fit(tuple.get_byte_size()));
-            new_page.store_tuple(tuple);
-            new_pages.push(new_page);
-            return existing_tuple;
-        }
-
-        // We grab the left most key of the entries removed from the first page and
-        // add the entries to the page.
-        let left_key_for_new_page = tuples_to_right.first().unwrap().get_key().to_vec();
-        new_page.add_sorted_tuples(&mut tuples_to_right);
-
-        // Tuple is to the left of the split entries so try and add to the original page.
-        if tuple.get_key() < left_key_for_new_page.as_slice() {
-            if page.can_fit(tuple.get_byte_size()) {
-                // Tuple fits into the original page now!
-                page.store_tuple(tuple);
-                new_pages.push(new_page);
-                return existing_tuple;
-            } else {
-                // Tuple does not fit into the old page, need to split again,
-                // Put the new page to the start of the new_pages - the old
-                // page is still the last entry adn will be split again when
-                // recursively called.
-                new_pages.insert(0, new_page);
-                return LeafPageHandler::add_to_page(tuple, new_pages, page_config);
-            }
-        }
-
-        // The tuple should go into the new page if it can fit.
-        if new_page.can_fit(tuple.get_byte_size()) {
-            new_page.store_tuple(tuple);
-            new_pages.push(new_page);
-            return existing_tuple;
-        }
-        // Tuple cannot fit into new page, new page is the last in the list
-        // and will be split again when function is recursively called.
-        new_pages.push(new_page);
-        LeafPageHandler::add_to_page(tuple, new_pages, page_config)
-    }
-
-
-    pub fn add_to_leaf_page(
+    fn add_to_leaf_page(
         tuple: Tuple,
         new_pages: &mut Vec<LeafPage>,
         page_config: &PageConfig,
@@ -216,14 +124,15 @@ mod tests {
         };
         let version = 0;
 
-        let mut tree_leaf_page: TreeLeafPage = TreeLeafPage::create_new(&page_config, 56);
-        tree_leaf_page.set_version(version + 1);
+        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, 56, version + 1);
         let mut new_version = version;
         let mut tuple: Tuple;
-        let mut j: u32 = 0;
+        let mut pages: UpdateResult = UpdateResult {
+            tree_leaf_pages: Vec::new(),
+            deleted_tuple: None,
+        };
         // Each loop is a new commit.
         for i in 1u32..1024 {
-            j = i;
             new_version = new_version + 1;
             tuple = Tuple::new(
                 i.to_le_bytes().to_vec().as_ref(),
@@ -231,27 +140,19 @@ mod tests {
                 new_version,
             );
 
-            // Fill page, but don't split.
-            if !tree_leaf_page.can_fit(tuple.get_byte_size()) {
+
+            pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
+            if pages.tree_leaf_pages.len() > 1 {
                 break;
             }
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
-            assert!(pages.tree_leaf_pages.len() == 1);
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap();
         }
 
-        // Original page is full now - next input will require a split
-        tuple = Tuple::new(
-            j.to_le_bytes().to_vec().as_ref(),
-            j.to_le_bytes().to_vec().as_ref(),
-            new_version,
-        );
-        let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
         assert!(pages.tree_leaf_pages.len() == 2);
         let tree_leaf_page1 = pages.tree_leaf_pages.pop().unwrap();
-        assert_eq!(tree_leaf_page1.get_all_tuples().len(), 97);
+        assert_eq!(tree_leaf_page1.get_entries_size(), 98);
         let tree_leaf_page2 = pages.tree_leaf_pages.pop().unwrap();
-        assert_eq!(tree_leaf_page2.get_all_tuples().len(), 97);
+        assert_eq!(tree_leaf_page2.get_entries_size(), 96);
     }
 
     // In this test we overwrite the same key twice.
@@ -261,9 +162,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
         };
-        let mut tree_leaf_page: TreeLeafPage = TreeLeafPage::create_new(&page_config, 0);
-        tree_leaf_page.set_version(1);
-
+        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, 0, 1);
         let mut new_version = 2;
         let mut tuple: Tuple;
         // Each loop is a new commit.
@@ -284,142 +183,5 @@ mod tests {
         }
         assert_eq!(tree_leaf_page_count, 1);
     }
-
-    #[test]
-    fn test_add_big_tuples() {
-        let page_config = PageConfig {
-            block_size: 4096,
-            page_size: 4092,
-        };
-        let version = 0;
-        let mut tree_leaf_page: TreeLeafPage = TreeLeafPage::create_new(&page_config, 0);
-        tree_leaf_page.set_version(version + 1);
-        let mut new_version = version;
-        let mut tuple: Tuple;
-
-        // Each loop is a new commit.
-        let mut tree_leaf_page_count = 0;
-        for i in 0u32..2 {
-            new_version = new_version + 1;
-            let value = vec![0u8; 2048];
-            tuple = Tuple::new(
-                i.to_le_bytes().to_vec().as_ref(),
-                value.as_ref(),
-                new_version,
-            );
-
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
-            tree_leaf_page_count = pages.tree_leaf_pages.len();
-            tree_leaf_page = pages.tree_leaf_pages.pop().unwrap();
-        }
-        assert_eq!(tree_leaf_page_count, 2);
-    }
-
-    #[test]
-    fn test_add_small_large_large() {
-        let page_config = PageConfig {
-            block_size: 4096,
-            page_size: 4092,
-        };
-        let version = 0;
-        let mut tree_leaf_page: TreeLeafPage = TreeLeafPage::create_new(&page_config, 0);
-        tree_leaf_page.set_version(version + 1);
-
-        let mut new_version = version;
-        let mut tuple: Tuple;
-
-        // Each loop is a new commit.
-        let mut tree_leaf_page_count = 0;
-        for i in 0u32..3 {
-            new_version = new_version + 1;
-            let value: Vec<u8>;
-            if i == 0 {
-                value = vec![0u8; 8];
-            } else {
-                value = vec![0u8; 2048];
-            }
-            // Use the same key
-            tuple = Tuple::new(
-                i.to_le_bytes().to_vec().as_ref(),
-                value.as_ref(),
-                new_version,
-            );
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
-            tree_leaf_page_count = pages.tree_leaf_pages.len();
-            tree_leaf_page = pages.tree_leaf_pages.pop().unwrap();
-        }
-        assert_eq!(tree_leaf_page_count, 3);
-    }
-
-    #[test]
-    fn test_add_large_small_large() {
-        let page_config = PageConfig {
-            block_size: 4096,
-            page_size: 4092,
-        };
-        let version = 0;
-        let mut tree_leaf_page: TreeLeafPage = TreeLeafPage::create_new(&page_config, 0);
-        let mut new_version = version;
-        let mut tuple: Tuple;
-
-        // Each loop is a new commit.
-        let mut tree_leaf_page_count = 0;
-        for i in 0u32..3 {
-            new_version = new_version + 1;
-            let value: Vec<u8>;
-            if i == 1 {
-                value = vec![0u8; 8];
-            } else {
-                value = vec![0u8; 2048];
-            }
-            // Use the same key
-            tuple = Tuple::new(
-                i.to_le_bytes().to_vec().as_ref(),
-                value.as_ref(),
-                new_version,
-            );
-
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
-            tree_leaf_page_count = pages.tree_leaf_pages.len();
-            tree_leaf_page = pages.tree_leaf_pages.pop().unwrap();
-        }
-        assert_eq!(tree_leaf_page_count, 2);
-    }
-
-    #[test]
-    fn test_add_small_large_large_reverse() {
-        let page_config = PageConfig {
-            block_size: 4096,
-            page_size: 4092,
-        };
-        let version = 0;
-        let mut tree_leaf_page: TreeLeafPage = TreeLeafPage::create_new(&page_config, 0);
-        tree_leaf_page.set_version(version + 1);
-
-        let mut new_version = version;
-        let mut tuple: Tuple;
-
-        // Each loop is a new commit.
-        let mut tree_leaf_page_count = 0;
-        for i in 0u32..3 {
-            new_version = new_version + 1;
-            let j = 3 - i;
-            let value: Vec<u8>;
-            if j == 3 {
-                value = vec![0u8; 8];
-            } else {
-                value = vec![0u8; 2048];
-            }
-            // Use the same key
-            tuple = Tuple::new(
-                j.to_le_bytes().to_vec().as_ref(),
-                value.as_ref(),
-                new_version,
-            );
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
-            tree_leaf_page_count = pages.tree_leaf_pages.len();
-            tree_leaf_page = pages.tree_leaf_pages.pop().unwrap();
-        }
-        assert_eq!(tree_leaf_page_count, 3);
-    }
+ 
 }

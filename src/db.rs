@@ -10,8 +10,7 @@ use crate::page::PageTrait;
 use crate::page_cache::PageCache;
 use crate::tuple::{Overflow, TupleTrait};
 use crate::{
-    ClearHandler, Compressor, FreeDirPage, OverflowPageHandler, StoreTupleProcessor,
-    TreeDeleteHandler, TreeLeafPage, TupleProcessor,
+    ClearHandler, Compressor, FreeDirPage, LeafPage, OverflowPageHandler, StoreTupleProcessor, TreeDeleteHandler, TupleProcessor
 };
 
 pub struct Db {
@@ -353,8 +352,7 @@ impl Db {
 
         let new_table_root_page_no = free_page_tracker.get_free_page(&mut self.page_cache);
         let mut new_table_root_page =
-            TreeLeafPage::create_new(self.page_cache.get_page_config(), new_table_root_page_no);
-        new_table_root_page.set_version(new_version);
+            LeafPage::create_new(self.page_cache.get_page_config(), new_table_root_page_no, new_version);
         self.page_cache.put_page(new_table_root_page.get_page());
 
         // Create the tuple we want to add.
@@ -792,13 +790,13 @@ impl Db {
 
         // Write the Global Tree Root Page.
         let mut global_tree_root_page =
-            TreeLeafPage::create_new(self.page_cache.get_page_config(), 5);
+            LeafPage::create_new(self.page_cache.get_page_config(), 5, 0);
         // remove it from the free list
         free_pages.retain(|&x| x != 5);
         self.page_cache.put_page(global_tree_root_page.get_page());
 
         // Write the table directory page.
-        let mut table_dir_page = TreeLeafPage::create_new(self.page_cache.get_page_config(), 4);
+        let mut table_dir_page = LeafPage::create_new(self.page_cache.get_page_config(), 4, 0);
         // remove from the free page list
         free_pages.retain(|&x| x != 4);
         self.page_cache.put_page(table_dir_page.get_page());
@@ -1256,9 +1254,7 @@ mod tests {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
                 let deleted = db.delete(&i.to_be_bytes());
-                if !deleted {
-                    assert!(deleted);
-                }
+                assert!(deleted);
                 let returned_value = db.get(&i.to_be_bytes());
                 assert!(returned_value.is_none());
             }

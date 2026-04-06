@@ -6,7 +6,7 @@ use crate::page_cache::PageCache;
 use crate::tree_dir_entry::TreeDirEntry;
 use crate::tree_dir_handler::{TreeDirHandler, TreeDirPageRef};
 use crate::tree_dir_page::TreeDirPage;
-use crate::tree_leaf_page::TreeLeafPage;
+use crate::leaf_page::LeafPage;
 use crate::tuple::{Tuple, TupleTrait};
 
 pub struct StoreTupleProcessor {}
@@ -19,8 +19,8 @@ impl StoreTupleProcessor {
         loop {
             // If the page is a tree leaf then if the key is stored
             // then it will be in this leaf page.
-            if page.get_type() == PageType::TreeLeaf {
-                let tree_leaf = TreeLeafPage::from_page(page);
+            if page.get_type() == PageType::LeafPage {
+                let tree_leaf = LeafPage::from_page(page);
                 return tree_leaf.get_tuple(key);
             }
             // If its a tree dir page then descend to the next
@@ -40,9 +40,9 @@ impl StoreTupleProcessor {
         page_cache: &mut PageCache,
         new_version: u64,
     ) -> u64 {
-        if first.get_type() == PageType::TreeLeaf {
+        if first.get_type() == PageType::LeafPage {
             // The root of the tree is actually a leaf page - requires special handling.
-            let tree_root_single = TreeLeafPage::from_page(first);
+            let tree_root_single = LeafPage::from_page(first);
             return StoreTupleProcessor::store_tuple_tree_root_single(
                 tuple,
                 tree_root_single,
@@ -79,7 +79,7 @@ impl StoreTupleProcessor {
         // the tree.
         let mut dir_pages: Vec<TreeDirPage> = Vec::new();
         let mut next_page: u64;
-        let leaf_page: TreeLeafPage;
+        let leaf_page: LeafPage;
         let key = tuple.get_key().to_vec();
         // loop down until we hit the leaf page keeping a track of the
         // the dir pages as we go.
@@ -87,8 +87,8 @@ impl StoreTupleProcessor {
             next_page = dir_page.get_next_page(&key);
             dir_pages.push(dir_page);
             let page = page_cache.get_page(next_page);
-            if page.get_type() == PageType::TreeLeaf {
-                leaf_page = TreeLeafPage::from_page(page);
+            if page.get_type() == PageType::LeafPage {
+                leaf_page = LeafPage::from_page(page);
                 break;
             }
             dir_page = TreeDirPage::from_page(page);
@@ -211,7 +211,7 @@ impl StoreTupleProcessor {
     // Get new page numbers for the leaf pages and return the old page numbers
     // to be reused in future commits.
     fn write_leaf_pages(
-        mut leaf_pages: Vec<TreeLeafPage>,
+        mut leaf_pages: Vec<LeafPage>,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
@@ -238,7 +238,7 @@ impl StoreTupleProcessor {
     //    a dir page.
     fn store_tuple_tree_root_single(
         tuple: Tuple,
-        tree_root_single: TreeLeafPage,
+        tree_root_single: LeafPage,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
@@ -336,8 +336,7 @@ mod tests {
 
         let root_tree_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
         let mut leaf_page =
-            TreeLeafPage::create_new(page_cache.get_page_config(), root_tree_page_no);
-        leaf_page.set_version(version);
+            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
 
         let mut free_page_tracker = FreePageTracker::new(
@@ -389,8 +388,7 @@ mod tests {
 
         let mut root_tree_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
         let mut leaf_page =
-            TreeLeafPage::create_new(page_cache.get_page_config(), root_tree_page_no);
-        leaf_page.set_version(version);
+            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
 
         let mut j: u32 = 0;
@@ -420,7 +418,7 @@ mod tests {
             for mut free_page in free_pages {
                 page_cache.put_page(free_page.get_page());
             }
-            if page_cache.get_page(root_tree_page_no).get_type() != PageType::TreeLeaf {
+            if page_cache.get_page(root_tree_page_no).get_type() != PageType::LeafPage {
                 break;
             }
         }
@@ -456,8 +454,7 @@ mod tests {
 
         let mut root_tree_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
         let mut leaf_page =
-            TreeLeafPage::create_new(page_cache.get_page_config(), root_tree_page_no);
-        leaf_page.set_version(version);
+            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
 
         for i in 0u64..20000 {

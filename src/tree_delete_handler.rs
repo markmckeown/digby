@@ -1,7 +1,7 @@
 use crate::page::{PageTrait, PageType};
 use crate::tuple::{Overflow, TupleTrait};
 use crate::{
-    FreePageTracker, OverflowPageHandler, Page, PageCache, TreeDirEntry, TreeDirPage, TreeLeafPage,
+    FreePageTracker, OverflowPageHandler, Page, PageCache, TreeDirEntry, TreeDirPage, LeafPage,
 };
 pub struct TreeDeleteHandler {}
 
@@ -13,9 +13,9 @@ impl TreeDeleteHandler {
         free_page_tracker: &mut FreePageTracker,
         new_version: u64,
     ) -> (u64, bool) {
-        if root_page.get_type() == PageType::TreeLeaf {
+        if root_page.get_type() == PageType::LeafPage {
             // The root of the tree is actually a leaf page - requires special handling.
-            let mut tree_root_single = TreeLeafPage::from_page(root_page);
+            let mut tree_root_single = LeafPage::from_page(root_page);
             return TreeDeleteHandler::delete_key_from_root(
                 key,
                 &mut tree_root_single,
@@ -48,15 +48,15 @@ impl TreeDeleteHandler {
         // the tree.
         let mut dir_pages: Vec<TreeDirPage> = Vec::new();
         let mut next_page: u64;
-        let mut leaf_page: TreeLeafPage;
+        let mut leaf_page: LeafPage;
         // loop down until we hit the leaf page keeping a track of the
         // the dir pages as we go.
         loop {
             next_page = dir_page.get_next_page(key);
             dir_pages.push(dir_page);
             let page = page_cache.get_page(next_page);
-            if page.get_type() == PageType::TreeLeaf {
-                leaf_page = TreeLeafPage::from_page(page);
+            if page.get_type() == PageType::LeafPage {
+                leaf_page = LeafPage::from_page(page);
                 break;
             }
             dir_page = TreeDirPage::from_page(page);
@@ -79,7 +79,7 @@ impl TreeDeleteHandler {
         }
 
         // Store the root page back into the page cache - should not do this if it is empty!
-            let mut new_leaf_page_no: u64 = 0;
+        let mut new_leaf_page_no: u64 = 0;
         // we always return the leaf page number to be recycled.
         let old_leaf_page_no = leaf_page.get_page_number();
         free_page_tracker.return_free_page_no(old_leaf_page_no);
@@ -169,8 +169,7 @@ fn fix_stack(
         if dir_pages.is_empty() {
             let new_root_page_no = free_page_tracker.get_free_page(page_cache);
             let mut new_root =
-                TreeLeafPage::create_new(page_cache.get_page_config(), new_root_page_no);
-            new_root.set_version(new_version);
+                LeafPage::create_new(page_cache.get_page_config(), new_root_page_no,new_version);
             page_cache.put_page(new_root.get_page());
             return new_root_page_no;
         }
@@ -240,7 +239,7 @@ fn fix_stack(
 
     fn delete_key_from_root(
         key: &[u8],
-        root_page: &mut TreeLeafPage,
+        root_page: &mut LeafPage,
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
         new_version: u64,
