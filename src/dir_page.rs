@@ -373,8 +373,14 @@ impl DirPage {
     pub fn get_page_no_for_key(&self, key: &[u8]) -> Option<u64> {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
-            assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
-            assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+            if key.len() < prefix_length {
+                return None;
+            }
+            if !key.starts_with(self.get_key_prefix()) {
+                return None;
+            }
+            //assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
+            //assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
         }
         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
         if !found {
