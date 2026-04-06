@@ -102,6 +102,10 @@ impl LeafPage {
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.get_entries_size() == 0
+    }   
+
     fn set_entries_size(&mut self, entries: u16) {
         let bytes = entries.to_le_bytes();
         self.page.get_page_bytes_mut()[16..18].copy_from_slice(&bytes);
@@ -149,7 +153,7 @@ impl LeafPage {
     }
 
     
-    fn get_left_fence_key(&self) -> &[u8] {
+    pub fn get_left_fence_key(&self) -> &[u8] {
         let offset = self.get_left_fence_key_offset() as usize;
         let size = self.get_left_fence_key_size() as usize;
         &self.page.get_page_bytes()[offset..offset + size]

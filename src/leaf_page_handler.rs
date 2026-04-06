@@ -3,6 +3,7 @@ use crate::free_page_tracker::FreePageTracker;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
 use crate::tree_leaf_page::TreeLeafPage;
+use crate::leaf_page::LeafPage;
 use crate::tuple::{Tuple, TupleTrait};
 
 pub struct LeafPageHandler {}
@@ -113,6 +114,71 @@ impl LeafPageHandler {
         // and will be split again when function is recursively called.
         new_pages.push(new_page);
         LeafPageHandler::add_to_page(tuple, new_pages, page_config)
+    }
+
+
+    pub fn add_to_leaf_page(
+        tuple: Tuple,
+        new_pages: &mut Vec<LeafPage>,
+        page_config: &PageConfig,
+    ) -> Option<Tuple> {
+        assert!(!new_pages.is_empty());
+        let page = new_pages.last_mut().unwrap();
+        let (ok, existing_tuple) = page.add_tuple(&tuple);
+
+        if ok {
+            // Tuple was added without needing to split the page.
+            return existing_tuple;
+        }
+
+        // Tuple was not added, so we need to split the page and add it to the correct page.
+        // TODO - handle split when no entries go into right page.
+        let (mut left_page, mut right_page) = page.split_page(0);
+        new_pages.pop();
+        
+
+        if right_page.is_empty() {
+            // Edge case, the page cannot be split as it has only one entry. The new page
+            // is empty so add tuple to it. We can assume it can fit into a page.
+            let (ok, _) = right_page.add_tuple(&tuple);
+            assert!(ok);
+            new_pages.push(left_page);
+            new_pages.push(right_page);
+            return existing_tuple;
+        }
+
+        let left_key_for_new_page = right_page.get_left_fence_key();
+
+        // Tuple is to the left of the split entries so try and add to the original page.
+        if tuple.get_key() < left_key_for_new_page {
+            let (ok, _) = left_page.add_tuple(&tuple);
+            if ok {
+                new_pages.push(left_page);
+                new_pages.push(right_page);
+                return existing_tuple;
+            } else {
+                // Tuple does not fit into the old page, need to split again,
+                // Put the new page to the start of the new_pages - the old
+                // page is still the last entry adn will be split again when
+                // recursively called.
+                new_pages.insert(0, right_page);
+                new_pages.push(left_page);
+                return LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config);
+            }
+        }
+
+        let (ok, _) = right_page.add_tuple(&tuple);
+        if ok {
+            new_pages.push(left_page);
+            new_pages.push(right_page);
+            return existing_tuple;
+        }
+
+        // Tuple cannot fit into new page, new page is the last in the list
+        // and will be split again when function is recursively called.
+        new_pages.push(left_page);
+        new_pages.push(right_page);
+        LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config)
     }
 }
 
