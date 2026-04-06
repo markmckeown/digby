@@ -49,7 +49,7 @@ impl LeafPageHandler {
         assert!(!new_pages.is_empty());
         let page = new_pages.last_mut().unwrap();
         // Need to get the existing tuple in case there are overflow pages to clean up.
-        let existing_tuple = page.get_tuple(tuple.get_key().to_vec().as_ref());
+        let existing_tuple = page.get_tuple(tuple.get_key());
 
         // Tuple can fit into page, no split needed. If the key is already in the page
         // then it would be delete in the store_tuple
@@ -83,11 +83,11 @@ impl LeafPageHandler {
 
         // We grab the left most key of the entries removed from the first page and
         // add the entries to the page.
-        let left_key_for_new_page = &tuples_to_right.first().unwrap().get_key().to_vec()[..];
+        let left_key_for_new_page = tuples_to_right.first().unwrap().get_key().to_vec();
         new_page.add_sorted_tuples(&mut tuples_to_right);
 
         // Tuple is to the left of the split entries so try and add to the original page.
-        if tuple.get_key() < left_key_for_new_page {
+        if tuple.get_key() < left_key_for_new_page.as_slice() {
             if page.can_fit(tuple.get_byte_size()) {
                 // Tuple fits into the original page now!
                 page.store_tuple(tuple);

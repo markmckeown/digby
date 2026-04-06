@@ -275,27 +275,28 @@ impl LeafPage {
     }
  
 
-    pub fn add_tuple(&mut self, tuple: &Tuple) -> bool {
+    pub fn add_tuple(&mut self, tuple: &Tuple) -> (bool, Option<Tuple>) {
         let prefix_length = self.get_prefix_length() as usize;
         assert!(tuple.get_key().len() >= prefix_length, "Tuple key length is smaller than the prefix length of the page.");
         assert!(tuple.get_key().starts_with(self.get_key_prefix()), "Tuple key does not match the prefix of the page.");
         let key_suffix = &tuple.get_key()[prefix_length..];
         let (found, index) = self.get_index_for_key(key_suffix);
         
+        let mut existing_tuple: Option<Tuple> = None;
         if found {
             let slot = self.get_slot_at_index(index);
+            existing_tuple = Some(self.get_tuple_at_index(index));
             if slot.val_len == tuple.get_version_value().len() as u16 {
                 // If the new value has the same length as the old value, we can just overwrite the value in place 
                 // without needing to shift entries around.
                 // TODO - if size is less we could also just overwrite and leave some unused space.
                 let val_offset = (slot.offset + slot.key_len as u16) as usize;
                 self.page.get_page_bytes_mut()[val_offset..val_offset + slot.val_len as usize].copy_from_slice(tuple.get_version_value());
-                return true;
+                return (true, existing_tuple);
             } else {
                 // If the new value has a different length than the old value, we need to remove the old entry 
                 // and add a new entry for the key with the new value.
                 self.remove_key_value_at_index(index);
-
             }
         }    
 
@@ -305,12 +306,13 @@ impl LeafPage {
         let free_space = self.get_free_space() as usize;
 
         if new_entry_total_size > free_space {
-            return false;
+            return (false, existing_tuple);
         }
 
         self.add_key_value_at_index(index, key_suffix, tuple.get_version_value());
-        true
+        (true, existing_tuple)
     }
+
 
     fn calculate_entries_offset(&self) -> usize {
         let free_space = self.get_free_space() as usize;
@@ -657,7 +659,7 @@ mod tests {
             let key = format!("key{}", i).into_bytes();
             let value = format!("value{}", i).into_bytes();
             let tuple = Tuple::new(&key, &value, i as u64);
-            assert!(leaf_page.add_tuple(&tuple));
+            assert!(leaf_page.add_tuple(&tuple).0);
             tuples.push(tuple);
         }
         // The tuples are added in order of increasing key, but the order they are stored in the page is not guaranteed to be the 
@@ -737,19 +739,19 @@ mod tests {
         let tuple_c = Tuple::new(b"c", b"c_value", 123);
 
         assert!(leaf_page.get_tuple(tuple_a.get_key()).is_none());
-        assert!(leaf_page.add_tuple(&tuple_a));
+        assert!(leaf_page.add_tuple(&tuple_a).0);
         assert_eq!(leaf_page.get_entries_size(), 1);
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
         assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
 
-        assert!(leaf_page.add_tuple(&tuple_c));
+        assert!(leaf_page.add_tuple(&tuple_c).0);
         assert_eq!(leaf_page.get_entries_size(), 2);
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
 
-        assert!(leaf_page.add_tuple(&tuple_b));
+        assert!(leaf_page.add_tuple(&tuple_b).0);
         assert_eq!(leaf_page.get_entries_size(), 3);
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
@@ -789,15 +791,15 @@ mod tests {
 
 
         assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
-        assert!(leaf_page.add_tuple(&tuple_c));
+        assert!(leaf_page.add_tuple(&tuple_c).0);
         assert_eq!(leaf_page.get_entries_size(), 1);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
 
-        assert!(leaf_page.add_tuple(&tuple_c_same_value_size));
+        assert!(leaf_page.add_tuple(&tuple_c_same_value_size).0);
         assert_eq!(leaf_page.get_entries_size(), 1);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_same_value_size));
 
-        assert!(leaf_page.add_tuple(&tuple_c_updated));
+        assert!(leaf_page.add_tuple(&tuple_c_updated).0);
         assert_eq!(leaf_page.get_entries_size(), 1);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_updated));
 
@@ -805,18 +807,18 @@ mod tests {
         assert_eq!(leaf_page.get_entries_size(), 0);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
 
-        assert!(leaf_page.add_tuple(&tuple_c));
+        assert!(leaf_page.add_tuple(&tuple_c).0);
         assert_eq!(leaf_page.get_entries_size(), 1);
-        assert!(leaf_page.add_tuple(&tuple_d));
+        assert!(leaf_page.add_tuple(&tuple_d).0);
         assert_eq!(leaf_page.get_entries_size(), 2);
-        assert!(leaf_page.add_tuple(&tuple_e));
+        assert!(leaf_page.add_tuple(&tuple_e).0);
         assert_eq!(leaf_page.get_entries_size(), 3);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
         assert!(leaf_page.get_tuple(tuple_d.get_key()).unwrap().equals(&tuple_d));
         assert!(leaf_page.get_tuple(tuple_e.get_key()).unwrap().equals(&tuple_e));
-        assert!(leaf_page.add_tuple(&tuple_c_same_value_size));
+        assert!(leaf_page.add_tuple(&tuple_c_same_value_size).0);
         assert_eq!(leaf_page.get_entries_size(), 3);
-        assert!(leaf_page.add_tuple(&tuple_c_updated));
+        assert!(leaf_page.add_tuple(&tuple_c_updated).0);
         assert_eq!(leaf_page.get_entries_size(), 3);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_updated));
         assert!(leaf_page.get_tuple(tuple_d.get_key()).unwrap().equals(&tuple_d));
@@ -831,15 +833,15 @@ mod tests {
         assert!(leaf_page.get_tuple(tuple_e.get_key()).is_none());
 
 
-        assert!(leaf_page.add_tuple(&tuple_a));
-        assert!(leaf_page.add_tuple(&tuple_b));
+        assert!(leaf_page.add_tuple(&tuple_a).0);
+        assert!(leaf_page.add_tuple(&tuple_b).0);
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
-        assert!(leaf_page.add_tuple(&tuple_c));
+        assert!(leaf_page.add_tuple(&tuple_c).0);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
-        assert!(leaf_page.add_tuple(&tuple_c_same_value_size));
+        assert!(leaf_page.add_tuple(&tuple_c_same_value_size).0);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_same_value_size));
-        assert!(leaf_page.add_tuple(&tuple_c_updated));
+        assert!(leaf_page.add_tuple(&tuple_c_updated).0);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_updated));
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
@@ -849,13 +851,13 @@ mod tests {
         assert!(leaf_page.remove_key(tuple_a.get_key()));
         assert_eq!(leaf_page.get_entries_size(), 0);
 
-        assert!(leaf_page.add_tuple(&tuple_b));
-        assert!(leaf_page.add_tuple(&tuple_c));
-        assert!(leaf_page.add_tuple(&tuple_d));
+        assert!(leaf_page.add_tuple(&tuple_b).0);
+        assert!(leaf_page.add_tuple(&tuple_c).0);
+        assert!(leaf_page.add_tuple(&tuple_d).0);
         assert_eq!(leaf_page.get_entries_size(), 3);
-        assert!(leaf_page.add_tuple(&tuple_c_same_value_size));
+        assert!(leaf_page.add_tuple(&tuple_c_same_value_size).0);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_same_value_size));
-        assert!(leaf_page.add_tuple(&tuple_c_updated));
+        assert!(leaf_page.add_tuple(&tuple_c_updated).0);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_updated));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
         assert!(leaf_page.get_tuple(tuple_d.get_key()).unwrap().equals(&tuple_d));

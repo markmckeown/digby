@@ -474,6 +474,7 @@ impl DirPage {
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
         
+        // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
         left_page.set_page_to_left(self.get_page_to_the_left());
         left_page.set_right_fence_key(mid_key);
@@ -492,6 +493,7 @@ impl DirPage {
         let mut right_offset = 0;
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
+            // Use the prefix length to only store the key suffix.
             right_page.add_key_value_at_index(right_offset, &key[right_prefix_length..], value);
             right_offset += 1;
         }
@@ -502,6 +504,9 @@ impl DirPage {
     fn split_page_3(&self, version: u64) -> (DirPage, DirPage) {
         // Right Page - has left fence but no right fence. This means no prefix
         // and no right fence key.
+        // New page to the left will have a left fence and right fence with a prefix.
+        // New page to the right will have a left fence and no right fence and no prefix.
+        assert!(self.get_key_prefix().len() == 0, "Page has a prefix when splitting page with only a left fence.");
         let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
             0, version);
         let mut right_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
@@ -510,8 +515,10 @@ impl DirPage {
         let entries = self.get_entries_size() as usize;
         let mid = entries / 2;
         
+        // Create page to the left.
         // No prefix so we can just copy the key suffixes as they are.
         let low_key = self.get_left_fence_key();
+        // No prefix in self so can use suffix as the full key for the mid key.
         let mid_key = self.get_key_suffix_at_index(mid);
         left_page.set_page_to_left(self.get_page_to_the_left());
         left_page.set_left_fence_key(low_key);
@@ -520,10 +527,11 @@ impl DirPage {
         left_page.set_prefix_length(left_prefix_length as u8);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
-            // This should avoid moving bytes around - we will be appending slots.
+            // Use the prefix length to only store the key suffix.
             left_page.add_key_value_at_index(i, &key[left_prefix_length..], value);
         }
 
+        // Create page to the right.
         right_page.set_left_fence_key(mid_key);
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
         let mut right_offset = 0;
@@ -537,7 +545,7 @@ impl DirPage {
     }
 
     fn split_page_4(&self, version: u64) -> (DirPage, DirPage) {
-        // Center Page - has right and left fence and also a Prefix. 
+        // Center Page - has right and left fence and also a prefix. 
         // This means we need to calculate the new prefix length for the left and right pages after the split.
         let mut left_page = DirPage::create_new(&PageConfig { block_size: self.page.block_size, page_size: self.page.page_size }, 
             0, version);
@@ -549,6 +557,7 @@ impl DirPage {
         
         // Could have a prefix so need full keys.
         let low_key = self.get_left_fence_key();
+        // Note we get full key for the mid. 
         let mid_key = self.get_key_at_index(mid);
         left_page.set_page_to_left(self.get_page_to_the_left());
         left_page.set_left_fence_key(low_key);
