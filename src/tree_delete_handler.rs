@@ -79,7 +79,7 @@ impl TreeDeleteHandler {
         }
 
         // Store the root page back into the page cache - should not do this if it is empty!
-        let mut new_leaf_page_no: u64 = 0;
+            let mut new_leaf_page_no: u64 = 0;
         // we always return the leaf page number to be recycled.
         let old_leaf_page_no = leaf_page.get_page_number();
         free_page_tracker.return_free_page_no(old_leaf_page_no);
@@ -104,7 +104,7 @@ impl TreeDeleteHandler {
         (new_root_page_no, true)
     }
 
-    fn fix_stack(
+fn fix_stack(
         key: &[u8],
         dir_pages: &mut Vec<TreeDirPage>,
         free_page_tracker: &mut FreePageTracker,

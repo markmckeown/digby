@@ -25,6 +25,7 @@ impl LeafPageHandler {
         }
     }
 
+
     pub fn map_pages(
         pages: &mut Vec<TreeLeafPage>,
         free_page_tracker: &mut FreePageTracker,
@@ -154,20 +155,23 @@ impl LeafPageHandler {
         new_pages.pop();
         
 
-        if right_page.is_empty() {
+        assert!(!right_page.is_empty(), "Right page is empty after split");
+        assert!(!left_page.is_empty(), "Left page is empty after split");
+        //if right_page.is_empty() {
             // Edge case, the page cannot be split as it has only one entry. The new page
             // is empty so add tuple to it. We can assume it can fit into a page.
-            let (ok, _) = right_page.add_tuple(&tuple);
-            assert!(ok);
-            new_pages.push(left_page);
-            new_pages.push(right_page);
-            return existing_tuple;
-        }
+        //    let (ok, _) = right_page.add_tuple(&tuple);
+        //    assert!(ok);
+        //    new_pages.push(left_page);
+        //    new_pages.push(right_page);
+        //    return existing_tuple;
+        //}
 
-        let left_key_for_new_page = right_page.get_left_fence_key();
+        // Right page is not empty.
+        let left_key_for_new_page = right_page.get_left_key().unwrap();
 
-        // Tuple is to the left of the split entries so try and add to the original page.
-        if tuple.get_key() < left_key_for_new_page {
+        // Tuple is to the left of the split entries so try and add to the left page.
+        if tuple.get_key() < left_key_for_new_page.as_slice() {
             let (ok, _) = left_page.add_tuple(&tuple);
             if ok {
                 new_pages.push(left_page);
@@ -178,12 +182,13 @@ impl LeafPageHandler {
                 // Put the new page to the start of the new_pages - the old
                 // page is still the last entry adn will be split again when
                 // recursively called.
-                new_pages.insert(0, right_page);
+                new_pages.push(right_page);
                 new_pages.push(left_page);
                 return LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config);
             }
         }
 
+        // If we get here then the tuple should go into the right page if it can fit.
         let (ok, _) = right_page.add_tuple(&tuple);
         if ok {
             new_pages.push(left_page);

@@ -126,7 +126,7 @@ impl LeafPage {
     }
 
     
-   pub fn set_left_fence_key(&mut self, key: &[u8]) {
+    fn set_left_fence_key(&mut self, key: &[u8]) {
         assert!(key.len() <= u8::MAX as usize, "Left fence key size larger than u8 can hold.");
         assert!(self.get_entries_size() == 0, "Cannot set left fence key on a page that already has entries.");
         let free_space = self.get_free_space() as usize;
@@ -138,29 +138,36 @@ impl LeafPage {
         self.set_free_space(free_space as u16- key.len() as u16);
     }
 
-    pub fn has_left_fence(&self) -> bool {
+     fn has_left_fence(&self) -> bool {
         self.page.get_page_bytes()[23] != 0
     }
 
 
-    pub fn get_left_fence_key_size(&self) -> u8 {
+     fn get_left_fence_key_size(&self) -> u8 {
         self.page.get_page_bytes()[23]
     }
 
-    pub fn get_left_fence_key_offset(&self) -> u16 {
+     fn get_left_fence_key_offset(&self) -> u16 {
         let bytes = &self.page.get_page_bytes()[21..23];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
     
-    pub fn get_left_fence_key(&self) -> &[u8] {
+     fn get_left_fence_key(&self) -> &[u8] {
         let offset = self.get_left_fence_key_offset() as usize;
         let size = self.get_left_fence_key_size() as usize;
         &self.page.get_page_bytes()[offset..offset + size]
     }
 
+    pub fn get_left_key(&self) -> Option<Vec<u8>> {
+        if self.get_entries_size() == 0 {
+            return None;
+        }
+        Some(self.get_key_at_index(0))
+    }
 
-    pub fn set_right_fence_key(&mut self, key: &[u8]) {
+
+     fn set_right_fence_key(&mut self, key: &[u8]) {
         assert!(key.len() <= u8::MAX as usize, "Right fence key size larger than u8 can hold.");
         assert!(self.get_entries_size() == 0, "Cannot set right fence key on a page that already has entries.");
         let free_space = self.get_free_space() as usize;
@@ -173,16 +180,16 @@ impl LeafPage {
     }
     
 
-    pub fn has_right_fence(&self) -> bool {
+     fn has_right_fence(&self) -> bool {
         self.page.get_page_bytes()[26] != 0
     }
 
-    pub fn get_right_fence_key_offset(&self) -> u16 {
+     fn get_right_fence_key_offset(&self) -> u16 {
         let bytes = &self.page.get_page_bytes()[24..26];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
-    pub fn get_right_fence_key_size(&self) -> u8 {
+     fn get_right_fence_key_size(&self) -> u8 {
         self.page.get_page_bytes()[26]
     }
 
@@ -192,7 +199,7 @@ impl LeafPage {
         &self.page.get_page_bytes()[offset..offset + size]
     }
 
-    pub fn set_prefix_length(&mut self, prefix_length: u8) {
+     fn set_prefix_length(&mut self, prefix_length: u8) {
         assert!(prefix_length <= u8::MAX as u8, "Prefix length larger than u8 can hold.");
         assert!(self.get_entries_size() == 0, "Cannot set prefix length on a page that already has entries.");
         assert!(prefix_length <= self.get_right_fence_key_size(), "Prefix length cannot be larger than the right fence key size.");
@@ -376,7 +383,7 @@ impl LeafPage {
         Tuple::new(&full_key, &value[8..], u64::from_le_bytes(value[0..8].try_into().unwrap()))
     }
 
-    pub fn get_key_suffix_and_value_at_index(&self, index: usize) -> (&[u8], &[u8]) {
+     fn get_key_suffix_and_value_at_index(&self, index: usize) -> (&[u8], &[u8]) {
         let slot = self.get_slot_at_index(index);
         let key = self.get_key_at_slot(&slot);
         let value = self.get_value_at_slot(&slot);
@@ -389,7 +396,7 @@ impl LeafPage {
     }
 
     fn get_key_at_index(&self, index: usize) -> Vec<u8> {
-        let slot = self.get_slot_at_index(index);
+        let slot: LeafSlot = self.get_slot_at_index(index);
         let key_suffix =self.get_key_at_slot(&slot);
         let key_prefix = self.get_key_prefix();
         let mut full_key = Vec::with_capacity(key_prefix.len() + key_suffix.len());
@@ -575,7 +582,7 @@ impl LeafPage {
      * Remove key and value. Returns true of the key was found and removed, 
      * false if the key was not found.
      */
-    pub fn remove_key(&mut self, key: &[u8]) -> bool {
+    pub fn delete_key(&mut self, key: &[u8]) -> bool {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
             assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
@@ -761,19 +768,19 @@ mod tests {
         assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
 
-        assert!(leaf_page.remove_key(tuple_b.get_key()));
+        assert!(leaf_page.delete_key(tuple_b.get_key()));
         assert_eq!(leaf_page.get_entries_size(), 2);
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c));
 
-        assert!(leaf_page.remove_key(tuple_c.get_key()));
+        assert!(leaf_page.delete_key(tuple_c.get_key()));
         assert_eq!(leaf_page.get_entries_size(), 1);
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
         assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
 
-        assert!(leaf_page.remove_key(tuple_a.get_key()));
+        assert!(leaf_page.delete_key(tuple_a.get_key()));
         assert_eq!(leaf_page.get_entries_size(), 0);
         assert!(leaf_page.get_tuple(tuple_a.get_key()).is_none());
         assert!(leaf_page.get_tuple(tuple_b.get_key()).is_none());
@@ -807,7 +814,7 @@ mod tests {
         assert_eq!(leaf_page.get_entries_size(), 1);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).unwrap().equals(&tuple_c_updated));
 
-        assert!(leaf_page.remove_key(tuple_c.get_key()));
+        assert!(leaf_page.delete_key(tuple_c.get_key()));
         assert_eq!(leaf_page.get_entries_size(), 0);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
 
@@ -828,9 +835,9 @@ mod tests {
         assert!(leaf_page.get_tuple(tuple_d.get_key()).unwrap().equals(&tuple_d));
         assert!(leaf_page.get_tuple(tuple_e.get_key()).unwrap().equals(&tuple_e));
 
-        assert!(leaf_page.remove_key(tuple_c.get_key()));
-        assert!(leaf_page.remove_key(tuple_d.get_key()));
-        assert!(leaf_page.remove_key(tuple_e.get_key()));
+        assert!(leaf_page.delete_key(tuple_c.get_key()));
+        assert!(leaf_page.delete_key(tuple_d.get_key()));
+        assert!(leaf_page.delete_key(tuple_e.get_key()));
         assert_eq!(leaf_page.get_entries_size(), 0);
         assert!(leaf_page.get_tuple(tuple_c.get_key()).is_none());
         assert!(leaf_page.get_tuple(tuple_d.get_key()).is_none());
@@ -850,9 +857,9 @@ mod tests {
         assert!(leaf_page.get_tuple(tuple_a.get_key()).unwrap().equals(&tuple_a));
         assert!(leaf_page.get_tuple(tuple_b.get_key()).unwrap().equals(&tuple_b));
 
-        assert!(leaf_page.remove_key(tuple_b.get_key()));
-        assert!(leaf_page.remove_key(tuple_c.get_key()));
-        assert!(leaf_page.remove_key(tuple_a.get_key()));
+        assert!(leaf_page.delete_key(tuple_b.get_key()));
+        assert!(leaf_page.delete_key(tuple_c.get_key()));
+        assert!(leaf_page.delete_key(tuple_a.get_key()));
         assert_eq!(leaf_page.get_entries_size(), 0);
 
         assert!(leaf_page.add_tuple(&tuple_b).0);
