@@ -10,8 +10,6 @@ pub enum PageType {
     Free = 1,
     // Page created when DB is created and not changed.
     DbRoot = 2,
-    // Holds data in the B+ tree, the leaf nodes.
-    TreeLeaf = 3,
     // There are two DbMaster pages - one is current and one is old.
     // These are flipped when a new version is committed.
     DbMaster = 4,
@@ -32,7 +30,6 @@ impl TryFrom<u8> for PageType {
         match value {
             1 => Ok(PageType::Free),
             2 => Ok(PageType::DbRoot),
-            3 => Ok(PageType::TreeLeaf),
             4 => Ok(PageType::DbMaster),
             5 => Ok(PageType::Overflow),
             6 => Ok(PageType::FreeDir),
@@ -149,8 +146,8 @@ mod tests {
         assert_eq!(page.get_page_bytes().len(), 4092);
         assert_eq!(page.get_page_number(), 0);
         page.set_page_number(42);
-        page.set_type(PageType::TreeLeaf);
+        page.set_type(PageType::LeafPage);
         assert_eq!(page.get_page_number(), 42);
-        assert_eq!(page.get_type() as u8, PageType::TreeLeaf as u8);
+        assert_eq!(page.get_type() as u8, PageType::LeafPage as u8);
     }
 }

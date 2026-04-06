@@ -4,8 +4,6 @@ pub mod page;
 pub use page::Page;
 pub mod db_root_page;
 pub use db_root_page::DbRootPage;
-pub mod tree_leaf_page;
-pub use tree_leaf_page::TreeLeafPage;
 pub mod file_layer;
 pub use file_layer::FileLayer;
 pub mod block_layer;
