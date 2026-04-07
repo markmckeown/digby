@@ -7,7 +7,7 @@ use crate::version_holder::VersionHolder;
 // the key and value length rather than the u32 used in Tuple.
 #[derive(Clone)]
 pub struct OverflowTuple {
-    // key_len - 4 bytes 
+    // key_len - 4 bytes
     // value_len - 4 bytes
     // key - key_len bytes
     // version - 8 bytes

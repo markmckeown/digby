@@ -8,12 +8,9 @@ impl VersionHolder {
         Self((u64::from(flags) << 56) | (version & Self::BOTTOM_56_MASK))
     }
 
-
     pub fn from_bytes(bytes: &[u8]) -> Self {
         Self(u64::from_le_bytes(
-            bytes
-                .try_into()
-                .expect("slice with incorrect length"),
+            bytes.try_into().expect("slice with incorrect length"),
         ))
     }
 

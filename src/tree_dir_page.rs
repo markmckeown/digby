@@ -167,7 +167,7 @@ impl TreeDirPage {
         if self.get_entries() == 0 {
             if deque.is_empty() {
                 // This can be triggered on delete.
-            self.set_page_to_left(entry.get_page_no());
+                self.set_page_to_left(entry.get_page_no());
                 return;
             }
 

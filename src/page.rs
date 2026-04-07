@@ -125,8 +125,7 @@ impl Page {
     }
 
     pub fn get_type(&self) -> PageType {
-        PageType::try_from(VersionHolder::from_bytes(&self.bytes[8..8 + 8]).get_flags())
-            .unwrap()
+        PageType::try_from(VersionHolder::from_bytes(&self.bytes[8..8 + 8]).get_flags()).unwrap()
     }
 
     pub fn set_type(&mut self, page_type: PageType) {

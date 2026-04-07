@@ -91,12 +91,12 @@ impl TupleTrait for Tuple {
 
     fn get_value(&self) -> &[u8] {
         let key_len = self.serialized[0] as usize;
-        &self.serialized[3 + key_len + 8 ..]
+        &self.serialized[3 + key_len + 8..]
     }
 
     fn get_version_value(&self) -> &[u8] {
         let key_len = self.serialized[0] as usize;
-        &self.serialized[3 + key_len ..]
+        &self.serialized[3 + key_len..]
     }
 
     fn get_version(&self) -> u64 {
@@ -167,7 +167,6 @@ impl Tuple {
     pub fn equals(&self, other: &Tuple) -> bool {
         self.serialized == other.serialized
     }
-
 }
 
 #[cfg(test)]

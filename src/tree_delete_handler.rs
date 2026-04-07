@@ -1,7 +1,7 @@
 use crate::page::{PageTrait, PageType};
 use crate::tuple::{Overflow, TupleTrait};
 use crate::{
-    FreePageTracker, OverflowPageHandler, Page, PageCache, TreeDirEntry, TreeDirPage, LeafPage,
+    FreePageTracker, LeafPage, OverflowPageHandler, Page, PageCache, TreeDirEntry, TreeDirPage,
 };
 pub struct TreeDeleteHandler {}
 
@@ -104,7 +104,7 @@ impl TreeDeleteHandler {
         (new_root_page_no, true)
     }
 
-fn fix_stack(
+    fn fix_stack(
         key: &[u8],
         dir_pages: &mut Vec<TreeDirPage>,
         free_page_tracker: &mut FreePageTracker,
@@ -169,7 +169,7 @@ fn fix_stack(
         if dir_pages.is_empty() {
             let new_root_page_no = free_page_tracker.get_free_page(page_cache);
             let mut new_root =
-                LeafPage::create_new(page_cache.get_page_config(), new_root_page_no,new_version);
+                LeafPage::create_new(page_cache.get_page_config(), new_root_page_no, new_version);
             page_cache.put_page(new_root.get_page());
             return new_root_page_no;
         }

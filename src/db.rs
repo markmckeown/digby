@@ -10,7 +10,8 @@ use crate::page::PageTrait;
 use crate::page_cache::PageCache;
 use crate::tuple::{Overflow, TupleTrait};
 use crate::{
-    ClearHandler, Compressor, FreeDirPage, LeafPage, OverflowPageHandler, StoreTupleProcessor, TreeDeleteHandler, TupleProcessor
+    ClearHandler, Compressor, FreeDirPage, LeafPage, OverflowPageHandler, StoreTupleProcessor,
+    TreeDeleteHandler, TupleProcessor,
 };
 
 pub struct Db {
@@ -351,8 +352,11 @@ impl Db {
         );
 
         let new_table_root_page_no = free_page_tracker.get_free_page(&mut self.page_cache);
-        let mut new_table_root_page =
-            LeafPage::create_new(self.page_cache.get_page_config(), new_table_root_page_no, new_version);
+        let mut new_table_root_page = LeafPage::create_new(
+            self.page_cache.get_page_config(),
+            new_table_root_page_no,
+            new_version,
+        );
         self.page_cache.put_page(new_table_root_page.get_page());
 
         // Create the tuple we want to add.
