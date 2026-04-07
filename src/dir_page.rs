@@ -106,7 +106,7 @@ impl DirPage {
         self.page.get_page_bytes()[20]
     }
 
-    fn get_page_to_the_left(&self) -> u64 {
+    fn get_page_to_left(&self) -> u64 {
         let bytes = &self.page.get_page_bytes()[27..35];
         u64::from_le_bytes(bytes.try_into().unwrap())
     }
@@ -114,6 +114,10 @@ impl DirPage {
     fn set_page_to_left(&mut self, page_no: u64) {
         let bytes = page_no.to_le_bytes();
         self.page.get_page_bytes_mut()[27..35].copy_from_slice(&bytes);
+    }
+
+     pub fn is_empty(&self) -> bool {
+        self.get_page_to_left() == 0
     }
     
     pub fn set_left_fence_key(&mut self, key: &[u8]) {
@@ -438,7 +442,7 @@ impl DirPage {
         // so this will be the full key.
         let mid_key = self.get_key_suffix_at_index(mid);
         // Page to the left remains the same for the new page on the left.
-        left_page.set_page_to_left(self.get_page_to_the_left());
+        left_page.set_page_to_left(self.get_page_to_left());
         // Set the right fence to the mid_key which will be the left key 
         // for the new page on the right.
         left_page.set_right_fence_key(mid_key);
@@ -482,7 +486,7 @@ impl DirPage {
         
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
-        left_page.set_page_to_left(self.get_page_to_the_left());
+        left_page.set_page_to_left(self.get_page_to_left());
         left_page.set_right_fence_key(mid_key);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -526,7 +530,7 @@ impl DirPage {
         let low_key = self.get_left_fence_key();
         // No prefix in self so can use suffix as the full key for the mid key.
         let mid_key = self.get_key_suffix_at_index(mid);
-        left_page.set_page_to_left(self.get_page_to_the_left());
+        left_page.set_page_to_left(self.get_page_to_left());
         left_page.set_left_fence_key(low_key);
         left_page.set_right_fence_key(mid_key);
         let left_prefix_length = low_key.iter().zip(mid_key).take_while(|(a, b)| a == b).count();
@@ -565,7 +569,7 @@ impl DirPage {
         let low_key = self.get_left_fence_key();
         // Note we get full key for the mid. 
         let mid_key = self.get_key_at_index(mid);
-        left_page.set_page_to_left(self.get_page_to_the_left());
+        left_page.set_page_to_left(self.get_page_to_left());
         left_page.set_left_fence_key(low_key);
         left_page.set_right_fence_key(mid_key.as_slice());
         let left_prefix_length = low_key.iter().zip(mid_key.as_slice()).take_while(|(a, b)| a == b).count();
@@ -680,13 +684,13 @@ impl DirPage {
     pub fn get_next_page(&self, key: &[u8]) -> u64 {
         let entries = self.get_entries_size();
         if entries == 0 {
-            return self.get_page_to_the_left();
+            return self.get_page_to_left();
         }
 
         let slot = self.get_slot_at_index(0);
         let first_key = self.get_key_at_slot(&slot);
         if key < first_key {
-            return self.get_page_to_the_left();
+            return self.get_page_to_left();
         }
 
         let last_entry = self.get_slot_at_index(entries as usize - 1);
@@ -708,14 +712,14 @@ impl DirPage {
 
         // There should only be the left most page.
         if entries == 0 {
-            assert!(page_no == self.get_page_to_the_left());
+            assert!(page_no == self.get_page_to_left());
             self.set_page_to_left(0);
             return;
         }
 
         // If removing the left most page need to move the next page into its place.
         // There is a next page as entries > 0 from above.
-        if page_no == self.get_page_to_the_left() {
+        if page_no == self.get_page_to_left() {
             let slot = self.get_slot_at_index(0);
             assert!(key < self.get_key_at_slot(&slot));
             let new_left_most_page = self.get_value_at_slot(&slot);
@@ -771,7 +775,7 @@ mod tests {
         assert_eq!(dir_page.get_left_fence_key(), key1);
         assert_eq!(dir_page.get_right_fence_key(), b"key3");
         assert_eq!(dir_page.get_prefix_length(), 3);
-        assert_eq!(dir_page.get_page_to_the_left(), 1);
+        assert_eq!(dir_page.get_page_to_left(), 1);
     }
 
 
@@ -809,7 +813,7 @@ mod tests {
         assert_eq!(dir_page.get_next_page(b"key9"), 8);
 
         dir_page.remove_key_page(b"key0", 1);
-        assert_eq!(dir_page.get_page_to_the_left(), 2);
+        assert_eq!(dir_page.get_page_to_left(), 2);
 
         dir_page.remove_key_page(b"key6", 5);
         assert_eq!(dir_page.get_next_page(b"key6"), 2);
