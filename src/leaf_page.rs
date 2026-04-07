@@ -761,6 +761,8 @@ impl LeafPage {
 
     pub fn split_page(&self, version: u64) -> (LeafPage, LeafPage) {
         let entries = self.get_entries_size();
+        assert(entries > 0, "Page must have at least one entry to split.");
+
         // Handle small pages separately
         if entries <= 2 {
             return self.split_page_small(version);
