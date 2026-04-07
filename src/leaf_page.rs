@@ -80,12 +80,7 @@ impl LeafPage {
         page.set_page_number(page_number);
         page.set_version(version);
         let mut leaf_page = LeafPage { page };
-        leaf_page.set_free_space(page_size as u16 - LeafPage::HEADER_SIZE as u16);
-        leaf_page.set_entries_size(0);
-        leaf_page.set_entries_size(0);   
-        leaf_page.set_left_fence_key(&[]);
-        leaf_page.set_right_fence_key(&[]);
-        leaf_page.set_prefix_length(0);
+        leaf_page.reset(page_size);
         leaf_page
     }
 
@@ -95,6 +90,14 @@ impl LeafPage {
             panic!("Page type is not Leaf");
         }
         LeafPage { page }
+    }
+
+    fn reset(&mut self, page_size: usize) {
+        self.set_free_space(page_size as u16 - LeafPage::HEADER_SIZE as u16);
+        self.set_entries_size(0);
+        self.set_left_fence_key(&[]);
+        self.set_right_fence_key(&[]);
+        self.set_prefix_length(0);
     }
 
     pub fn get_entries_size(&self) -> u16 {
@@ -125,6 +128,21 @@ impl LeafPage {
         self.page.get_page_bytes()[20]
     }
 
+    fn reset_with_new_right_fence(&mut self, new_right_fence: &[u8]) {
+        // Need a full copy of the left fence as we are going to nuke it in the page.
+       let left_fence = self.get_left_fence_key().to_vec();
+       let prefix_length = left_fence.iter().zip(new_right_fence).take_while(|(a, b)| a == b).count();
+       // Get full copy of all tuples
+       let entties = self.get_all_tuples();
+       self.reset(self.page.page_size); 
+       self.set_prefix_length(prefix_length as u8);
+       self.set_left_fence_key(left_fence.as_ref());
+       self.set_right_fence_key(new_right_fence);
+       for tuple in entties {
+        self.add_tuple(&tuple);
+       }
+    }
+
     
     fn set_left_fence_key(&mut self, key: &[u8]) {
         assert!(key.len() <= u8::MAX as usize, "Left fence key size larger than u8 can hold.");
@@ -138,22 +156,22 @@ impl LeafPage {
         self.set_free_space(free_space as u16- key.len() as u16);
     }
 
-     fn has_left_fence(&self) -> bool {
+    fn has_left_fence(&self) -> bool {
         self.page.get_page_bytes()[23] != 0
     }
 
 
-     fn get_left_fence_key_size(&self) -> u8 {
+    fn get_left_fence_key_size(&self) -> u8 {
         self.page.get_page_bytes()[23]
     }
 
-     fn get_left_fence_key_offset(&self) -> u16 {
+    fn get_left_fence_key_offset(&self) -> u16 {
         let bytes = &self.page.get_page_bytes()[21..23];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
     
-     fn get_left_fence_key(&self) -> &[u8] {
+    fn get_left_fence_key(&self) -> &[u8] {
         let offset = self.get_left_fence_key_offset() as usize;
         let size = self.get_left_fence_key_size() as usize;
         &self.page.get_page_bytes()[offset..offset + size]
@@ -287,10 +305,22 @@ impl LeafPage {
  
 
     pub fn add_tuple(&mut self, tuple: &Tuple) -> (bool, Option<Tuple>) {
+        let tuple_key = tuple.get_key();
         let prefix_length = self.get_prefix_length() as usize;
-        assert!(tuple.get_key().len() >= prefix_length, "Tuple key length is smaller than the prefix length of the page.");
-        assert!(tuple.get_key().starts_with(self.get_key_prefix()), "Tuple key does not match the prefix of the page.");
-        let key_suffix = &tuple.get_key()[prefix_length..];
+        // If using compression and a key comes in larger than the right fence reset.
+        // The page to the right of this page could have been deleted, then a key that
+        // originally belonged to that page is added again and is now routed to this page
+        // so need to account for this.
+        if prefix_length > 0 && tuple_key >= self.get_right_fence_key() {
+            self.reset_with_new_right_fence(tuple_key);
+            // recursively call add_tuple on reset page.
+            return self.add_tuple(tuple);
+        }
+
+    
+        assert!(tuple_key.len() >= prefix_length, "Tuple key length is smaller than the prefix length of the page.");
+        assert!(tuple_key.starts_with(self.get_key_prefix()), "Tuple key does not match the prefix of the page.");
+        let key_suffix = &tuple_key[prefix_length..];
         let (found, index) = self.get_index_for_key(key_suffix);
         
         let mut existing_tuple: Option<Tuple> = None;
@@ -311,7 +341,7 @@ impl LeafPage {
             }
         }    
 
-        let key_suffix_len = tuple.get_key().len() - prefix_length;
+        let key_suffix_len = tuple_key.len() - prefix_length;
         let new_entry_size = key_suffix_len + tuple.get_version_value().len();
         let new_entry_total_size = new_entry_size + LeafPage::SLOT_SIZE;
         let free_space = self.get_free_space() as usize;
@@ -362,15 +392,12 @@ impl LeafPage {
     pub fn get_tuple(&self, key: &[u8]) -> Option<Tuple> {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
-            // We are looking for a key in a page that does not have the key - prefix is off.
-            if key.len() < prefix_length {
+            // Using compression - if the key is greater than the right fence then we do not have it.
+            if key >= self.get_right_fence_key() {
                 return None;
             }
-            if !key.starts_with(self.get_key_prefix()) {
-                return None;
-            }
-            //assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
-            //assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+            assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
+            assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
         }
         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
         if !found {
@@ -602,6 +629,10 @@ impl LeafPage {
     pub fn delete_key(&mut self, key: &[u8]) -> Option<Tuple> {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
+            // We are using compression - if greater than right fence then we do not have the key.
+            if key > self.get_right_fence_key() {
+                return None;
+            }
             assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
             assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
         }
