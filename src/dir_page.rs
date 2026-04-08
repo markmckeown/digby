@@ -85,6 +85,14 @@ impl DirPage {
         DirPage { page }
     }
 
+    pub fn reset(&mut self, page_size: usize) {
+        self.set_free_space(page_size as u16 - DirPage::HEADER_SIZE as u16);
+        self.set_entries_size(0);
+        self.clear_left_fence_key();
+        self.clear_right_fence_key();
+        self.set_prefix_length(0);
+    }
+
     fn get_entries_size(&self) -> u16 {
         let bytes = &self.page.get_page_bytes()[16..18];
         u16::from_le_bytes(bytes.try_into().unwrap())
@@ -145,6 +153,11 @@ impl DirPage {
         self.page.get_page_bytes()[23] != 0
     }
 
+    fn clear_left_fence_key(&mut self) {
+        self.page.get_page_bytes_mut()[23] = 0;
+        self.page.get_page_bytes_mut()[21..23].copy_from_slice(&[0, 0]);
+    }
+
     pub fn get_left_fence_key_size(&self) -> u8 {
         self.page.get_page_bytes()[23]
     }
@@ -180,6 +193,12 @@ impl DirPage {
 
     pub fn has_right_fence(&self) -> bool {
         self.page.get_page_bytes()[26] != 0
+    }
+
+
+    fn clear_right_fence_key(&mut self) {
+        self.page.get_page_bytes_mut()[26] = 0;
+        self.page.get_page_bytes_mut()[24..26].copy_from_slice(&[0, 0]);
     }
 
     pub fn get_right_fence_key_offset(&self) -> u16 {
@@ -335,8 +354,99 @@ impl DirPage {
             .copy_from_slice(&val_bytes);
     }
 
+
+    fn reset_with_new_right_fence(&mut self, new_right_fence: &[u8]) -> bool {
+        // Need a full copy of the left fence as we are going to nuke it in the page.
+        let page_copy = self.page.get_page_bytes_mut().to_vec();
+        let old_prefix_length = self.get_prefix_length() as usize;
+        let left_fence = self.get_left_fence_key().to_vec();
+        let prefix_length: usize;
+        if old_prefix_length > 0 {
+            // Only set compression if it was already set.
+            prefix_length = left_fence
+            .iter()
+            .zip(new_right_fence)
+            .take_while(|(a, b)| a == b)
+            .count();
+        } else {
+           prefix_length = 0;
+        }
+        // Get full copy of all tuples
+        let entries = self.get_key_values();
+        self.reset(self.page.page_size);
+        self.set_prefix_length(prefix_length as u8);
+        self.set_left_fence_key(left_fence.as_ref());
+        self.set_right_fence_key(new_right_fence);
+        for tuple in entries {
+            let ok = self.add_child_page(tuple.0.as_ref(), tuple.1);
+            if !ok {
+                // Cannot rebuild page with new compression, page not big enough.
+                // Reset page back back to original bits and trigger a split.
+                self.page.get_page_bytes_mut().copy_from_slice(&page_copy);
+                return false;
+            }
+        }
+        true
+    }
+
+
+    fn reset_with_new_left_fence(&mut self, new_left_fence: &[u8]) -> bool {
+        // Copy the page increase we have to roll it back if there is not enough room after
+        // recompressing.
+        let page_copy = self.page.get_page_bytes_mut().to_vec();
+        let old_prefix_length = self.get_prefix_length() as usize;
+        // Need a full copy of the right fence as we are going to nuke it in the page.
+        let right_fence = self.get_right_fence_key().to_vec();
+        let prefix_length: usize;
+        if old_prefix_length > 0 {
+            // Only set compression if it was already set.
+            prefix_length = new_left_fence
+            .iter()
+            .zip(right_fence.as_slice())
+            .take_while(|(a, b)| a == b)
+            .count();
+        } else {
+           prefix_length = 0;
+        }
+        // Get full copy of all tuples
+        let entries = self.get_key_values();
+        self.reset(self.page.page_size);
+        self.set_prefix_length(prefix_length as u8);
+        self.set_left_fence_key(new_left_fence);
+        self.set_right_fence_key(right_fence.as_ref());
+        for tuple in entries {
+            let ok = self.add_child_page(tuple.0.as_ref(), tuple.1);
+            if !ok {
+                // Cannot rebuild page with new compression, page not big enough.
+                // Reset page back back to original bits and trigger a split.
+                self.page.get_page_bytes_mut().copy_from_slice(&page_copy);
+                return false;
+            }
+        }
+        true
+    }
+
     fn add_child_page(&mut self, key: &[u8], page_no: u64) -> bool {
-        // We need to consider this when adding the first entry and when adding an entry that becomes the new leftmost entry.
+        if self.has_left_fence() && key < self.get_left_fence_key() {
+            if !self.reset_with_new_left_fence(key) {
+                // Reset failed as cannot rebuild same page with new compression as not enough space.
+                // Trigger a split first.
+                return false;
+            }
+            // recursively call add_child_page on reset page.
+            return self.add_child_page(key, page_no);
+        }
+
+        if self.has_right_fence() && key > self.get_right_fence_key() {
+            if !self.reset_with_new_right_fence(key) {
+                // Reset failed as cannot rebuild same page with new compression as not enough space.
+                // Trigger a split first.
+                return false;
+            }
+            // recursively call add_child_page on reset page.
+            return self.add_child_page(key, page_no);
+        }
+
         let prefix_length = self.get_prefix_length() as usize;
         assert!(
             key.len() >= prefix_length,
@@ -366,6 +476,7 @@ impl DirPage {
         true
     }
 
+
     pub fn store_child_pages(&mut self, child_entries: &[tree_dir_entry::TreeDirEntry]) -> bool {
         // Child has not split - just update the page number for the child page.
         // This means we only have one child entry and we just need to update the page number for that entry.
@@ -373,12 +484,16 @@ impl DirPage {
             self.update_child_page_no(child_entries[0].get_key(), child_entries[0].get_page_no());
             return true;
         }
-        // Child page split - can we add the extra child page? If not return false.
-        if !self.add_child_page(child_entries[1].get_key(), child_entries[1].get_page_no()) {
-            return false;
-        }
-        // Update the child page no.
+
+        // Child pages have split - need to handle. Take copy of page to allow rollback
+        let page_copy = self.page.get_page_bytes_mut().to_vec();
         self.update_child_page_no(child_entries[0].get_key(), child_entries[0].get_page_no());
+        for i in 1..child_entries.len() {
+            if !self.add_child_page(child_entries[i].get_key(), child_entries[i].get_page_no()) {
+                self.page.get_block_bytes_mut().copy_from_slice(&page_copy);
+                return false;
+            }
+        }
         true
     }
 
@@ -467,6 +582,17 @@ impl DirPage {
         key.extend_from_slice(&right_fence_key[..prefix_length]);
         key.extend_from_slice(key_suffix);
         key
+    }
+
+    fn get_key_values(&self) -> Vec<(Vec<u8>, u64)> {
+        let mut key_values = Vec::with_capacity(self.get_entries_size() as usize);
+        for i in 0..self.get_entries_size() as usize {
+            let key = self.get_key_at_index(i).to_vec();
+            let slot = self.get_slot_at_index(i);
+            let value = u64::from_le_bytes(self.get_value_at_slot(&slot)[0..8].try_into().unwrap());
+            key_values.push((key, value));
+        }
+        key_values  
     }
 
     fn split_page_1(&self, version: u64) -> (DirPage, DirPage) {
