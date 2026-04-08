@@ -130,8 +130,9 @@ impl LeafPage {
         self.page.get_page_bytes()[20]
     }
 
-    fn reset_with_new_right_fence(&mut self, new_right_fence: &[u8]) {
+    fn reset_with_new_right_fence(&mut self, new_right_fence: &[u8]) -> bool {
         // Need a full copy of the left fence as we are going to nuke it in the page.
+        let page_copy = self.page.get_page_bytes_mut().to_vec();
         let left_fence = self.get_left_fence_key().to_vec();
         let prefix_length = left_fence
             .iter()
@@ -145,8 +146,15 @@ impl LeafPage {
         self.set_left_fence_key(left_fence.as_ref());
         self.set_right_fence_key(new_right_fence);
         for tuple in entties {
-            self.add_tuple(&tuple);
+            let (ok, _) = self.add_tuple(&tuple);
+            if !ok {
+                // Cannot rebuild page with new compression, page not big enough.
+                // Reset page back back to original bits and trigger a split.
+                self.page.get_page_bytes_mut().copy_from_slice(&page_copy);
+                return false;
+            }
         }
+        true
     }
 
     fn set_left_fence_key(&mut self, key: &[u8]) {
@@ -340,19 +348,26 @@ impl LeafPage {
         // originally belonged to that page is added again and is now routed to this page
         // so need to account for this.
         if prefix_length > 0 && tuple_key >= self.get_right_fence_key() {
-            self.reset_with_new_right_fence(tuple_key);
+            if !self.reset_with_new_right_fence(tuple_key) {
+                // Reset failed as cannot rebuild same page with new compression as not enough space.
+                // Trigger a split first. Note as the key is bigger than the right fence we know we
+                // do not have it in this page so fine to return None in tuple.
+                return (false, None);
+            }
             // recursively call add_tuple on reset page.
             return self.add_tuple(tuple);
         }
 
-        assert!(
-            tuple_key.len() >= prefix_length,
-            "Tuple key length is smaller than the prefix length of the page."
-        );
-        assert!(
-            tuple_key.starts_with(self.get_key_prefix()),
-            "Tuple key does not match the prefix of the page."
-        );
+        if prefix_length > 0 {
+            assert!(
+                tuple_key.len() >= prefix_length,
+                "Tuple key length is smaller than the prefix length of the page."
+            );
+            assert!(
+                tuple_key.starts_with(self.get_key_prefix()),
+                "Tuple key does not match the prefix of the page."
+            );
+        }
         let key_suffix = &tuple_key[prefix_length..];
         let (found, index) = self.get_index_for_key(key_suffix);
 
