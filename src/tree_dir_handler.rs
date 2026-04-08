@@ -81,6 +81,7 @@ impl TreeDirHandler {
         }
 
         let (mut left_dir, mut right_dir, new_left_key) = dir_page.split_page(0);
+        left_dir.set_page_number(dir_page.get_page_number());
 
         if entries.first().unwrap().get_key() < new_left_key.as_slice() {
             // Use original page to add entries. Note if the first is less than the left key in the
