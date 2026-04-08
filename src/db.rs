@@ -1338,9 +1338,11 @@ mod tests {
             );
             for i in 0u64..256 {
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
-                let returned_value = db.get(&i.to_be_bytes());
-                if returned_value.is_none() {
-                    assert!(returned_value.is_some());
+                for j in 0u64..i {
+                    let returned_value = db.get(&j.to_be_bytes());
+                    if returned_value.is_none() {
+                        assert!(returned_value.is_some());
+                    }
                 }
             }
         }
