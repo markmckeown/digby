@@ -83,7 +83,11 @@ impl LeafPage {
         page.set_page_number(page_number);
         page.set_version(version);
         let mut leaf_page = LeafPage { page };
-        leaf_page.reset(page_size);
+        leaf_page.set_free_space(page_size as u16 - LeafPage::HEADER_SIZE as u16);
+        leaf_page.set_entries_size(0);
+        leaf_page.clear_left_fence_key();
+        leaf_page.clear_right_fence_key();
+        leaf_page.set_prefix_length(0);
         leaf_page
     }
 
@@ -97,8 +101,8 @@ impl LeafPage {
     fn reset(&mut self, page_size: usize) {
         self.set_free_space(page_size as u16 - LeafPage::HEADER_SIZE as u16);
         self.set_entries_size(0);
-        self.set_left_fence_key(&[]);
-        self.set_right_fence_key(&[]);
+        self.clear_left_fence_key();
+        self.clear_right_fence_key();
         self.set_prefix_length(0);
     }
 
@@ -133,12 +137,19 @@ impl LeafPage {
     fn reset_with_new_right_fence(&mut self, new_right_fence: &[u8]) -> bool {
         // Need a full copy of the left fence as we are going to nuke it in the page.
         let page_copy = self.page.get_page_bytes_mut().to_vec();
+        let old_prefix_length = self.get_prefix_length() as usize;
         let left_fence = self.get_left_fence_key().to_vec();
-        let prefix_length = left_fence
+        let prefix_length: usize;
+        if old_prefix_length > 0 {
+            // Only set compression if it was already set.
+            prefix_length = left_fence
             .iter()
             .zip(new_right_fence)
             .take_while(|(a, b)| a == b)
             .count();
+        } else {
+           prefix_length = 0;
+        }
         // Get full copy of all tuples
         let entties = self.get_all_tuples();
         self.reset(self.page.page_size);
@@ -188,6 +199,12 @@ impl LeafPage {
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
+    fn clear_left_fence_key(&mut self) {
+        self.page.get_page_bytes_mut()[21..23].copy_from_slice(&[0, 0]);
+        self.page.get_page_bytes_mut()[23] = 0;
+    }
+
+
     fn get_left_fence_key(&self) -> &[u8] {
         let offset = self.get_left_fence_key_offset() as usize;
         let size = self.get_left_fence_key_size() as usize;
@@ -227,6 +244,12 @@ impl LeafPage {
         let bytes = &self.page.get_page_bytes()[24..26];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
+
+    fn clear_right_fence_key(&mut self) {
+        self.page.get_page_bytes_mut()[24..26].copy_from_slice(&[0, 0]);
+        self.page.get_page_bytes_mut()[26] = 0;
+    }
+
 
     fn get_right_fence_key_size(&self) -> u8 {
         self.page.get_page_bytes()[26]
@@ -347,7 +370,8 @@ impl LeafPage {
         // The page to the right of this page could have been deleted, then a key that
         // originally belonged to that page is added again and is now routed to this page
         // so need to account for this.
-        if prefix_length > 0 && tuple_key >= self.get_right_fence_key() {
+        // Always rebuild if we have a right fence and key is larger than right fence. 
+        if self.has_right_fence() && tuple_key > self.get_right_fence_key() {
             if !self.reset_with_new_right_fence(tuple_key) {
                 // Reset failed as cannot rebuild same page with new compression as not enough space.
                 // Trigger a split first. Note as the key is bigger than the right fence we know we
