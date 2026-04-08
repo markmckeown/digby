@@ -945,19 +945,21 @@ impl DirPage {
             return self.get_page_to_left();
         }
 
+        let key_suffix = &key[self.get_prefix_length() as usize..];
+
         let slot = self.get_slot_at_index(0);
         let first_key = self.get_key_at_slot(&slot);
-        if key < first_key {
+        if key_suffix < first_key {
             return self.get_page_to_left();
         }
 
         let last_entry = self.get_slot_at_index(entries as usize - 1);
         let last_key = self.get_key_at_slot(&last_entry);
-        if key > last_key {
+        if key_suffix > last_key {
             return self.get_page_no_at_index(entries as usize - 1);
         }
 
-        let (found, index) = self.get_index_for_key(key);
+        let (found, index) = self.get_index_for_key(key_suffix);
         if found {
             self.get_page_no_at_index(index)
         } else {
@@ -987,8 +989,9 @@ impl DirPage {
             return;
         }
 
+        let key_suffix = &key[self.get_prefix_length() as usize..];
         // Now get the index for the key and remove the entry.
-        let (found, index) = self.get_index_for_key(key);
+        let (found, index) = self.get_index_for_key(key_suffix);
         if found {
             assert_eq!(page_no, self.get_page_no_at_index(index));
             self.remove_key_value_at_index(index);
