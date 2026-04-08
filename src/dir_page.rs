@@ -93,7 +93,7 @@ impl DirPage {
         self.set_prefix_length(0);
     }
 
-    fn get_entries_size(&self) -> u16 {
+    pub fn get_entries_size(&self) -> u16 {
         let bytes = &self.page.get_page_bytes()[16..18];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
@@ -125,6 +125,15 @@ impl DirPage {
     fn set_page_to_left(&mut self, page_no: u64) {
         let bytes = page_no.to_le_bytes();
         self.page.get_page_bytes_mut()[27..35].copy_from_slice(&bytes);
+    }
+
+
+    // Get the left sided key in the page.
+    pub fn get_dir_left_key(&self) -> Option<Vec<u8>> {
+        if self.get_entries_size() == 0 {
+            return None;
+        }
+        Some(self.get_key_at_index(0))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -374,9 +383,9 @@ impl DirPage {
         // Get full copy of all tuples
         let entries = self.get_key_values();
         self.reset(self.page.page_size);
-        self.set_prefix_length(prefix_length as u8);
         self.set_left_fence_key(left_fence.as_ref());
         self.set_right_fence_key(new_right_fence);
+        self.set_prefix_length(prefix_length as u8);
         for tuple in entries {
             let ok = self.add_child_page(tuple.0.as_ref(), tuple.1);
             if !ok {
@@ -411,9 +420,9 @@ impl DirPage {
         // Get full copy of all tuples
         let entries = self.get_key_values();
         self.reset(self.page.page_size);
-        self.set_prefix_length(prefix_length as u8);
         self.set_left_fence_key(new_left_fence);
         self.set_right_fence_key(right_fence.as_ref());
+        self.set_prefix_length(prefix_length as u8);
         for tuple in entries {
             let ok = self.add_child_page(tuple.0.as_ref(), tuple.1);
             if !ok {
@@ -490,7 +499,7 @@ impl DirPage {
         self.update_child_page_no(child_entries[0].get_key(), child_entries[0].get_page_no());
         for i in 1..child_entries.len() {
             if !self.add_child_page(child_entries[i].get_key(), child_entries[i].get_page_no()) {
-                self.page.get_block_bytes_mut().copy_from_slice(&page_copy);
+                self.page.get_page_bytes_mut().copy_from_slice(&page_copy);
                 return false;
             }
         }
@@ -595,7 +604,7 @@ impl DirPage {
         key_values  
     }
 
-    fn split_page_1(&self, version: u64) -> (DirPage, DirPage) {
+    fn split_page_1(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // First page - no left or right pages. This means no
         // prefix, no right fence key and no left fence key.
         // When split the page on the left will have no left fence but will
@@ -650,10 +659,10 @@ impl DirPage {
             right_offset += 1;
         }
 
-        (left_page, right_page)
+        (left_page, right_page, mid_key.to_vec())
     }
 
-    fn split_page_2(&self, version: u64) -> (DirPage, DirPage) {
+    fn split_page_2(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // Left Page. Has right fence but no left fence. There is no prefix
         // and a right fence key.
         // New page to the left will have no left fence and the right fence will be the mid key, it
@@ -700,10 +709,10 @@ impl DirPage {
             .zip(right_fence_key)
             .take_while(|(a, b)| a == b)
             .count();
-        right_page.set_prefix_length(right_prefix_length as u8);
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
         right_page.set_left_fence_key(mid_key);
         right_page.set_right_fence_key(right_fence_key);
+        right_page.set_prefix_length(right_prefix_length as u8);
         let mut right_offset = 0;
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -712,10 +721,10 @@ impl DirPage {
             right_offset += 1;
         }
 
-        (left_page, right_page)
+        (left_page, right_page, mid_key.to_vec())
     }
 
-    fn split_page_3(&self, version: u64) -> (DirPage, DirPage) {
+    fn split_page_3(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // Right Page - has left fence but no right fence. This means no prefix
         // and no right fence key.
         // New page to the left will have a left fence and right fence with a prefix.
@@ -774,10 +783,10 @@ impl DirPage {
             right_offset += 1;
         }
 
-        (left_page, right_page)
+        (left_page, right_page, mid_key.to_vec())
     }
 
-    fn split_page_4(&self, version: u64) -> (DirPage, DirPage) {
+    fn split_page_4(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // Center Page - has right and left fence and also a prefix.
         // This means we need to calculate the new prefix length for the left and right pages after the split.
         let mut left_page = DirPage::create_new(
@@ -825,10 +834,10 @@ impl DirPage {
             .take_while(|(a, b)| a == b)
             .count();
         let right_suffix_offset = right_prefix_length - self.get_prefix_length() as usize;
-        right_page.set_prefix_length(right_prefix_length as u8);
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
         right_page.set_left_fence_key(mid_key.as_slice());
         right_page.set_right_fence_key(self.get_right_fence_key());
+        right_page.set_prefix_length(right_prefix_length as u8);
         let mut right_offset = 0;
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -836,10 +845,10 @@ impl DirPage {
             right_offset += 1;
         }
 
-        (left_page, right_page)
+        (left_page, right_page, mid_key.to_vec())
     }
 
-    pub fn split_page(&self, version: u64) -> (DirPage, DirPage) {
+    pub fn split_page(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         assert!(
             self.get_entries_size() > 2,
             "Cannot split a page with fewer than 3 entries."
@@ -1093,7 +1102,7 @@ mod tests {
             let key = (i as u64).to_le_bytes().to_vec();
             dir_page.add_child_page(&key, i as u64);
         }
-        let (left_page, right_page) = dir_page.split_page(0);
+        let (left_page, right_page, _) = dir_page.split_page(0);
         assert_eq!(left_page.get_entries_size(), 10);
         assert_eq!(right_page.get_entries_size(), 9);
         for i in 1..10 {

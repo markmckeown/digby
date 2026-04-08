@@ -5,9 +5,9 @@ use crate::leaf_page_handler::LeafPageHandler;
 use crate::page::{Page, PageTrait, PageType};
 use crate::page_cache::PageCache;
 use crate::tree_dir_entry::TreeDirEntry;
-use crate::tree_dir_handler::{TreeDirHandler, TreeDirPageRef};
-use crate::tree_dir_page::TreeDirPage;
+use crate::tree_dir_handler::{TreeDirHandler, DirPageRef};
 use crate::tuple::{Tuple, TupleTrait};
+use crate::dir_page::DirPage;
 
 pub struct StoreTupleProcessor {}
 
@@ -25,7 +25,7 @@ impl StoreTupleProcessor {
             }
             // If its a tree dir page then descend to the next
             // level.
-            let dir_page = TreeDirPage::from_page(page);
+            let dir_page = DirPage::from_page(page);
             page = page_cache.get_page(dir_page.get_next_page(key))
         }
     }
@@ -53,7 +53,7 @@ impl StoreTupleProcessor {
         }
 
         // The root page is a tree dir page.
-        let root_dir_page = TreeDirPage::from_page(first);
+        let root_dir_page = DirPage::from_page(first);
         StoreTupleProcessor::store_tuple_tree(
             tuple,
             root_dir_page,
@@ -69,7 +69,7 @@ impl StoreTupleProcessor {
     // after the tuple is added.
     fn store_tuple_tree(
         tuple: Tuple,
-        root_dir_page: TreeDirPage,
+        root_dir_page: DirPage,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
@@ -77,7 +77,7 @@ impl StoreTupleProcessor {
         let mut dir_page = root_dir_page;
         // This is the stack for storing the tree dir as we descend into
         // the tree.
-        let mut dir_pages: Vec<TreeDirPage> = Vec::new();
+        let mut dir_pages: Vec<DirPage> = Vec::new();
         let mut next_page: u64;
         let leaf_page: LeafPage;
         let key = tuple.get_key().to_vec();
@@ -91,7 +91,7 @@ impl StoreTupleProcessor {
                 leaf_page = LeafPage::from_page(page);
                 break;
             }
-            dir_page = TreeDirPage::from_page(page);
+            dir_page = DirPage::from_page(page);
         }
 
         // Now have a leaf_page and a stack of dir pages.
@@ -119,10 +119,9 @@ impl StoreTupleProcessor {
         dir_page = dir_pages.pop().unwrap();
         // Get a set of TreeDirEntryRefs back when updating the tree dir entry with the lead page details.
         // There could be more than one TreeDirEntryRef if the dir page had to split.
-        let mut dir_refs = TreeDirHandler::handle_tree_leaf_store(
+        let mut dir_refs = TreeDirHandler::handle_tree_leaf_store_1(
             dir_page,
-            leaf_dir_entries,
-            page_cache.get_page_config(),
+            leaf_dir_entries
         );
         // Write the dir entries out to disk and get back a set of directory entries back.
         let mut dir_entries = StoreTupleProcessor::write_tree_dir_pages(
@@ -135,11 +134,9 @@ impl StoreTupleProcessor {
         // Need to walk back up the directory stack adding the pages.
         while !dir_pages.is_empty() {
             dir_page = dir_pages.pop().unwrap();
-            dir_refs = TreeDirHandler::handle_tree_dir_store(
+            dir_refs = TreeDirHandler::handle_tree_dir_store_1(
                 dir_page,
-                dir_entries,
-                new_version,
-                page_cache.get_page_config(),
+                dir_entries
             );
             dir_entries = StoreTupleProcessor::write_tree_dir_pages(
                 dir_refs,
@@ -157,13 +154,11 @@ impl StoreTupleProcessor {
         // We have hit the top of the stack but have two dir entries, the root has split.
         // Need to create a new root, register the entries and return the reference to the root.
         // Need a new TreeDirPage.
-        let new_tree_dir_page = TreeDirPage::create_new(page_cache.get_page_config(), 0, 0);
+        let new_tree_dir_page = DirPage::create_new(page_cache.get_page_config(), 0, 0);
         // Add the entries to the new root page.
-        dir_refs = TreeDirHandler::handle_tree_dir_store(
+        dir_refs = TreeDirHandler::handle_tree_dir_store_1(
             new_tree_dir_page,
-            dir_entries,
-            new_version,
-            page_cache.get_page_config(),
+            dir_entries
         );
         // The new root page cannot split - so there should only be one page in the dir_refs now.
         dir_entries = StoreTupleProcessor::write_tree_dir_pages(
@@ -180,14 +175,14 @@ impl StoreTupleProcessor {
     // dir pages we need to be careful about knowing what the left most key is
     // for the page - note this is not explicitly stored in the page.
     fn write_tree_dir_pages(
-        mut dir_pages: Vec<TreeDirPageRef>,
+        mut dir_pages: Vec<DirPageRef>,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
     ) -> Vec<TreeDirEntry> {
         // Change the page numbers to free pages and return the old page numbers to
         // be recycled in future commits.
-        TreeDirHandler::map_pages(&mut dir_pages, free_page_tracker, page_cache, new_version);
+        TreeDirHandler::map_dir_pages(&mut dir_pages, free_page_tracker, page_cache, new_version);
         // We want to generate a set of tree dir entries
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut dir_page in dir_pages {
@@ -220,7 +215,7 @@ impl StoreTupleProcessor {
         // We return a set do dir entries for the next phase.
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut leaf_page in leaf_pages {
-            // Create a TreeDirEntry for the leaf page to add to the TreeDirPage
+            // Create a TreeDirEntry for the leaf page to add to the DirPage
             let tree_dir_entry = TreeDirEntry::new(
                 leaf_page.get_left_key().unwrap(),
                 leaf_page.get_page_number(),
@@ -287,13 +282,12 @@ impl StoreTupleProcessor {
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
             page_cache.put_page(leaf_page.get_page());
         }
-        // Need a new TreeDirPage.
-        let new_tree_dir_page = TreeDirPage::create_new(page_cache.get_page_config(), 0, 0);
+        // Need a new DirPage.
+        let new_tree_dir_page = DirPage::create_new(page_cache.get_page_config(), 0, 0);
         // Add the entries to the new root page.
-        let dir_refs = TreeDirHandler::handle_tree_leaf_store(
+        let dir_refs = TreeDirHandler::handle_tree_leaf_store_1(
             new_tree_dir_page,
-            entries,
-            page_cache.get_page_config(),
+            entries
         );
         // The new root page cannot split - there can be a most three entries added to it.
         assert!(dir_refs.len() == 1);
@@ -424,9 +418,9 @@ mod tests {
         }
         assert_eq!(j, 193);
 
-        let root_page = TreeDirPage::from_page(page_cache.get_page(root_tree_page_no));
+        let root_page = DirPage::from_page(page_cache.get_page(root_tree_page_no));
         // There are two leaf pages, but only 1 key stored.
-        assert_eq!(root_page.get_entries(), 1);
+        assert_eq!(root_page.get_entries_size(), 1);
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
@@ -486,10 +480,10 @@ mod tests {
         }
 
         let root_page = page_cache.get_page(root_tree_page_no);
-        assert!(root_page.get_type() == PageType::TreeDirPage);
-        let root_dir_page = TreeDirPage::from_page(page_cache.get_page(root_tree_page_no));
+        assert!(root_page.get_type() == PageType::DirPage);
+        let root_dir_page = DirPage::from_page(page_cache.get_page(root_tree_page_no));
         // There should be 42 entries.
-        assert_eq!(root_dir_page.get_entries(), 1);
+        assert_eq!(root_dir_page.get_entries_size(), 1);
         let tuple = StoreTupleProcessor::get_tuple(
             13000u64.to_be_bytes().to_vec().as_ref(),
             root_page,

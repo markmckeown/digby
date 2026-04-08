@@ -3,11 +3,18 @@ use crate::page::PageTrait;
 use crate::page_cache::PageCache;
 use crate::tree_dir_page::TreeDirPage;
 use crate::{FreePageTracker, TreeDirEntry};
+use crate::dir_page::DirPage;
+
 
 pub struct TreeDirHandler {}
 
 pub struct TreeDirPageRef {
     pub page: TreeDirPage,
+    pub left_key: Option<Vec<u8>>,
+}
+
+pub struct DirPageRef {
+    pub page: DirPage,
     pub left_key: Option<Vec<u8>>,
 }
 
@@ -57,6 +64,46 @@ impl TreeDirHandler {
         tree_dir_pages
     }
 
+
+    pub fn handle_tree_leaf_store_1(
+        mut dir_page: DirPage,
+        entries: Vec<TreeDirEntry>
+    ) -> Vec<DirPageRef> {
+        assert!(!entries.is_empty(), "entries was empty");
+        let mut tree_dir_pages: Vec<DirPageRef> = Vec::new();
+
+        if dir_page.store_child_pages(&entries) {
+            tree_dir_pages.push(DirPageRef {
+                page: dir_page,
+                left_key: None,
+            });
+            return tree_dir_pages;
+        }
+
+        let (mut left_dir, mut right_dir, new_left_key) = dir_page.split_page(0);
+
+        if entries.first().unwrap().get_key() < new_left_key.as_slice() {
+            // Use original page to add entries. Note if the first is less than the left key in the
+            // new page then all entries will be.
+            assert!(left_dir.store_child_pages(&entries));
+        } else {
+            // Use the original page.
+            assert!(right_dir.store_child_pages(&entries));
+        }
+        tree_dir_pages.push(DirPageRef {
+            page: left_dir,
+            left_key: None,
+        });
+        tree_dir_pages.push(DirPageRef {
+            page: right_dir,
+            left_key: Some(new_left_key),
+        });
+
+        tree_dir_pages
+    }
+
+
+
     pub fn map_pages(
         page_refs: &mut Vec<TreeDirPageRef>,
         free_page_tracker: &mut FreePageTracker,
@@ -73,6 +120,25 @@ impl TreeDirHandler {
             page_ref.page.set_version(version);
         }
     }
+
+
+    pub fn map_dir_pages(
+        page_refs: &mut Vec<DirPageRef>,
+        free_page_tracker: &mut FreePageTracker,
+        page_cache: &mut PageCache,
+        version: u64,
+    ) {
+        for page_ref in page_refs {
+            let old_page_no = page_ref.page.get_page_number();
+            if old_page_no != 0 {
+                free_page_tracker.return_free_page_no(old_page_no);
+            }
+            let new_page_no = free_page_tracker.get_free_page(page_cache);
+            page_ref.page.set_page_number(new_page_no);
+            page_ref.page.set_version(version);
+        }
+    }
+
 
     pub fn handle_tree_dir_store(
         mut parent_dir_page: TreeDirPage,
@@ -113,6 +179,45 @@ impl TreeDirHandler {
         tree_dir_pages.push(TreeDirPageRef {
             page: new_tree_page,
             left_key: Some(new_page_left_key),
+        });
+
+        tree_dir_pages
+    }
+
+
+    pub fn handle_tree_dir_store_1(
+        mut parent_dir_page: DirPage,
+        entries: Vec<TreeDirEntry>
+    ) -> Vec<DirPageRef> {
+        assert!(!entries.is_empty(), "dir entries was empty");
+        let mut tree_dir_pages: Vec<DirPageRef> = Vec::new();
+
+        if parent_dir_page.store_child_pages(&entries) {
+            tree_dir_pages.push(DirPageRef {
+                page: parent_dir_page,
+                left_key: None,
+            });
+            return tree_dir_pages;
+        }
+
+        // Need to split the parent dir page.
+        let (mut left_dir, mut right_dir, new_left_key) 
+                        = parent_dir_page.split_page(0);
+
+
+        if entries.first().unwrap().get_key() < new_left_key.as_slice() {
+            // Add entries to original page.
+            assert!(left_dir.store_child_pages(&entries));
+        } else {
+            assert!(right_dir.store_child_pages(&entries));
+        }
+        tree_dir_pages.push(DirPageRef {
+            page: left_dir,
+            left_key: None,
+        });
+        tree_dir_pages.push(DirPageRef {
+            page: right_dir,
+            left_key: Some(new_left_key),
         });
 
         tree_dir_pages
