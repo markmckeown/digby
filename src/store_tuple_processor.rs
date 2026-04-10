@@ -206,7 +206,7 @@ impl StoreTupleProcessor {
     // Get new page numbers for the leaf pages and return the old page numbers
     // to be reused in future commits.
     fn write_leaf_pages(
-        mut leaf_pages: Vec<LeafPage>,
+        mut leaf_pages: Vec<(LeafPage, Option<Vec<u8>>)>,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
@@ -217,12 +217,12 @@ impl StoreTupleProcessor {
         for mut leaf_page in leaf_pages {
             // Create a TreeDirEntry for the leaf page to add to the DirPage
             let tree_dir_entry = TreeDirEntry::new(
-                leaf_page.get_left_key().unwrap(),
-                leaf_page.get_page_number(),
+                leaf_page.0.get_left_key().unwrap(),
+                leaf_page.0.get_page_number(),
             );
             entries.push(tree_dir_entry);
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
-            page_cache.put_page(leaf_page.get_page());
+            page_cache.put_page(leaf_page.0.get_page());
         }
         entries
     }
@@ -262,9 +262,9 @@ impl StoreTupleProcessor {
                 .tree_leaf_pages
                 .first()
                 .unwrap()
-                .get_page_number();
+                .0.get_page_number();
             // Write the new root leaf page to disk
-            page_cache.put_page(update_result.tree_leaf_pages.pop().unwrap().get_page());
+            page_cache.put_page(update_result.tree_leaf_pages.pop().unwrap().0.get_page());
             // Return the new root page_number
             return page_number;
         }
@@ -275,12 +275,12 @@ impl StoreTupleProcessor {
         for mut leaf_page in update_result.tree_leaf_pages {
             // Create a TreeDirEntry for the leaf page to add to the TreeDirPage
             let tree_dir_entry = TreeDirEntry::new(
-                leaf_page.get_left_key().unwrap(),
-                leaf_page.get_page_number(),
+                leaf_page.0.get_left_key().unwrap(),
+                leaf_page.0.get_page_number(),
             );
             entries.push(tree_dir_entry);
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
-            page_cache.put_page(leaf_page.get_page());
+            page_cache.put_page(leaf_page.0.get_page());
         }
         // Need a new DirPage.
         let new_tree_dir_page = DirPage::create_new(page_cache.get_page_config(), 0, 0);
