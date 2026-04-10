@@ -88,7 +88,9 @@ impl LeafPageHandler {
                 // recursively called.
                 new_pages.push((right_page, Some(left_key)));
                 new_pages.push((left_page, None));
-                return LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config);
+                let empty_tuple = LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config);
+                assert!(empty_tuple.is_none(), "Second call to add tuple should not delete tuple");
+                return existing_tuple
             }
         } else {
             // If we get here then the tuple should go into the right page if it can fit.
@@ -102,8 +104,8 @@ impl LeafPageHandler {
                 // and will be split again when function is recursively called.
                 new_pages.push((left_page, None));
                 new_pages.push((right_page, Some(left_key)));
-                let empty_tuple =LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config);
-                assert!(empty_tuple.is_none(), "Second call should not delete tuple");
+                let empty_tuple = LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config);
+                assert!(empty_tuple.is_none(), "Second call to add tuple should not delete tuple");
                 return existing_tuple
             }
         }

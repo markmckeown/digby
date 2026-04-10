@@ -216,8 +216,9 @@ impl StoreTupleProcessor {
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut leaf_page in leaf_pages {
             // Create a TreeDirEntry for the leaf page to add to the DirPage
+            let key = leaf_page.1.unwrap_or_else(|| leaf_page.0.get_left_key().unwrap().to_vec());
             let tree_dir_entry = TreeDirEntry::new(
-                leaf_page.0.get_left_key().unwrap(),
+                key,
                 leaf_page.0.get_page_number(),
             );
             entries.push(tree_dir_entry);
@@ -274,9 +275,10 @@ impl StoreTupleProcessor {
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut leaf_page in update_result.tree_leaf_pages {
             // Create a TreeDirEntry for the leaf page to add to the TreeDirPage
+            let key = leaf_page.1.unwrap_or_else(|| leaf_page.0.get_left_key().unwrap().to_vec());
             let tree_dir_entry = TreeDirEntry::new(
-                leaf_page.0.get_left_key().unwrap(),
-                leaf_page.0.get_page_number(),
+                    key,
+            leaf_page.0.get_page_number(),
             );
             entries.push(tree_dir_entry);
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
