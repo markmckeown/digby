@@ -1,5 +1,4 @@
 use crate::LeafPage;
-use crate::TreeDirPage;
 use crate::free_page_tracker::FreePageTracker;
 use crate::overflow_page_handler::OverflowPageHandler;
 use crate::page::Page;
@@ -8,6 +7,7 @@ use crate::page::PageType;
 use crate::page_cache::PageCache;
 use crate::tuple::Overflow;
 use crate::tuple::TupleTrait;
+use crate::dir_page::DirPage;
 
 pub struct ClearHandler {
     // Currently empty - placeholder for future functionality
@@ -30,21 +30,21 @@ impl ClearHandler {
             );
         }
 
-        let root_dir_page = TreeDirPage::from_page(first);
+        let root_dir_page = DirPage::from_page(first);
         ClearHandler::clear_tree_dir_pages(root_dir_page, free_page_tracker, page_cache);
         ClearHandler::create_new_root_page(free_page_tracker, page_cache, new_version)
     }
 
     pub fn clear_tree_dir_pages(
-        dir_page: TreeDirPage,
+        dir_page: DirPage,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
     ) {
         free_page_tracker.return_free_page_no(dir_page.get_page_number());
 
-        let dir_entries = dir_page.get_all_dir_entries();
+        let dir_entries = dir_page.get_all_child_pages();
         for dir_entry in dir_entries {
-            let page = page_cache.get_page(dir_entry.get_page_no());
+            let page = page_cache.get_page(dir_entry);
             if page.get_type() == PageType::LeafPage {
                 ClearHandler::clear_leaf_page(
                     LeafPage::from_page(page),
@@ -55,7 +55,7 @@ impl ClearHandler {
             }
             // Recursion. May not be best approach here.
             ClearHandler::clear_tree_dir_pages(
-                TreeDirPage::from_page(page),
+                DirPage::from_page(page),
                 free_page_tracker,
                 page_cache,
             );

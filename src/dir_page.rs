@@ -1,3 +1,4 @@
+
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::tree_dir_entry;
@@ -275,7 +276,7 @@ impl DirPage {
         &self.get_left_fence_key()[0..prefix_length]
     }
 
-    fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
+fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
         let entries = self.get_entries_size() as usize;
 
         // binary search for the key suffix in the slots
@@ -617,7 +618,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -678,7 +679,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -738,7 +739,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -794,7 +795,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -845,7 +846,7 @@ impl DirPage {
             right_offset += 1;
         }
 
-        (left_page, right_page, mid_key.to_vec())
+        (left_page, right_page, mid_key)
     }
 
     pub fn split_page(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
@@ -999,6 +1000,24 @@ impl DirPage {
             assert_eq!(page_no, self.get_page_no_at_index(index - 1));
             self.remove_key_value_at_index(index - 1);
         }
+    }
+
+
+    pub fn get_all_child_pages(&self) -> Vec<u64> {
+        let mut child_pages = Vec::new();
+        if self.get_page_to_left() > 0 {
+            child_pages.push(self.get_page_to_left());
+        }
+        let entries = self.get_entries_size();
+        if entries == 0 {
+            return child_pages;
+        }
+        for i in 0..entries as usize {
+            let slot = self.get_slot_at_index(i);
+            let page_no = u64::from_le_bytes(self.get_value_at_slot(&slot)[0..8].try_into().unwrap());
+            child_pages.push(page_no);
+        }
+        return child_pages
     }
 }
 
