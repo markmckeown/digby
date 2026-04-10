@@ -17,9 +17,8 @@ pub enum PageType {
     Overflow = 5,
     // Page to track free pages.
     FreeDir = 6,
-    // B+ tree internal node page.
-    TreeDirPage = 7,
     LeafPage = 8,
+    // B+ tree internal node page.
     DirPage = 9,
 }
 
@@ -33,7 +32,6 @@ impl TryFrom<u8> for PageType {
             4 => Ok(PageType::DbMaster),
             5 => Ok(PageType::Overflow),
             6 => Ok(PageType::FreeDir),
-            7 => Ok(PageType::TreeDirPage),
             8 => Ok(PageType::LeafPage),
             9 => Ok(PageType::DirPage),
             _ => Err(()),

@@ -118,7 +118,7 @@ impl DirPage {
         self.page.get_page_bytes()[20]
     }
 
-    fn get_page_to_left(&self) -> u64 {
+    pub fn get_page_to_left(&self) -> u64 {
         let bytes = &self.page.get_page_bytes()[27..35];
         u64::from_le_bytes(bytes.try_into().unwrap())
     }
