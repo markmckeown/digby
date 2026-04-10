@@ -537,7 +537,7 @@ impl LeafPage {
         tuples
     }
 
-    fn split_page_1(&self, version: u64) -> (LeafPage, LeafPage) {
+    fn split_page_1(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         // First page - no left or right pages. This means no
         // prefix, no right fence key and no left fence key.
         // When split the page on the left will have not have a left fence but will
@@ -552,7 +552,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -584,10 +584,10 @@ impl LeafPage {
             right_offset += 1;
         }
 
-        (left_page, right_page)
+        (left_page, right_page, Some(mid_key.to_vec()))
     }
 
-    fn split_page_2(&self, version: u64) -> (LeafPage, LeafPage) {
+    fn split_page_2(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         // Left Page - has right fence but no left fence. This means no prefix
         // and a right fence key.
         assert!(
@@ -599,7 +599,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -639,10 +639,10 @@ impl LeafPage {
             right_offset += 1;
         }
 
-        (left_page, right_page)
+        (left_page, right_page, Some(mid_key.to_vec()))
     }
 
-    fn split_page_3(&self, version: u64) -> (LeafPage, LeafPage) {
+    fn split_page_3(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         // Right Page - has left fence but no right fence. This means no prefix
         // and no right fence key.
         let mut left_page = LeafPage::create_new(
@@ -650,7 +650,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -694,10 +694,10 @@ impl LeafPage {
             right_offset += 1;
         }
 
-        (left_page, right_page)
+        (left_page, right_page, Some(mid_key.to_vec()))
     }
 
-    fn split_page_4(&self, version: u64) -> (LeafPage, LeafPage) {
+    fn split_page_4(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         // Center Page - has right and left fence and also a Prefix.
         // This means we need to calculate the new prefix length for the left and right pages after the split.
         let mut left_page = LeafPage::create_new(
@@ -705,7 +705,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -754,16 +754,16 @@ impl LeafPage {
             right_offset += 1;
         }
 
-        (left_page, right_page)
+        (left_page, right_page, Some(mid_key))
     }
 
-    fn split_page_small(&self, version: u64) -> (LeafPage, LeafPage) {
+    fn split_page_small(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         let mut left_page = LeafPage::create_new(
             &PageConfig {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -789,16 +789,18 @@ impl LeafPage {
         left_page.set_prefix_length(0);
         right_page.set_prefix_length(0);
 
+        let mut left_key = None;
         let first_tuple = self.get_tuple_at_index(0);
         left_page.add_tuple(&first_tuple);
         if self.get_entries_size() == 2 {
             let second_tuple = self.get_tuple_at_index(1);
             right_page.add_tuple(&second_tuple);
+            left_key = Some(second_tuple.get_key().to_vec());
         }
-        (left_page, right_page)
+        (left_page, right_page, left_key)
     }
 
-    pub fn split_page(&self, version: u64) -> (LeafPage, LeafPage) {
+    pub fn split_page(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         let entries = self.get_entries_size();
         assert!(entries > 0, "Page must have at least one entry to split.");
 
@@ -948,7 +950,7 @@ mod tests {
         assert!(!leaf_page.has_right_fence());
         assert!(!leaf_page.has_left_fence());
 
-        let (left_page, right_page) = leaf_page.split_page(0);
+        let (left_page, right_page, _) = leaf_page.split_page(0);
         assert_eq!(right_page.get_entries_size(), 10);
         assert_eq!(left_page.get_entries_size(), 10);
         assert!(left_page.has_right_fence());
@@ -976,7 +978,7 @@ mod tests {
             );
         }
 
-        let (left_page1, left_page2) = left_page.split_page(0);
+        let (left_page1, left_page2, _) = left_page.split_page(0);
         assert_eq!(left_page1.get_entries_size(), 5);
         assert_eq!(left_page2.get_entries_size(), 5);
         for i in 0..5 {
@@ -995,7 +997,7 @@ mod tests {
                     .equals(&tuples.get(i).unwrap())
             );
         }
-        let (right_page1, right_page2) = right_page.split_page(0);
+        let (right_page1, right_page2, _) = right_page.split_page(0);
         assert_eq!(right_page1.get_entries_size(), 5);
         assert_eq!(right_page2.get_entries_size(), 5);
         for i in 10..15 {

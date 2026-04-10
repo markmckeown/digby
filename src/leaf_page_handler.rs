@@ -57,7 +57,7 @@ impl LeafPageHandler {
 
         // Tuple was not added, so we need to split the page and add it to the correct page.
         // TODO - handle split when no entries go into right page.
-        let (mut left_page, mut right_page) = page.split_page(0);
+        let (mut left_page, mut right_page, _) = page.split_page(0);
         left_page.set_page_number(page.get_page_number());
         new_pages.pop();
 
