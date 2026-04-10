@@ -575,6 +575,16 @@ impl LeafPage {
             // This should avoid moving bytes around - we will be appending slots.
             left_page.add_key_value_at_index(i, &key, value);
         }
+        
+
+        let last_key = self.get_key_suffix_at_index(mid-1);
+        let mut tail_offset = last_key.iter()
+            .zip(mid_key)
+            .take_while(|(a, b)| a == b)
+            .count();
+        tail_offset = tail_offset + 1;
+        assert!(tail_offset <= mid_key.len(), "Tail compression failure");
+
 
         right_page.set_left_fence_key(mid_key);
         let mut right_offset = 0;
@@ -584,7 +594,7 @@ impl LeafPage {
             right_offset += 1;
         }
 
-        (left_page, right_page, Some(mid_key.to_vec()))
+        (left_page, right_page, Some(mid_key[..tail_offset].to_vec()))
     }
 
     fn split_page_2(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
@@ -623,6 +633,15 @@ impl LeafPage {
             left_page.add_key_value_at_index(i, &key, value);
         }
 
+
+        let last_key = self.get_key_suffix_at_index(mid-1);
+        let mut tail_offset = last_key.iter()
+            .zip(mid_key)
+            .take_while(|(a, b)| a == b)
+            .count();
+        tail_offset = tail_offset + 1;
+        assert!(tail_offset <= mid_key.len(), "Tail compression failure");
+
         let right_fence_key = self.get_right_fence_key();
         right_page.set_right_fence_key(right_fence_key);
         right_page.set_left_fence_key(mid_key);
@@ -639,7 +658,7 @@ impl LeafPage {
             right_offset += 1;
         }
 
-        (left_page, right_page, Some(mid_key.to_vec()))
+        (left_page, right_page, Some(mid_key[..tail_offset].to_vec()))
     }
 
     fn split_page_3(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
@@ -684,6 +703,16 @@ impl LeafPage {
             left_page.add_key_value_at_index(i, &key[left_prefix_length..], value);
         }
 
+
+        let last_key = self.get_key_suffix_at_index(mid-1);
+        let mut tail_offset = last_key.iter()
+            .zip(mid_key)
+            .take_while(|(a, b)| a == b)
+            .count();
+        tail_offset = tail_offset + 1;
+        assert!(tail_offset <= mid_key.len(), "Tail compression failure");
+
+
         // Create page to the right.
         right_page.set_left_fence_key(mid_key);
         right_page.set_prefix_length(0);
@@ -694,7 +723,7 @@ impl LeafPage {
             right_offset += 1;
         }
 
-        (left_page, right_page, Some(mid_key.to_vec()))
+        (left_page, right_page, Some(mid_key[..tail_offset].to_vec()))
     }
 
     fn split_page_4(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
@@ -738,6 +767,14 @@ impl LeafPage {
             left_page.add_key_value_at_index(i, &key[left_suffix_offset..], value);
         }
 
+        let last_key = self.get_key_at_index(mid-1);
+        let mut tail_offset = last_key.as_slice().iter()
+            .zip(mid_key.as_slice())
+            .take_while(|(a, b)| a == b)
+            .count();
+        tail_offset = tail_offset + 1;
+        assert!(tail_offset <= mid_key.len(), "Tail compression failure");
+
         right_page.set_left_fence_key(&mid_key);
         right_page.set_right_fence_key(self.get_right_fence_key());
         let right_prefix_length = mid_key
@@ -754,7 +791,7 @@ impl LeafPage {
             right_offset += 1;
         }
 
-        (left_page, right_page, Some(mid_key))
+        (left_page, right_page, Some(mid_key[..tail_offset].to_vec()))
     }
 
     fn split_page_small(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
