@@ -153,9 +153,9 @@ impl LeafPage {
         // Get full copy of all tuples
         let entties = self.get_all_tuples();
         self.reset(self.page.page_size);
-        self.set_prefix_length(prefix_length as u8);
         self.set_left_fence_key(left_fence.as_ref());
         self.set_right_fence_key(new_right_fence);
+        self.set_prefix_length(prefix_length as u8);
         for tuple in entties {
             let (ok, _) = self.add_tuple(&tuple);
             if !ok {

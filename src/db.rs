@@ -1338,6 +1338,12 @@ mod tests {
             );
             for i in 0u64..256 {
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
+                for j in 0u64..i {
+                    let returned_value = db.get(&j.to_be_bytes());
+                    if returned_value.is_none() {
+                        assert!(returned_value.is_some());
+                    }
+                }
             }
         }
         // The new scope essentially closes the DB - when Files run out of scope then
@@ -1350,8 +1356,11 @@ mod tests {
                 128,
             );
             for i in 0u64..256 {
-                let returned_value = db.get(&i.to_be_bytes()).unwrap();
-                assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
+                let returned_value = db.get(&i.to_be_bytes());
+                if returned_value.is_none() {
+                    assert!(returned_value.is_some());
+                }
+                assert_eq!(u64::from_be_bytes(returned_value.unwrap().try_into().unwrap()), i);
             }
         }
         {
