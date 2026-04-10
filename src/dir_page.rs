@@ -479,7 +479,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
 
         let (found, index) = self.get_index_for_key(key_suffix);
         assert!(
-            found == false,
+            !found,
             "Key already exists in the page when adding a new child page"
         );
         self.add_key_value_at_index(index, key_suffix, &page_no.to_le_bytes());
@@ -823,6 +823,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             .take_while(|(a, b)| a == b)
             .count();
         let left_prefix_offset = left_prefix_length - self.get_prefix_length() as usize; // The offset of the suffix in the key is the prefix length of the page.
+        left_page.set_prefix_length(left_prefix_length as u8);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
