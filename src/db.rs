@@ -1155,6 +1155,7 @@ mod tests {
 
     #[test]
     fn test_db_store_value_delete_small_page_reverse() {
+        let size = 1024u64;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let mut db = Db::new_with_page_size(
@@ -1163,7 +1164,7 @@ mod tests {
                 CompressorType::None,
                 128,
             );
-            for i in 0u64..=256 {
+            for i in 0u64..=size {
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
             }
         }
@@ -1176,7 +1177,7 @@ mod tests {
                 CompressorType::None,
                 128,
             );
-            for i in 0u64..=256 {
+            for i in 0u64..=size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
             }
@@ -1188,7 +1189,7 @@ mod tests {
                 CompressorType::None,
                 128,
             );
-            for i in (0..257u64).rev() {
+            for i in (0..(size + 1)).rev() {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
                 let deleted = db.delete(&i.to_be_bytes());
@@ -1215,6 +1216,7 @@ mod tests {
 
     #[test]
     fn test_db_store_value_delete_small_page_random() {
+        let size = 1024u64;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let mut db = Db::new_with_page_size(
@@ -1223,7 +1225,7 @@ mod tests {
                 CompressorType::None,
                 128,
             );
-            let mut numbers: Vec<u64> = (0..=256).collect();
+            let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
             for i in numbers {
@@ -1239,7 +1241,7 @@ mod tests {
                 CompressorType::None,
                 128,
             );
-            for i in 0u64..=256 {
+            for i in 0u64..=size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
             }
@@ -1251,7 +1253,7 @@ mod tests {
                 CompressorType::None,
                 128,
             );
-            let mut numbers: Vec<u64> = (0..=256).collect();
+            let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
             for i in numbers {
@@ -1326,8 +1328,25 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
+
+    #[test]
+    fn test_match() {
+        use std::cmp::Ordering;
+        let mid: &[u8] = &[0, 0, 0, 0, 0, 0, 2, 1];
+        let split: &[u8] = &[0, 0, 0, 0, 0, 0, 2];
+        let key: &[u8] =   &[0, 0, 0, 0, 0, 0, 2, 0];
+
+        let result = key.cmp(split);
+        assert_eq!(result, Ordering::Greater);
+        let result = split.cmp(key);
+        assert_eq!(result, Ordering::Less);
+        let result2 = key.cmp(mid);
+        assert_eq!(result2, Ordering::Less);
+    }
+
     #[test]
     fn test_db_store_value_delete_small_page() {
+        let size = 765u64;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let mut db = Db::new_with_page_size(
@@ -1336,13 +1355,11 @@ mod tests {
                 CompressorType::None,
                 128,
             );
-            for i in 0u64..256 {
+            for i in 0u64..size {
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
                 for j in 0u64..i {
                     let returned_value = db.get(&j.to_be_bytes());
-                    if returned_value.is_none() {
-                        assert!(returned_value.is_some());
-                    }
+                    assert!(returned_value.is_some());
                 }
             }
         }
@@ -1355,7 +1372,7 @@ mod tests {
                 CompressorType::None,
                 128,
             );
-            for i in 0u64..256 {
+            for i in 0u64..size {
                 let returned_value = db.get(&i.to_be_bytes());
                 if returned_value.is_none() {
                     assert!(returned_value.is_some());
@@ -1370,7 +1387,7 @@ mod tests {
                 CompressorType::None,
                 128,
             );
-            for i in 0u64..256 {
+            for i in 0u64..size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
                 let deleted = db.delete(&i.to_be_bytes());
@@ -1394,6 +1411,77 @@ mod tests {
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
+
+    #[test]
+    fn test_db_store_value_delete_small_page_little_endian() {
+        let size = 765u64;
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        {
+            let mut db = Db::new_with_page_size(
+                temp_file.path().to_str().unwrap(),
+                None,
+                CompressorType::None,
+                128,
+            );
+            for i in 0u64..size {
+                db.put(&i.to_le_bytes(), &i.to_le_bytes());
+                for j in 0u64..i {
+                    let returned_value = db.get(&j.to_le_bytes());
+                    if returned_value.is_none() {
+                        assert!(returned_value.is_some());
+                    }
+                }
+            }
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::new_with_page_size(
+                temp_file.path().to_str().unwrap(),
+                None,
+                CompressorType::None,
+                128,
+            );
+            for i in 0u64..size {
+                let returned_value = db.get(&i.to_le_bytes());
+                if returned_value.is_none() {
+                    assert!(returned_value.is_some());
+                }
+                assert_eq!(u64::from_le_bytes(returned_value.unwrap().try_into().unwrap()), i);
+            }
+        }
+        {
+            let mut db = Db::new_with_page_size(
+                temp_file.path().to_str().unwrap(),
+                None,
+                CompressorType::None,
+                128,
+            );
+            for i in 0u64..size {
+                let returned_value = db.get(&i.to_le_bytes()).unwrap();
+                assert_eq!(u64::from_le_bytes(returned_value.try_into().unwrap()), i);
+                let deleted = db.delete(&i.to_le_bytes());
+                if !deleted {
+                    assert!(deleted);
+                }
+                let returned_value = db.get(&i.to_le_bytes());
+                assert!(returned_value.is_none());
+            }
+        }
+        {
+            let mut db = Db::new_with_page_size(
+                temp_file.path().to_str().unwrap(),
+                None,
+                CompressorType::None,
+                128,
+            );
+            let i: u64 = 0;
+            let returned_value = db.get(&i.to_le_bytes());
+            assert!(returned_value.is_none());
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
 
     #[test]
     fn test_db_store_large_key_value_compressible() {

@@ -288,10 +288,10 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             let slot = self.get_slot_at_index(mid);
             let key_at_slot = self.get_key_at_slot(&slot);
 
-            match key_at_slot.cmp(key_suffix) {
-                Ordering::Less => low = mid + 1,
+            match key_suffix.cmp(key_at_slot) {
+                Ordering::Less => high = mid,    // Needle is smaller, look in the left half
                 Ordering::Equal => return (true, mid),
-                Ordering::Greater => high = mid,
+                Ordering::Greater => low = mid + 1, // Needle is larger, look in the right half
             }
         }
         // low is the insertion point if the key wasn't found
@@ -722,6 +722,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             right_offset += 1;
         }
 
+
         (left_page, right_page, mid_key.to_vec())
     }
 
@@ -830,6 +831,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             left_page.add_key_value_at_index(i, &key[left_prefix_offset..], value);
         }
 
+
         let right_prefix_length = mid_key
             .iter()
             .zip(self.get_right_fence_key())
@@ -846,6 +848,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             right_page.add_key_value_at_index(right_offset, &key[right_suffix_offset..], value);
             right_offset += 1;
         }
+
 
         (left_page, right_page, mid_key)
     }
