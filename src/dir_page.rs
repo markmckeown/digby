@@ -1,4 +1,5 @@
 
+use crate::LeafPage;
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::tree_dir_entry;
@@ -648,6 +649,9 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             left_page.add_key_value_at_index(i, &key, value);
         }
 
+
+        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid-1), mid_key);
+
         // For the right page there is no right fence or prefix.
         // Set the left fence to the mid_key - this also the page to the left.
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
@@ -660,7 +664,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             right_offset += 1;
         }
 
-        (left_page, right_page, mid_key.to_vec())
+        (left_page, right_page, split_key)
     }
 
     fn split_page_2(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
@@ -704,6 +708,9 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             left_page.add_key_value_at_index(i, &key, value);
         }
 
+
+        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid-1), mid_key);
+
         let right_fence_key = self.get_right_fence_key();
         let right_prefix_length = mid_key
             .iter()
@@ -722,7 +729,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             right_offset += 1;
         }
 
-        (left_page, right_page, mid_key.to_vec())
+        (left_page, right_page, split_key)
     }
 
     fn split_page_3(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
@@ -774,6 +781,9 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             left_page.add_key_value_at_index(i, &key[left_prefix_length..], value);
         }
 
+
+        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid-1), mid_key);
+
         // Create page to the right.
         right_page.set_left_fence_key(mid_key);
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
@@ -784,7 +794,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             right_offset += 1;
         }
 
-        (left_page, right_page, mid_key.to_vec())
+        (left_page, right_page, split_key)
     }
 
     fn split_page_4(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
@@ -830,6 +840,9 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             left_page.add_key_value_at_index(i, &key[left_prefix_offset..], value);
         }
 
+        let last_key = self.get_key_at_index(mid-1);
+        let split_key = LeafPage::tail_compress_key(&last_key, &mid_key);
+
         let right_prefix_length = mid_key
             .iter()
             .zip(self.get_right_fence_key())
@@ -847,7 +860,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             right_offset += 1;
         }
 
-        (left_page, right_page, mid_key)
+        (left_page, right_page, split_key)
     }
 
     pub fn split_page(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
