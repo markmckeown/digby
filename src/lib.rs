@@ -54,3 +54,6 @@ pub mod leaf_page;
 pub use leaf_page::LeafPage;
 pub mod dir_page;
 pub use dir_page::DirPage;
+pub mod page_no;
+pub use page_no::PageNo;
+
