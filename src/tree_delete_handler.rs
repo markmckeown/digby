@@ -1,9 +1,7 @@
+use crate::dir_page::DirPage;
 use crate::page::{PageTrait, PageType};
 use crate::tuple::{Overflow, TupleTrait};
-use crate::{
-    FreePageTracker, LeafPage, OverflowPageHandler, Page, PageCache, TreeDirEntry,
-};
-use crate::dir_page::DirPage;
+use crate::{FreePageTracker, LeafPage, OverflowPageHandler, Page, PageCache, TreeDirEntry};
 
 pub struct TreeDeleteHandler {}
 

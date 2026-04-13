@@ -1,4 +1,3 @@
-
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::tree_dir_entry;
@@ -128,7 +127,6 @@ impl DirPage {
         self.page.get_page_bytes_mut()[27..35].copy_from_slice(&bytes);
     }
 
-
     // Get the left sided key in the page.
     pub fn get_dir_left_key(&self) -> Option<Vec<u8>> {
         if self.get_entries_size() == 0 {
@@ -205,7 +203,6 @@ impl DirPage {
         self.page.get_page_bytes()[26] != 0
     }
 
-
     fn clear_right_fence_key(&mut self) {
         self.page.get_page_bytes_mut()[26] = 0;
         self.page.get_page_bytes_mut()[24..26].copy_from_slice(&[0, 0]);
@@ -276,7 +273,7 @@ impl DirPage {
         &self.get_left_fence_key()[0..prefix_length]
     }
 
-fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
+    fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
         let entries = self.get_entries_size() as usize;
 
         // binary search for the key suffix in the slots
@@ -289,7 +286,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             let key_at_slot = self.get_key_at_slot(&slot);
 
             match key_suffix.cmp(key_at_slot) {
-                Ordering::Less => high = mid,    // Needle is smaller, look in the left half
+                Ordering::Less => high = mid, // Needle is smaller, look in the left half
                 Ordering::Equal => return (true, mid),
                 Ordering::Greater => low = mid + 1, // Needle is larger, look in the right half
             }
@@ -364,7 +361,6 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             .copy_from_slice(&val_bytes);
     }
 
-
     fn reset_with_new_right_fence(&mut self, new_right_fence: &[u8]) -> bool {
         // Need a full copy of the left fence as we are going to nuke it in the page.
         let page_copy = self.page.get_page_bytes_mut().to_vec();
@@ -374,12 +370,12 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
         if old_prefix_length > 0 {
             // Only set compression if it was already set.
             prefix_length = left_fence
-            .iter()
-            .zip(new_right_fence)
-            .take_while(|(a, b)| a == b)
-            .count();
+                .iter()
+                .zip(new_right_fence)
+                .take_while(|(a, b)| a == b)
+                .count();
         } else {
-           prefix_length = 0;
+            prefix_length = 0;
         }
         // Get full copy of all tuples
         let entries = self.get_key_values();
@@ -399,7 +395,6 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
         true
     }
 
-
     fn reset_with_new_left_fence(&mut self, new_left_fence: &[u8]) -> bool {
         // Copy the page increase we have to roll it back if there is not enough room after
         // recompressing.
@@ -411,12 +406,12 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
         if old_prefix_length > 0 {
             // Only set compression if it was already set.
             prefix_length = new_left_fence
-            .iter()
-            .zip(right_fence.as_slice())
-            .take_while(|(a, b)| a == b)
-            .count();
+                .iter()
+                .zip(right_fence.as_slice())
+                .take_while(|(a, b)| a == b)
+                .count();
         } else {
-           prefix_length = 0;
+            prefix_length = 0;
         }
         // Get full copy of all tuples
         let entries = self.get_key_values();
@@ -485,7 +480,6 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
         self.add_key_value_at_index(index, key_suffix, &page_no.to_le_bytes());
         true
     }
-
 
     pub fn store_child_pages(&mut self, child_entries: &[tree_dir_entry::TreeDirEntry]) -> bool {
         // Child has not split - just update the page number for the child page.
@@ -602,7 +596,7 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             let value = u64::from_le_bytes(self.get_value_at_slot(&slot)[0..8].try_into().unwrap());
             key_values.push((key, value));
         }
-        key_values  
+        key_values
     }
 
     fn split_page_1(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
@@ -722,7 +716,6 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             right_offset += 1;
         }
 
-
         (left_page, right_page, mid_key.to_vec())
     }
 
@@ -831,7 +824,6 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             left_page.add_key_value_at_index(i, &key[left_prefix_offset..], value);
         }
 
-
         let right_prefix_length = mid_key
             .iter()
             .zip(self.get_right_fence_key())
@@ -848,7 +840,6 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
             right_page.add_key_value_at_index(right_offset, &key[right_suffix_offset..], value);
             right_offset += 1;
         }
-
 
         (left_page, right_page, mid_key)
     }
@@ -1006,7 +997,6 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
         }
     }
 
-
     pub fn get_all_child_pages(&self) -> Vec<u64> {
         let mut child_pages = Vec::new();
         if self.get_page_to_left() > 0 {
@@ -1018,10 +1008,11 @@ fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
         }
         for i in 0..entries as usize {
             let slot = self.get_slot_at_index(i);
-            let page_no = u64::from_le_bytes(self.get_value_at_slot(&slot)[0..8].try_into().unwrap());
+            let page_no =
+                u64::from_le_bytes(self.get_value_at_slot(&slot)[0..8].try_into().unwrap());
             child_pages.push(page_no);
         }
-        return child_pages
+        return child_pages;
     }
 }
 

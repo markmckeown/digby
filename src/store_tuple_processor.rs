@@ -1,13 +1,13 @@
 use crate::OverflowPageHandler;
+use crate::dir_page::DirPage;
 use crate::free_page_tracker::FreePageTracker;
 use crate::leaf_page::LeafPage;
 use crate::leaf_page_handler::LeafPageHandler;
 use crate::page::{Page, PageTrait, PageType};
 use crate::page_cache::PageCache;
 use crate::tree_dir_entry::TreeDirEntry;
-use crate::tree_dir_handler::{TreeDirHandler, DirPageRef};
+use crate::tree_dir_handler::{DirPageRef, TreeDirHandler};
 use crate::tuple::{Tuple, TupleTrait};
-use crate::dir_page::DirPage;
 
 pub struct StoreTupleProcessor {}
 
@@ -119,10 +119,7 @@ impl StoreTupleProcessor {
         dir_page = dir_pages.pop().unwrap();
         // Get a set of TreeDirEntryRefs back when updating the tree dir entry with the lead page details.
         // There could be more than one TreeDirEntryRef if the dir page had to split.
-        let mut dir_refs = TreeDirHandler::handle_tree_leaf_store_1(
-            dir_page,
-            leaf_dir_entries
-        );
+        let mut dir_refs = TreeDirHandler::handle_tree_leaf_store_1(dir_page, leaf_dir_entries);
         // Write the dir entries out to disk and get back a set of directory entries back.
         let mut dir_entries = StoreTupleProcessor::write_tree_dir_pages(
             dir_refs,
@@ -134,10 +131,7 @@ impl StoreTupleProcessor {
         // Need to walk back up the directory stack adding the pages.
         while !dir_pages.is_empty() {
             dir_page = dir_pages.pop().unwrap();
-            dir_refs = TreeDirHandler::handle_tree_dir_store_1(
-                dir_page,
-                dir_entries
-            );
+            dir_refs = TreeDirHandler::handle_tree_dir_store_1(dir_page, dir_entries);
             dir_entries = StoreTupleProcessor::write_tree_dir_pages(
                 dir_refs,
                 free_page_tracker,
@@ -156,10 +150,7 @@ impl StoreTupleProcessor {
         // Need a new TreeDirPage.
         let new_tree_dir_page = DirPage::create_new(page_cache.get_page_config(), 0, 0);
         // Add the entries to the new root page.
-        dir_refs = TreeDirHandler::handle_tree_dir_store_1(
-            new_tree_dir_page,
-            dir_entries
-        );
+        dir_refs = TreeDirHandler::handle_tree_dir_store_1(new_tree_dir_page, dir_entries);
         // The new root page cannot split - so there should only be one page in the dir_refs now.
         dir_entries = StoreTupleProcessor::write_tree_dir_pages(
             dir_refs,
@@ -216,11 +207,10 @@ impl StoreTupleProcessor {
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut leaf_page in leaf_pages {
             // Create a TreeDirEntry for the leaf page to add to the DirPage
-            let key = leaf_page.1.unwrap_or_else(|| leaf_page.0.get_left_key().unwrap().to_vec());
-            let tree_dir_entry = TreeDirEntry::new(
-                key,
-                leaf_page.0.get_page_number(),
-            );
+            let key = leaf_page
+                .1
+                .unwrap_or_else(|| leaf_page.0.get_left_key().unwrap().to_vec());
+            let tree_dir_entry = TreeDirEntry::new(key, leaf_page.0.get_page_number());
             entries.push(tree_dir_entry);
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
             page_cache.put_page(leaf_page.0.get_page());
@@ -263,7 +253,8 @@ impl StoreTupleProcessor {
                 .tree_leaf_pages
                 .first()
                 .unwrap()
-                .0.get_page_number();
+                .0
+                .get_page_number();
             // Write the new root leaf page to disk
             page_cache.put_page(update_result.tree_leaf_pages.pop().unwrap().0.get_page());
             // Return the new root page_number
@@ -275,11 +266,10 @@ impl StoreTupleProcessor {
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut leaf_page in update_result.tree_leaf_pages {
             // Create a TreeDirEntry for the leaf page to add to the TreeDirPage
-            let key = leaf_page.1.unwrap_or_else(|| leaf_page.0.get_left_key().unwrap().to_vec());
-            let tree_dir_entry = TreeDirEntry::new(
-                    key,
-            leaf_page.0.get_page_number(),
-            );
+            let key = leaf_page
+                .1
+                .unwrap_or_else(|| leaf_page.0.get_left_key().unwrap().to_vec());
+            let tree_dir_entry = TreeDirEntry::new(key, leaf_page.0.get_page_number());
             entries.push(tree_dir_entry);
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
             page_cache.put_page(leaf_page.0.get_page());
@@ -287,10 +277,7 @@ impl StoreTupleProcessor {
         // Need a new DirPage.
         let new_tree_dir_page = DirPage::create_new(page_cache.get_page_config(), 0, 0);
         // Add the entries to the new root page.
-        let dir_refs = TreeDirHandler::handle_tree_leaf_store_1(
-            new_tree_dir_page,
-            entries
-        );
+        let dir_refs = TreeDirHandler::handle_tree_leaf_store_1(new_tree_dir_page, entries);
         // The new root page cannot split - there can be a most three entries added to it.
         assert!(dir_refs.len() == 1);
         let dir_entries = StoreTupleProcessor::write_tree_dir_pages(

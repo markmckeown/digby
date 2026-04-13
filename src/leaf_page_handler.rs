@@ -73,7 +73,7 @@ impl LeafPageHandler {
         }
 
         let left_key = opton_left_key.unwrap();
-    
+
         // Tuple is to the left of the split entries so try and add to the left page.
         if tuple.get_key() < left_key.as_slice() {
             let (ok, _) = left_page.add_tuple(&tuple);
@@ -89,8 +89,11 @@ impl LeafPageHandler {
                 new_pages.push((right_page, Some(left_key)));
                 new_pages.push((left_page, None));
                 let empty_tuple = LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config);
-                assert!(empty_tuple.is_none(), "Second call to add tuple should not delete tuple");
-                return existing_tuple
+                assert!(
+                    empty_tuple.is_none(),
+                    "Second call to add tuple should not delete tuple"
+                );
+                return existing_tuple;
             }
         } else {
             // If we get here then the tuple should go into the right page if it can fit.
@@ -105,8 +108,11 @@ impl LeafPageHandler {
                 new_pages.push((left_page, None));
                 new_pages.push((right_page, Some(left_key)));
                 let empty_tuple = LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config);
-                assert!(empty_tuple.is_none(), "Second call to add tuple should not delete tuple");
-                return existing_tuple
+                assert!(
+                    empty_tuple.is_none(),
+                    "Second call to add tuple should not delete tuple"
+                );
+                return existing_tuple;
             }
         }
     }

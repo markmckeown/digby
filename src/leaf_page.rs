@@ -143,12 +143,12 @@ impl LeafPage {
         if old_prefix_length > 0 {
             // Only set compression if it was already set.
             prefix_length = left_fence
-            .iter()
-            .zip(new_right_fence)
-            .take_while(|(a, b)| a == b)
-            .count();
+                .iter()
+                .zip(new_right_fence)
+                .take_while(|(a, b)| a == b)
+                .count();
         } else {
-           prefix_length = 0;
+            prefix_length = 0;
         }
         // Get full copy of all tuples
         let entties = self.get_all_tuples();
@@ -204,7 +204,6 @@ impl LeafPage {
         self.page.get_page_bytes_mut()[23] = 0;
     }
 
-
     fn get_left_fence_key(&self) -> &[u8] {
         let offset = self.get_left_fence_key_offset() as usize;
         let size = self.get_left_fence_key_size() as usize;
@@ -249,7 +248,6 @@ impl LeafPage {
         self.page.get_page_bytes_mut()[24..26].copy_from_slice(&[0, 0]);
         self.page.get_page_bytes_mut()[26] = 0;
     }
-
 
     fn get_right_fence_key_size(&self) -> u8 {
         self.page.get_page_bytes()[26]
@@ -333,7 +331,7 @@ impl LeafPage {
             let key_at_slot = self.get_key_at_slot(&slot);
 
             match key_suffix.cmp(key_at_slot) {
-                Ordering::Less => high = mid,    // Needle is smaller, look in the left half
+                Ordering::Less => high = mid, // Needle is smaller, look in the left half
                 Ordering::Equal => return (true, mid),
                 Ordering::Greater => low = mid + 1, // Needle is larger, look in the right half
             }
@@ -370,7 +368,7 @@ impl LeafPage {
         // The page to the right of this page could have been deleted, then a key that
         // originally belonged to that page is added again and is now routed to this page
         // so need to account for this.
-        // Always rebuild if we have a right fence and key is larger than right fence. 
+        // Always rebuild if we have a right fence and key is larger than right fence.
         if self.has_right_fence() && tuple_key > self.get_right_fence_key() {
             if !self.reset_with_new_right_fence(tuple_key) {
                 // Reset failed as cannot rebuild same page with new compression as not enough space.
@@ -579,9 +577,9 @@ impl LeafPage {
             // This should avoid moving bytes around - we will be appending slots.
             left_page.add_key_value_at_index(i, &key, value);
         }
-        
-        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid-1), mid_key);
-        
+
+        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
+
         right_page.set_left_fence_key(mid_key);
         let mut right_offset = 0;
         for i in mid..entries {
@@ -629,8 +627,8 @@ impl LeafPage {
             left_page.add_key_value_at_index(i, &key, value);
         }
 
-        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid-1), mid_key);
-    
+        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
+
         let right_fence_key = self.get_right_fence_key();
         right_page.set_right_fence_key(right_fence_key);
         right_page.set_left_fence_key(mid_key);
@@ -692,8 +690,7 @@ impl LeafPage {
             left_page.add_key_value_at_index(i, &key[left_prefix_length..], value);
         }
 
-
-        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid-1), mid_key);
+        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
 
         // Create page to the right.
         right_page.set_left_fence_key(mid_key);
@@ -749,9 +746,8 @@ impl LeafPage {
             left_page.add_key_value_at_index(i, &key[left_suffix_offset..], value);
         }
 
-        let last_key = self.get_key_at_index(mid-1);
+        let last_key = self.get_key_at_index(mid - 1);
         let split_key = LeafPage::tail_compress_key(&last_key, &mid_key);
-
 
         right_page.set_left_fence_key(&mid_key);
         right_page.set_right_fence_key(self.get_right_fence_key());
@@ -848,7 +844,8 @@ impl LeafPage {
     }
 
     pub fn tail_compress_key(last_key: &[u8], mid_key: &[u8]) -> Vec<u8> {
-        let mut tail_offset = last_key.iter()
+        let mut tail_offset = last_key
+            .iter()
             .zip(mid_key)
             .take_while(|(a, b)| a == b)
             .count();
@@ -856,7 +853,6 @@ impl LeafPage {
         assert!(tail_offset <= mid_key.len(), "Tail compression failure");
         mid_key[..tail_offset].to_vec()
     }
-
 
     /**
      * Remove key and value. Returns true of the key was found and removed,
@@ -969,7 +965,6 @@ mod tests {
         let tail = LeafPage::tail_compress_key(last_key.as_bytes(), mid_key.as_bytes());
         assert_eq!(tail, "aec".as_bytes());
     }
-
 
     #[test]
     fn test_split() {
@@ -1098,7 +1093,7 @@ mod tests {
     fn test_multi_length_keys() {
         let page_config = PageConfig {
             block_size: 4096,
-            page_size:  4000,
+            page_size: 4000,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
@@ -1116,7 +1111,6 @@ mod tests {
         assert_eq!(tuples[2].get_key(), b"aaa");
         assert_eq!(tuples[3].get_key(), b"ab");
     }
-
 
     #[test]
     fn test_add_and_remove_tuple() {

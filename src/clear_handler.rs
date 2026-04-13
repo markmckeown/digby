@@ -1,4 +1,5 @@
 use crate::LeafPage;
+use crate::dir_page::DirPage;
 use crate::free_page_tracker::FreePageTracker;
 use crate::overflow_page_handler::OverflowPageHandler;
 use crate::page::Page;
@@ -7,7 +8,6 @@ use crate::page::PageType;
 use crate::page_cache::PageCache;
 use crate::tuple::Overflow;
 use crate::tuple::TupleTrait;
-use crate::dir_page::DirPage;
 
 pub struct ClearHandler {
     // Currently empty - placeholder for future functionality

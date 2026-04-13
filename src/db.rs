@@ -1328,13 +1328,12 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
-
     #[test]
     fn test_match() {
         use std::cmp::Ordering;
         let mid: &[u8] = &[0, 0, 0, 0, 0, 0, 2, 1];
         let split: &[u8] = &[0, 0, 0, 0, 0, 0, 2];
-        let key: &[u8] =   &[0, 0, 0, 0, 0, 0, 2, 0];
+        let key: &[u8] = &[0, 0, 0, 0, 0, 0, 2, 0];
 
         let result = key.cmp(split);
         assert_eq!(result, Ordering::Greater);
@@ -1377,7 +1376,10 @@ mod tests {
                 if returned_value.is_none() {
                     assert!(returned_value.is_some());
                 }
-                assert_eq!(u64::from_be_bytes(returned_value.unwrap().try_into().unwrap()), i);
+                assert_eq!(
+                    u64::from_be_bytes(returned_value.unwrap().try_into().unwrap()),
+                    i
+                );
             }
         }
         {
@@ -1447,7 +1449,10 @@ mod tests {
                 if returned_value.is_none() {
                     assert!(returned_value.is_some());
                 }
-                assert_eq!(u64::from_le_bytes(returned_value.unwrap().try_into().unwrap()), i);
+                assert_eq!(
+                    u64::from_le_bytes(returned_value.unwrap().try_into().unwrap()),
+                    i
+                );
             }
         }
         {
@@ -1481,7 +1486,6 @@ mod tests {
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
-
 
     #[test]
     fn test_db_store_large_key_value_compressible() {

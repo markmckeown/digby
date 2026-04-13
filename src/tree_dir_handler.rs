@@ -1,8 +1,7 @@
+use crate::dir_page::DirPage;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
 use crate::{FreePageTracker, TreeDirEntry};
-use crate::dir_page::DirPage;
-
 
 pub struct TreeDirHandler {}
 
@@ -14,7 +13,7 @@ pub struct DirPageRef {
 impl TreeDirHandler {
     pub fn handle_tree_leaf_store_1(
         mut dir_page: DirPage,
-        entries: Vec<TreeDirEntry>
+        entries: Vec<TreeDirEntry>,
     ) -> Vec<DirPageRef> {
         assert!(!entries.is_empty(), "entries was empty");
         let mut tree_dir_pages: Vec<DirPageRef> = Vec::new();
@@ -49,7 +48,6 @@ impl TreeDirHandler {
         tree_dir_pages
     }
 
-
     pub fn map_dir_pages(
         page_refs: &mut Vec<DirPageRef>,
         free_page_tracker: &mut FreePageTracker,
@@ -67,10 +65,9 @@ impl TreeDirHandler {
         }
     }
 
-
     pub fn handle_tree_dir_store_1(
         mut parent_dir_page: DirPage,
-        entries: Vec<TreeDirEntry>
+        entries: Vec<TreeDirEntry>,
     ) -> Vec<DirPageRef> {
         assert!(!entries.is_empty(), "dir entries was empty");
         let mut tree_dir_pages: Vec<DirPageRef> = Vec::new();
@@ -84,8 +81,7 @@ impl TreeDirHandler {
         }
 
         // Need to split the parent dir page.
-        let (mut left_dir, mut right_dir, new_left_key) 
-                        = parent_dir_page.split_page(0);
+        let (mut left_dir, mut right_dir, new_left_key) = parent_dir_page.split_page(0);
 
         if entries.first().unwrap().get_key() < new_left_key.as_slice() {
             // Add entries to original page.
@@ -144,8 +140,7 @@ mod tests {
 
         let mut tree_dir_page = DirPage::create_new(&page_config, 0, 0);
 
-        let mut new_pages =
-            TreeDirHandler::handle_tree_leaf_store_1(tree_dir_page, entries);
+        let mut new_pages = TreeDirHandler::handle_tree_leaf_store_1(tree_dir_page, entries);
         assert_eq!(new_pages.len(), 1);
         tree_dir_page = new_pages.pop().unwrap().page;
         assert_eq!(tree_dir_page.get_page_to_left(), 21);
