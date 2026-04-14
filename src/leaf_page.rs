@@ -139,17 +139,17 @@ impl LeafPage {
         let page_copy = self.page.get_page_bytes_mut().to_vec();
         let old_prefix_length = self.get_prefix_length() as usize;
         let left_fence = self.get_left_fence_key().to_vec();
-        let prefix_length: usize;
-        if old_prefix_length > 0 {
+
+        let prefix_length: usize = if old_prefix_length > 0 {
             // Only set compression if it was already set.
-            prefix_length = left_fence
+            left_fence
                 .iter()
                 .zip(new_right_fence)
                 .take_while(|(a, b)| a == b)
-                .count();
+                .count()
         } else {
-            prefix_length = 0;
-        }
+            0
+        };
         // Get full copy of all tuples
         let entties = self.get_all_tuples();
         self.reset(self.page.page_size);
@@ -260,10 +260,6 @@ impl LeafPage {
     }
 
     fn set_prefix_length(&mut self, prefix_length: u8) {
-        assert!(
-            prefix_length <= u8::MAX as u8,
-            "Prefix length larger than u8 can hold."
-        );
         assert!(
             self.get_entries_size() == 0,
             "Cannot set prefix length on a page that already has entries."
@@ -468,22 +464,16 @@ impl LeafPage {
     pub fn get_tuple(&self, key: &[u8]) -> Option<Tuple> {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
+            // If key does not start with prefix then we do not have it - this could happen
+            // if the page to the right has been deleted.
             // Using compression - if the key is greater than the right fence then we do not have it.
             if key >= self.get_right_fence_key() {
                 return None;
             }
-            assert!(
-                key.len() >= prefix_length,
-                "Key length is smaller than the prefix length of the page."
-            );
             let key_prefix = self.get_key_prefix();
             if !key.starts_with(key_prefix) {
                 return None;
             }
-            assert!(
-                key.starts_with(self.get_key_prefix()),
-                "Key does not match the prefix of the page."
-            );
         }
         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
         if !found {
@@ -511,7 +501,7 @@ impl LeafPage {
         let slot = self.get_slot_at_index(index);
         let key = self.get_key_at_slot(&slot);
         let value = self.get_value_at_slot(&slot);
-        (&key, &value)
+        (key, value)
     }
 
     fn get_key_suffix_at_index(&self, index: usize) -> &[u8] {
@@ -546,7 +536,7 @@ impl LeafPage {
         // have a right fence. The new page on the right will have a left fence
         // but no right fence. Both pages will have no prefix.
         assert!(
-            self.get_key_prefix().len() == 0,
+            self.get_key_prefix().is_empty(),
             "Page has a prefix when splitting page with no fences."
         );
         let mut left_page = LeafPage::create_new(
@@ -575,17 +565,15 @@ impl LeafPage {
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
-            left_page.add_key_value_at_index(i, &key, value);
+            left_page.add_key_value_at_index(i, key, value);
         }
 
         let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
 
         right_page.set_left_fence_key(mid_key);
-        let mut right_offset = 0;
         for i in mid..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
-            right_page.add_key_value_at_index(right_offset, &key, value);
-            right_offset += 1;
+            right_page.add_key_value_at_index(i - mid, key, value);
         }
 
         (left_page, right_page, Some(split_key))
@@ -595,7 +583,7 @@ impl LeafPage {
         // Left Page - has right fence but no left fence. This means no prefix
         // and a right fence key.
         assert!(
-            self.get_key_prefix().len() == 0,
+            self.get_key_prefix().is_empty(),
             "Page has a prefix when splitting page with only a right fence."
         );
         let mut left_page = LeafPage::create_new(
@@ -624,7 +612,7 @@ impl LeafPage {
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
-            left_page.add_key_value_at_index(i, &key, value);
+            left_page.add_key_value_at_index(i, key, value);
         }
 
         let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
@@ -638,11 +626,9 @@ impl LeafPage {
             .take_while(|(a, b)| a == b)
             .count();
         right_page.set_prefix_length(right_prefix_length as u8);
-        let mut right_offset = 0;
         for i in mid..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
-            right_page.add_key_value_at_index(right_offset, &key[right_prefix_length..], value);
-            right_offset += 1;
+            right_page.add_key_value_at_index(i - mid, &key[right_prefix_length..], value);
         }
 
         (left_page, right_page, Some(split_key))
@@ -695,11 +681,9 @@ impl LeafPage {
         // Create page to the right.
         right_page.set_left_fence_key(mid_key);
         right_page.set_prefix_length(0);
-        let mut right_offset = 0;
         for i in mid..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
-            right_page.add_key_value_at_index(right_offset, &key, value);
-            right_offset += 1;
+            right_page.add_key_value_at_index(i - mid, key, value);
         }
 
         (left_page, right_page, Some(split_key))
@@ -758,11 +742,9 @@ impl LeafPage {
             .count();
         right_page.set_prefix_length(right_prefix_length as u8);
         let right_suffix_offset = right_prefix_length - self.get_prefix_length() as usize;
-        let mut right_offset = 0;
         for i in mid..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
-            right_page.add_key_value_at_index(right_offset, &key[right_suffix_offset..], value);
-            right_offset += 1;
+            right_page.add_key_value_at_index(i - mid, &key[right_suffix_offset..], value);
         }
 
         (left_page, right_page, Some(split_key))
@@ -840,7 +822,7 @@ impl LeafPage {
         }
 
         // Center Page - has both left and right fences.
-        return self.split_page_4(version);
+        self.split_page_4(version)
     }
 
     pub fn tail_compress_key(last_key: &[u8], mid_key: &[u8]) -> Vec<u8> {
@@ -849,7 +831,7 @@ impl LeafPage {
             .zip(mid_key)
             .take_while(|(a, b)| a == b)
             .count();
-        tail_offset = tail_offset + 1;
+        tail_offset += 1;
         assert!(tail_offset <= mid_key.len(), "Tail compression failure");
         mid_key[..tail_offset].to_vec()
     }

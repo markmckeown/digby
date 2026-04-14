@@ -1,4 +1,3 @@
-use crate::block_layer::PageConfig;
 use crate::free_page_tracker::FreePageTracker;
 use crate::leaf_page::LeafPage;
 use crate::page::PageTrait;
@@ -14,10 +13,10 @@ pub struct UpdateResult {
 
 impl LeafPageHandler {
     // This happens after overflow handling, so we know the tuple will fit in a page.
-    pub fn add_tuple(page: LeafPage, tuple: Tuple, page_config: &PageConfig) -> UpdateResult {
+    pub fn add_tuple(page: LeafPage, tuple: Tuple) -> UpdateResult {
         let mut pages: Vec<(LeafPage, Option<Vec<u8>>)> = Vec::new();
         pages.push((page, None));
-        let deleted_tuple = LeafPageHandler::add_to_leaf_page(tuple, &mut pages, page_config);
+        let deleted_tuple = LeafPageHandler::add_to_leaf_page(tuple, &mut pages);
         UpdateResult {
             tree_leaf_pages: pages,
             deleted_tuple,
@@ -44,7 +43,6 @@ impl LeafPageHandler {
     fn add_to_leaf_page(
         tuple: Tuple,
         new_pages: &mut Vec<(LeafPage, Option<Vec<u8>>)>,
-        page_config: &PageConfig,
     ) -> Option<Tuple> {
         assert!(!new_pages.is_empty());
         let page = new_pages.last_mut().unwrap();
@@ -80,7 +78,7 @@ impl LeafPageHandler {
             if ok {
                 new_pages.push((left_page, None));
                 new_pages.push((right_page, Some(left_key)));
-                return existing_tuple;
+                existing_tuple
             } else {
                 // Tuple does not fit into the old page, need to split again,
                 // Put the new page to the start of the new_pages - the old
@@ -88,12 +86,12 @@ impl LeafPageHandler {
                 // recursively called.
                 new_pages.push((right_page, Some(left_key)));
                 new_pages.push((left_page, None));
-                let empty_tuple = LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config);
+                let empty_tuple = LeafPageHandler::add_to_leaf_page(tuple, new_pages);
                 assert!(
                     empty_tuple.is_none(),
                     "Second call to add tuple should not delete tuple"
                 );
-                return existing_tuple;
+                existing_tuple
             }
         } else {
             // If we get here then the tuple should go into the right page if it can fit.
@@ -101,18 +99,18 @@ impl LeafPageHandler {
             if ok {
                 new_pages.push((left_page, None));
                 new_pages.push((right_page, Some(left_key)));
-                return existing_tuple;
+                existing_tuple
             } else {
                 // Tuple cannot fit into new page, new page is the last in the list
                 // and will be split again when function is recursively called.
                 new_pages.push((left_page, None));
                 new_pages.push((right_page, Some(left_key)));
-                let empty_tuple = LeafPageHandler::add_to_leaf_page(tuple, new_pages, page_config);
+                let empty_tuple = LeafPageHandler::add_to_leaf_page(tuple, new_pages);
                 assert!(
                     empty_tuple.is_none(),
                     "Second call to add tuple should not delete tuple"
                 );
-                return existing_tuple;
+                existing_tuple
             }
         }
     }
@@ -121,6 +119,7 @@ impl LeafPageHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::block_layer::PageConfig;
 
     #[test]
     fn test_small_tuple_split_page() {
@@ -146,7 +145,7 @@ mod tests {
                 new_version,
             );
 
-            pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
+            pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
             if pages.tree_leaf_pages.len() > 1 {
                 break;
             }
@@ -182,7 +181,7 @@ mod tests {
                 new_version,
             );
 
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
+            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
             tree_leaf_page_count = pages.tree_leaf_pages.len();
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap().0;
         }
@@ -212,7 +211,7 @@ mod tests {
                 new_version,
             );
 
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
+            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
             tree_leaf_page_count = pages.tree_leaf_pages.len();
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap().0;
         }
@@ -248,7 +247,7 @@ mod tests {
                 value.as_ref(),
                 new_version,
             );
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
+            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
             tree_leaf_page_count = pages.tree_leaf_pages.len();
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap().0;
         }
@@ -283,7 +282,7 @@ mod tests {
                 new_version,
             );
 
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
+            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
             tree_leaf_page_count = pages.tree_leaf_pages.len();
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap().0;
         }
@@ -320,7 +319,7 @@ mod tests {
                 value.as_ref(),
                 new_version,
             );
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple, &page_config);
+            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
             tree_leaf_page_count = pages.tree_leaf_pages.len();
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap().0;
         }
