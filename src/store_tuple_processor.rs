@@ -98,7 +98,7 @@ impl StoreTupleProcessor {
         // Add to leaf page, remap leaf page or leaf pages if it split.
         // A leaf page can split into three depending on the size of tuples it holds.
         let update_result =
-            LeafPageHandler::add_tuple(leaf_page, tuple, page_cache.get_page_config());
+            LeafPageHandler::add_tuple(leaf_page, tuple);
 
         // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
         OverflowPageHandler::delete_overflow_tuple_pages(
@@ -231,7 +231,7 @@ impl StoreTupleProcessor {
     ) -> u64 {
         // Add the tuple to the leaf page.
         let mut update_result =
-            LeafPageHandler::add_tuple(tree_root_single, tuple, page_cache.get_page_config());
+            LeafPageHandler::add_tuple(tree_root_single, tuple);
 
         // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
         OverflowPageHandler::delete_overflow_tuple_pages(

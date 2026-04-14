@@ -225,10 +225,6 @@ impl DirPage {
 
     pub fn set_prefix_length(&mut self, prefix_length: u8) {
         assert!(
-            prefix_length <= u8::MAX as u8,
-            "Prefix length larger than u8 can hold."
-        );
-        assert!(
             self.get_entries_size() == 0,
             "Cannot set prefix length on a page that already has entries."
         );
@@ -348,12 +344,11 @@ impl DirPage {
 
         // The key does not belong to the left most page. We need to find the correct entry and update the page number.
         let (found, index) = self.get_index_for_key(key_suffix);
-        let index_to_update;
-        if found {
-            index_to_update = index;
+        let index_to_update = if found {
+            index
         } else {
-            index_to_update = index - 1;
-        }
+            index - 1
+        };
         let slot_to_update = self.get_slot_at_index(index_to_update);
         let val_offset = (slot_to_update.offset + slot_to_update.key_len as u16) as usize;
         let val_bytes = page_no.to_le_bytes();
@@ -366,17 +361,16 @@ impl DirPage {
         let page_copy = self.page.get_page_bytes_mut().to_vec();
         let old_prefix_length = self.get_prefix_length() as usize;
         let left_fence = self.get_left_fence_key().to_vec();
-        let prefix_length: usize;
-        if old_prefix_length > 0 {
+        let prefix_length: usize = if old_prefix_length > 0 {
             // Only set compression if it was already set.
-            prefix_length = left_fence
+            left_fence
                 .iter()
                 .zip(new_right_fence)
                 .take_while(|(a, b)| a == b)
-                .count();
+                .count()
         } else {
-            prefix_length = 0;
-        }
+            0
+        };
         // Get full copy of all tuples
         let entries = self.get_key_values();
         self.reset(self.page.page_size);
@@ -402,17 +396,16 @@ impl DirPage {
         let old_prefix_length = self.get_prefix_length() as usize;
         // Need a full copy of the right fence as we are going to nuke it in the page.
         let right_fence = self.get_right_fence_key().to_vec();
-        let prefix_length: usize;
-        if old_prefix_length > 0 {
+        let prefix_length: usize = if old_prefix_length > 0 {
             // Only set compression if it was already set.
-            prefix_length = new_left_fence
+            new_left_fence
                 .iter()
                 .zip(right_fence.as_slice())
                 .take_while(|(a, b)| a == b)
-                .count();
+                .count()
         } else {
-            prefix_length = 0;
-        }
+            0
+        };
         // Get full copy of all tuples
         let entries = self.get_key_values();
         self.reset(self.page.page_size);
@@ -492,8 +485,8 @@ impl DirPage {
         // Child pages have split - need to handle. Take copy of page to allow rollback
         let page_copy = self.page.get_page_bytes_mut().to_vec();
         self.update_child_page_no(child_entries[0].get_key(), child_entries[0].get_page_no());
-        for i in 1..child_entries.len() {
-            if !self.add_child_page(child_entries[i].get_key(), child_entries[i].get_page_no()) {
+        for child_entry in child_entries.iter().skip(1) {
+            if !self.add_child_page(child_entry.get_key(), child_entry.get_page_no()) {
                 self.page.get_page_bytes_mut().copy_from_slice(&page_copy);
                 return false;
             }
@@ -568,7 +561,7 @@ impl DirPage {
         let slot = self.get_slot_at_index(index);
         let key = self.get_key_at_slot(&slot);
         let value = self.get_value_at_slot(&slot);
-        (&key, &value)
+        (key, value)
     }
 
     fn get_key_suffix_at_index(&self, index: usize) -> &[u8] {
@@ -639,7 +632,7 @@ impl DirPage {
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
-            left_page.add_key_value_at_index(i, &key, value);
+            left_page.add_key_value_at_index(i, key, value);
         }
 
         // For the right page there is no right fence or prefix.
@@ -647,11 +640,9 @@ impl DirPage {
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
         right_page.set_left_fence_key(mid_key);
         right_page.set_prefix_length(0);
-        let mut right_offset = 0;
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
-            right_page.add_key_value_at_index(right_offset, &key, value);
-            right_offset += 1;
+            right_page.add_key_value_at_index(i - (mid + 1), key, value);
         }
 
         (left_page, right_page, mid_key.to_vec())
@@ -665,7 +656,7 @@ impl DirPage {
         // New page to the right will have a left fence which is the mid key and the right of the
         // current page. The new right page will have a prefix.
         assert!(
-            self.get_key_prefix().len() == 0,
+            self.get_key_prefix().is_empty(),
             "Page has a prefix when splitting page with only a right fence."
         );
         let mut left_page = DirPage::create_new(
@@ -695,7 +686,7 @@ impl DirPage {
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
-            left_page.add_key_value_at_index(i, &key, value);
+            left_page.add_key_value_at_index(i, key, value);
         }
 
         let right_fence_key = self.get_right_fence_key();
@@ -708,12 +699,10 @@ impl DirPage {
         right_page.set_left_fence_key(mid_key);
         right_page.set_right_fence_key(right_fence_key);
         right_page.set_prefix_length(right_prefix_length as u8);
-        let mut right_offset = 0;
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // Use the prefix length to only store the key suffix.
-            right_page.add_key_value_at_index(right_offset, &key[right_prefix_length..], value);
-            right_offset += 1;
+            right_page.add_key_value_at_index(i - (mid + 1), &key[right_prefix_length..], value);
         }
 
         (left_page, right_page, mid_key.to_vec())
@@ -725,7 +714,7 @@ impl DirPage {
         // New page to the left will have a left fence and right fence with a prefix.
         // New page to the right will have a left fence and no right fence and no prefix.
         assert!(
-            self.get_key_prefix().len() == 0,
+            self.get_key_prefix().is_empty(),
             "Page has a prefix when splitting page with only a left fence."
         );
         let mut left_page = DirPage::create_new(
@@ -771,11 +760,9 @@ impl DirPage {
         // Create page to the right.
         right_page.set_left_fence_key(mid_key);
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
-        let mut right_offset = 0;
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
-            right_page.add_key_value_at_index(right_offset, &key, value);
-            right_offset += 1;
+            right_page.add_key_value_at_index(i - (mid + 1), key, value);
         }
 
         (left_page, right_page, mid_key.to_vec())
@@ -834,11 +821,9 @@ impl DirPage {
         right_page.set_left_fence_key(mid_key.as_slice());
         right_page.set_right_fence_key(self.get_right_fence_key());
         right_page.set_prefix_length(right_prefix_length as u8);
-        let mut right_offset = 0;
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
-            right_page.add_key_value_at_index(right_offset, &key[right_suffix_offset..], value);
-            right_offset += 1;
+            right_page.add_key_value_at_index(i - (mid + 1), &key[right_suffix_offset..], value);
         }
 
         (left_page, right_page, mid_key)
@@ -872,7 +857,7 @@ impl DirPage {
         }
 
         // Center Page - has both left and right fences.
-        return self.split_page_4(version);
+        self.split_page_4(version)
     }
 
     /**
@@ -884,7 +869,7 @@ impl DirPage {
         let entries = self.get_entries_size() as usize;
         assert!(index < entries);
         let slot = self.get_slot_at_index(index);
-        let entry_size = slot.key_len as usize + DirPage::VALUE_SIZE as usize;
+        let entry_size = slot.key_len as usize + DirPage::VALUE_SIZE;
 
         let free_space = self.get_free_space() as usize;
         let header_plus_slots_size = DirPage::HEADER_SIZE + entries * DirPage::SLOT_SIZE;
@@ -1012,7 +997,7 @@ impl DirPage {
                 u64::from_le_bytes(self.get_value_at_slot(&slot)[0..8].try_into().unwrap());
             child_pages.push(page_no);
         }
-        return child_pages;
+        child_pages
     }
 }
 
