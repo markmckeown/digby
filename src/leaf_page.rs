@@ -139,7 +139,7 @@ impl LeafPage {
         let page_copy = self.page.get_page_bytes_mut().to_vec();
         let old_prefix_length = self.get_prefix_length() as usize;
         let left_fence = self.get_left_fence_key().to_vec();
-        
+
         let prefix_length: usize = if old_prefix_length > 0 {
             // Only set compression if it was already set.
             left_fence
@@ -464,22 +464,16 @@ impl LeafPage {
     pub fn get_tuple(&self, key: &[u8]) -> Option<Tuple> {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
+            // If key does not start with prefix then we do not have it - this could happen
+            // if the page to the right has been deleted.
             // Using compression - if the key is greater than the right fence then we do not have it.
             if key >= self.get_right_fence_key() {
                 return None;
             }
-            assert!(
-                key.len() >= prefix_length,
-                "Key length is smaller than the prefix length of the page."
-            );
             let key_prefix = self.get_key_prefix();
             if !key.starts_with(key_prefix) {
                 return None;
             }
-            assert!(
-                key.starts_with(self.get_key_prefix()),
-                "Key does not match the prefix of the page."
-            );
         }
         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
         if !found {

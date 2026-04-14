@@ -344,11 +344,7 @@ impl DirPage {
 
         // The key does not belong to the left most page. We need to find the correct entry and update the page number.
         let (found, index) = self.get_index_for_key(key_suffix);
-        let index_to_update = if found {
-            index
-        } else {
-            index - 1
-        };
+        let index_to_update = if found { index } else { index - 1 };
         let slot_to_update = self.get_slot_at_index(index_to_update);
         let val_offset = (slot_to_update.offset + slot_to_update.key_len as u16) as usize;
         let val_bytes = page_no.to_le_bytes();
@@ -536,14 +532,15 @@ impl DirPage {
     pub fn get_page_no_for_key(&self, key: &[u8]) -> Option<u64> {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
+            // If tuples are removed and deleted then tree can rebalance so that
+            // it checks this page for entries - for example if the page to the
+            // right of this page is deleted.
             if key.len() < prefix_length {
                 return None;
             }
             if !key.starts_with(self.get_key_prefix()) {
                 return None;
             }
-            //assert!(key.len() >= prefix_length, "Key length is smaller than the prefix length of the page.");
-            //assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
         }
         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
         if !found {
