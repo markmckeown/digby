@@ -32,6 +32,8 @@ impl PageTrait for FreePage {
     }
 }
 
+
+
 impl FreePage {
     pub fn create_new(page_config: &PageConfig, page_number: u64) -> Self {
         FreePage::new(page_config.block_size, page_config.page_size, page_number)
@@ -52,5 +54,55 @@ impl FreePage {
         }
 
         FreePage { page }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::page::PageType;
+
+    #[test]
+    fn test_create_new() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4092,
+        };
+        let free_page = FreePage::create_new(&page_config, 42);
+        
+        assert_eq!(free_page.get_page_number(), 42);
+        // We can access `page` through the trait method
+        // but we know it's a FreePage type by successfully creating it
+    }
+
+    #[test]
+    fn test_from_page_valid() {
+        let mut page = Page::new(4096, 4092);
+        page.set_type(PageType::Free);
+        page.set_page_number(100);
+
+        let free_page = FreePage::from_page(page);
+        assert_eq!(free_page.get_page_number(), 100);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid page type for FreePage")]
+    fn test_from_page_invalid() {
+        let mut page = Page::new(4096, 4092);
+        page.set_type(PageType::LeafPage); // Invalid type for FreePage
+
+        let _free_page = FreePage::from_page(page);
+    }
+
+    #[test]
+    fn test_page_trait_methods() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4092,
+        };
+        let mut free_page = FreePage::create_new(&page_config, 1);
+
+        free_page.set_version(5);
+        assert_eq!(free_page.get_version(), 5);
     }
 }
