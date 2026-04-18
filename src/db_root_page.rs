@@ -145,3 +145,86 @@ impl DbRootPage {
             .expect("Failed to write compression type");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_new() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4092,
+        };
+        let root_page = DbRootPage::create_new(&page_config);
+
+        assert_eq!(root_page.get_page_number(), 0);
+        assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
+        assert_eq!(root_page.get_db_major_version(), DbRootPage::VERSION_MAJOR);
+        assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
+        assert_eq!(root_page.page.get_type(), PageType::DbRoot);
+    }
+
+    #[test]
+    fn test_from_page_valid() {
+        let mut page = Page::new(4096, 4092);
+        page.set_type(PageType::DbRoot);
+        page.set_page_number(0);
+
+        // Manually write the magic number to the page buffer so validation passes
+        let mut cursor = Cursor::new(page.get_page_bytes_mut());
+        cursor.set_position(16);
+        cursor.write_u32::<LittleEndian>(DbRootPage::MAGIC_NUMBER).unwrap();
+
+        let root_page = DbRootPage::from_page(page);
+        assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid page type for RootPage")]
+    fn test_from_page_invalid_type() {
+        let mut page = Page::new(4096, 4092);
+        page.set_type(PageType::LeafPage);
+        let _ = DbRootPage::from_page(page);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid page number for RootPage")]
+    fn test_from_page_invalid_page_number() {
+        let mut page = Page::new(4096, 4092);
+        page.set_type(PageType::DbRoot);
+        page.set_page_number(1);
+        let _ = DbRootPage::from_page(page);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid magic number for RootPage")]
+    fn test_from_page_invalid_magic_number() {
+        let mut page = Page::new(4096, 4092);
+        page.set_type(PageType::DbRoot);
+        page.set_page_number(0);
+        // Magic number is 0 by default, so validation will panic
+        let _ = DbRootPage::from_page(page);
+    }
+
+    #[test]
+    fn test_setters_and_getters() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4092,
+        };
+        let mut root_page = DbRootPage::create_new(&page_config);
+
+        root_page.set_sanity_type(BlockSanity::Aes128Gcm);
+        assert_eq!(root_page.get_sanity_type(), BlockSanity::Aes128Gcm);
+
+        root_page.set_sanity_type(BlockSanity::XxH32Checksum);
+        assert_eq!(root_page.get_sanity_type(), BlockSanity::XxH32Checksum);
+
+        root_page.set_compression_type(1);
+        assert_eq!(root_page.get_compression_type(), 1);
+
+        root_page.set_version(100);
+        assert_eq!(root_page.get_version(), 100);
+    }
+}
