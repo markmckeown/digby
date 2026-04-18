@@ -1400,7 +1400,7 @@ mod tests {
         assert!(leaf_page.add_tuple(&tuple3).0);
         assert!(leaf_page.add_tuple(&tuple4).0);
         assert_eq!(leaf_page.get_entries_size(), 4);
-
+    
         let key5: [u8; 8] = [0, 0,0,0,0,0,1, 0];
         let tuple5 = Tuple::new(&key5, b"value5", 123);
         assert!(leaf_page.add_tuple(&tuple5).0);
@@ -1409,5 +1409,42 @@ mod tests {
         assert_eq!(leaf_page.get_key_prefix(), &key1[..6]);
         assert_eq!(leaf_page.get_left_fence_key(), &key1);
         assert_eq!(leaf_page.get_right_fence_key(), &key5);
+    }
+
+       #[test]
+    fn test_reset_to_small() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 125,
+        };
+
+        let key1: [u8; 8] = [0, 0,0,0,0,0,0, 1];
+        let key2: [u8; 8] = [0, 0,0,0,0,0,0, 2];
+        let key3: [u8; 8] = [0, 0,0,0,0,0,0, 3];
+        let key4: [u8; 8] = [0, 0,0,0,0,0,0, 4];
+        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let tuple1 = Tuple::new(&key1, b"value1", 123);
+        let tuple2 = Tuple::new(&key2, b"value2", 123);
+        let tuple3 = Tuple::new(&key3, b"value3", 123);
+        let tuple4 = Tuple::new(&key4, b"value4", 123);
+        leaf_page.set_left_fence_key(&key1);
+        leaf_page.set_right_fence_key(&key4);
+        leaf_page.set_prefix_length(7);
+        
+        assert!(leaf_page.add_tuple(&tuple1).0);
+        assert!(leaf_page.add_tuple(&tuple2).0);
+        assert!(leaf_page.add_tuple(&tuple3).0);
+        assert!(leaf_page.add_tuple(&tuple4).0);
+        assert_eq!(leaf_page.get_entries_size(), 4);
+
+        let key5: [u8; 8] = [0, 0,0,0,0,0,1, 0];
+        let tuple5 = Tuple::new(&key5, b"value5", 123);
+        // Page is too small
+        assert!(!leaf_page.add_tuple(&tuple5).0);
+        assert_eq!(leaf_page.get_entries_size(), 4);
+        assert_eq!(leaf_page.get_prefix_length(), 7);
+        assert_eq!(leaf_page.get_key_prefix(), &key1[..7]);
+        assert_eq!(leaf_page.get_left_fence_key(), &key1);
+        assert_eq!(leaf_page.get_right_fence_key(), &key4);
     }
 }
