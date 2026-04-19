@@ -1044,6 +1044,74 @@ mod tests {
         assert_eq!(dir_page.get_page_to_left(), 1);
     }
 
+
+    #[test]
+    fn test_add_child_page_reset_right_fence() {
+        let page_config = PageConfig {
+            block_size: 1024,
+            page_size: 1024,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let key1 = b"key1";
+        let key2 = b"key2";
+        let page_no1 = 2;
+        let page_no2 = 3;
+        dir_page.set_left_fence_key(key1);
+        dir_page.set_right_fence_key(b"key3");
+        dir_page.set_prefix_length(3);
+        dir_page.set_page_to_left(1);
+        dir_page.add_child_page(key1, page_no1);
+        dir_page.add_child_page(key2, page_no2);
+        assert_eq!(dir_page.get_entries_size(), 2);
+        assert_eq!(dir_page.get_page_no_for_key(key1).unwrap(), page_no1);
+        assert_eq!(dir_page.get_page_no_for_key(key2).unwrap(), page_no2);
+        assert_eq!(dir_page.get_left_fence_key(), key1);
+        assert_eq!(dir_page.get_right_fence_key(), b"key3");
+        assert_eq!(dir_page.get_prefix_length(), 3);
+        assert_eq!(dir_page.get_page_to_left(), 1);
+        let key3 = b"key4";
+        dir_page.add_child_page(key3, 4);
+        assert_eq!(dir_page.get_entries_size(), 3);
+        assert_eq!(dir_page.get_right_fence_key(), key3);
+        assert_eq!(dir_page.get_prefix_length(), 3);
+        assert_eq!(dir_page.get_page_to_left(), 1);
+    }
+
+    #[test]
+    fn test_add_child_page_reset_left_fence() {
+        let page_config = PageConfig {
+            block_size: 1024,
+            page_size: 1024,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let key1 = b"key2";
+        let key2 = b"key3";
+        let page_no1 = 2;
+        let page_no2 = 3;
+        dir_page.set_left_fence_key(key1);
+        dir_page.set_right_fence_key(b"key4");
+        dir_page.set_prefix_length(3);
+        dir_page.set_page_to_left(1);
+        dir_page.add_child_page(key1, page_no1);
+        dir_page.add_child_page(key2, page_no2);
+        assert_eq!(dir_page.get_entries_size(), 2);
+        assert_eq!(dir_page.get_page_no_for_key(key1).unwrap(), page_no1);
+        assert_eq!(dir_page.get_page_no_for_key(key2).unwrap(), page_no2);
+        assert_eq!(dir_page.get_left_fence_key(), key1);
+        assert_eq!(dir_page.get_right_fence_key(), b"key4");
+        assert_eq!(dir_page.get_prefix_length(), 3);
+        assert_eq!(dir_page.get_page_to_left(), 1);
+        let key3 = b"key1";
+        dir_page.add_child_page(key3, 4);
+        assert_eq!(dir_page.get_entries_size(), 3);
+        assert_eq!(dir_page.get_right_fence_key(), b"key4");
+        assert_eq!(dir_page.get_left_fence_key(), key3);
+        assert_eq!(dir_page.get_prefix_length(), 3);
+        assert_eq!(dir_page.get_page_to_left(), 1);
+    }
+
+
+
     #[test]
     fn test_get_next_page() {
         let page_config = PageConfig {
