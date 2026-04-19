@@ -94,6 +94,7 @@ mod tests {
         assert_eq!(tuple.get_value(), &value);
         assert_eq!(tuple.get_version(), version);
         assert_eq!(tuple.get_serialized(), &tuple.serialized);
+        assert_eq!(tuple.get_version_value(), &tuple.serialized[8 + key.len()..]);
     }
 
     #[test]

@@ -198,6 +198,7 @@ mod tests {
         assert_eq!(deserialized.get_key(), &key);
         assert_eq!(deserialized.get_value(), &value);
         assert_eq!(deserialized.get_version(), version);
+        assert_eq!(deserialized.get_byte_size(), key.len() + value.len() + 1 + 2 + 8);
     }
 
     #[test]
