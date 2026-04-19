@@ -955,11 +955,12 @@ impl DirPage {
             return;
         }
 
+        let key_suffix = &key[self.get_prefix_length() as usize..];
         // If removing the left most page need to move the next page into its place.
         // There is a next page as entries > 0 from above.
         if page_no == self.get_page_to_left() {
             let slot = self.get_slot_at_index(0);
-            assert!(key < self.get_key_at_slot(&slot));
+            assert!(key_suffix < self.get_key_at_slot(&slot));
             let new_left_most_page = self.get_value_at_slot(&slot);
             // TODO should just copy bytes instead of uwrapping and rewrapping the page number.
             self.set_page_to_left(u64::from_le_bytes(new_left_most_page.try_into().unwrap()));
@@ -967,7 +968,6 @@ impl DirPage {
             return;
         }
 
-        let key_suffix = &key[self.get_prefix_length() as usize..];
         // Now get the index for the key and remove the entry.
         let (found, index) = self.get_index_for_key(key_suffix);
         if found {

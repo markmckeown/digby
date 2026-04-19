@@ -134,4 +134,44 @@ mod tests {
         assert!(87 == master_page.get_global_tree_root_page_no());
         assert!(34 == master_page.get_table_dir_page_no());
     }
+
+    #[test]
+    fn test_create_new() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4092,
+        };
+        let master_page = DbMasterPage::create_new(&page_config, 1, 5);
+        assert_eq!(master_page.get_page_number(), 1);
+        assert_eq!(master_page.get_version(), 5);
+        assert_eq!(master_page.page.get_type(), PageType::DbMaster);
+    }
+
+    #[test]
+    fn test_from_page_valid() {
+        let mut page = Page::new(4096, 4092);
+        page.set_type(PageType::DbMaster);
+        page.set_page_number(2);
+
+        let master_page = DbMasterPage::from_page(page);
+        assert_eq!(master_page.get_page_number(), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid page type for DbMasterPage")]
+    fn test_from_page_invalid_type() {
+        let mut page = Page::new(4096, 4092);
+        page.set_type(PageType::LeafPage);
+        let _ = DbMasterPage::from_page(page);
+    }
+
+    #[test]
+    fn test_flip_page_number() {
+        let mut master_page = DbMasterPage::new(4096, 4092, 1, 1);
+        master_page.flip_page_number();
+        assert_eq!(master_page.get_page_number(), 2);
+        
+        master_page.flip_page_number();
+        assert_eq!(master_page.get_page_number(), 1);
+    }
 }

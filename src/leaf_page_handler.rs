@@ -46,8 +46,8 @@ impl LeafPageHandler {
     ) -> Option<Tuple> {
         assert!(!new_pages.is_empty());
         let page = new_pages.last_mut().unwrap();
+        
         let (ok, existing_tuple) = page.0.add_tuple(&tuple);
-
         if ok {
             // Tuple was added without needing to split the page.
             return existing_tuple;

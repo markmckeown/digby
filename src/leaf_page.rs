@@ -168,6 +168,42 @@ impl LeafPage {
         true
     }
 
+
+    fn reset_with_new_left_fence(&mut self, new_left_fence: &[u8]) -> bool {
+        // Need a full copy of the left fence as we are going to nuke it in the page.
+        let page_copy = self.page.get_page_bytes_mut().to_vec();
+        let old_prefix_length = self.get_prefix_length() as usize;
+        let right_fence = self.get_right_fence_key().to_vec();
+
+        let prefix_length: usize = if old_prefix_length > 0 {
+            // Only set compression if it was already set.
+            new_left_fence
+                .iter()
+                .zip(&right_fence)
+                .take_while(|(a, b)| a == b)
+                .count()
+        } else {
+            0
+        };
+        // Get full copy of all tuples
+        let entries = self.get_all_tuples();
+        self.reset(self.page.page_size);
+        self.set_left_fence_key(new_left_fence);
+        self.set_right_fence_key(right_fence.as_ref());
+        self.set_prefix_length(prefix_length as u8);
+        for tuple in entries {
+            let (ok, _) = self.add_tuple(&tuple);
+            if !ok {
+                // Cannot rebuild page with new compression, page not big enough.
+                // Reset page back back to original bits and trigger a split.
+                self.page.get_page_bytes_mut().copy_from_slice(&page_copy);
+                return false;
+            }
+        }
+        true
+    }
+
+
     fn set_left_fence_key(&mut self, key: &[u8]) {
         assert!(
             key.len() <= u8::MAX as usize,
@@ -376,6 +412,21 @@ impl LeafPage {
             return self.add_tuple(tuple);
         }
 
+        // This is needed as we are using tail compression in the dir pages.
+        // The dir page holds a truncated version of the left most key only,
+        // to it can send tuples here that are less than the left most key.
+        if self.has_left_fence() && tuple_key < self.get_left_fence_key() {
+            if !self.reset_with_new_left_fence(tuple_key) {
+                // Reset failed as cannot rebuild same page with new compression as not enough space.
+                // Trigger a split first. Note as the key is bigger than the right fence we know we
+                // do not have it in this page so fine to return None in tuple.
+                return (false, None);
+            }
+            // recursively call add_tuple on reset page.
+            return self.add_tuple(tuple);
+        }
+
+
         if prefix_length > 0 {
             assert!(
                 tuple_key.len() >= prefix_length,
@@ -383,8 +434,17 @@ impl LeafPage {
             );
             assert!(
                 tuple_key.starts_with(self.get_key_prefix()),
-                "Tuple key does not match the prefix of the page."
+                "Tuple key does not start with the prefix of the page."
             );
+            // If the tuple key does not start with the prefix then then the
+            // tuple key is greater than the right fence - which we would
+            // have handled above.
+            if tuple_key < self.get_left_fence_key(){
+                assert!(
+                    tuple_key > self.get_left_fence_key(),
+                    "Tuple key is smaller than the left fence key of the page."
+                )
+            }
         }
         let key_suffix = &tuple_key[prefix_length..];
         let (found, index) = self.get_index_for_key(key_suffix);
@@ -1411,6 +1471,43 @@ mod tests {
         assert_eq!(leaf_page.get_right_fence_key(), &key5);
     }
 
+
+     #[test]
+    fn test_reset_no_prefix() {
+        // Left most page - no prefix and no left fence.
+        // No compression.
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4092,
+        };
+
+        let key1: [u8; 8] = [0, 0,0,0,0,0,0, 1];
+        let key2: [u8; 8] = [0, 0,0,0,0,0,0, 2];
+        let key3: [u8; 8] = [0, 0,0,0,0,0,0, 3];
+        let key4: [u8; 8] = [0, 0,0,0,0,0,0, 4];
+        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let tuple1 = Tuple::new(&key1, b"value1", 123);
+        let tuple2 = Tuple::new(&key2, b"value2", 123);
+        let tuple3 = Tuple::new(&key3, b"value3", 123);
+        let tuple4 = Tuple::new(&key4, b"value4", 123);
+        leaf_page.set_right_fence_key(&key4);
+        leaf_page.set_prefix_length(0);
+        
+        assert!(leaf_page.add_tuple(&tuple1).0);
+        assert!(leaf_page.add_tuple(&tuple2).0);
+        assert!(leaf_page.add_tuple(&tuple3).0);
+        assert!(leaf_page.add_tuple(&tuple4).0);
+        assert_eq!(leaf_page.get_entries_size(), 4);
+    
+        let key5: [u8; 8] = [0, 0,0,0,0,0,1, 0];
+        let tuple5 = Tuple::new(&key5, b"value5", 123);
+        assert!(leaf_page.add_tuple(&tuple5).0);
+        assert_eq!(leaf_page.get_entries_size(), 5);
+        assert_eq!(leaf_page.get_prefix_length(), 0);
+        assert_eq!(leaf_page.get_right_fence_key(), &key5);
+    }
+
+
     #[test]
     fn test_reset_to_small_to_reset() {
         let page_config = PageConfig {
@@ -1486,4 +1583,5 @@ mod tests {
         assert_eq!(leaf_page.get_left_fence_key(), &key1);
         assert_eq!(leaf_page.get_right_fence_key(), &key5);
     }
+
 }
