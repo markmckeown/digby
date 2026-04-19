@@ -37,7 +37,7 @@ use crate::version_holder::VersionHolder;
 // We cannot handle different keys with the same SHA256 - but we
 // can detect this clash and crash.
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Overflow {
     None = 0,
     ValueOverflow = 1,
@@ -198,5 +198,46 @@ mod tests {
         assert_eq!(deserialized.get_key(), &key);
         assert_eq!(deserialized.get_value(), &value);
         assert_eq!(deserialized.get_version(), version);
+    }
+
+    #[test]
+    fn test_overflow_try_from() {
+        assert_eq!(Overflow::try_from(4).unwrap(), Overflow::ValueCompressed);
+        assert_eq!(Overflow::try_from(5).unwrap(), Overflow::KeyValueCompressed);
+        assert!(Overflow::try_from(6).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "Key size larger than u8 can hold.")]
+    fn test_tuple_new_large_key() {
+        let key = vec![0u8; 256];
+        Tuple::new(&key, b"value", 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Value size larger than u16 can hold.")]
+    fn test_tuple_new_large_value() {
+        let value = vec![0u8; 65536];
+        Tuple::new(b"key", &value, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Key size larger than u8 can hold.")]
+    fn test_tuple_new_with_overflow_large_key() {
+        let key = vec![0u8; 256];
+        Tuple::new_with_overflow(&key, b"value", 1, Overflow::ValueOverflow);
+    }
+
+    #[test]
+    #[should_panic(expected = "Value size larger than u16 can hold.")]
+    fn test_tuple_new_with_overflow_large_value() {
+        let value = vec![0u8; 65536];
+        Tuple::new_with_overflow(b"key", &value, 1, Overflow::ValueOverflow);
+    }
+
+    #[test]
+    fn test_tuple_get_overflow() {
+        let tuple = Tuple::new_with_overflow(b"key", b"value", 1, Overflow::ValueOverflow);
+        assert_eq!(tuple.get_overflow(), Overflow::ValueOverflow);
     }
 }

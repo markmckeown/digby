@@ -104,5 +104,15 @@ mod tests {
 
         free_page.set_version(5);
         assert_eq!(free_page.get_version(), 5);
+
+        assert_eq!(free_page.get_page_number(), 1);
+        free_page.set_page_number(42);
+        assert_eq!(free_page.get_page_number(), 42);
+
+        let bytes = free_page.get_page_bytes();
+        assert_eq!(bytes.len(), 4092);
+
+        let page = free_page.get_page();
+        assert_eq!(page.get_page_number(), 42);
     }
 }

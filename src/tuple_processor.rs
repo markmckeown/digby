@@ -109,3 +109,126 @@ impl TupleProcessor {
         new_key
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compressor::{Compressor, CompressorType};
+    use crate::block_layer::BlockLayer;
+    use crate::file_layer::FileLayer;
+    use tempfile::NamedTempFile;
+    use crate::tuple::TupleTrait;
+    use crate::page::PageTrait;
+
+    #[test]
+    fn test_tuple_processor_oversized_key() {
+        let small_key = vec![0u8; 255];
+        assert!(!TupleProcessor::is_oversized_key(&small_key));
+
+        let large_key = vec![0u8; 256];
+        assert!(TupleProcessor::is_oversized_key(&large_key));
+    }
+
+    #[test]
+    fn test_generate_short_key() {
+        let mut large_key = vec![0u8; 256];
+        large_key[0] = 1;
+        let short_key = TupleProcessor::generate_short_key(&large_key);
+        assert_eq!(short_key.len(), 255);
+        assert_eq!(short_key[0], 1);
+    }
+
+    #[test]
+    fn test_generate_tuple() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(temp_file.path())
+            .unwrap();
+        let file_layer = FileLayer::new(file, 4096);
+        let block_layer = BlockLayer::new(file_layer, 4096);
+        let mut page_cache = PageCache::new(block_layer);
+        let version = 0;
+        let new_version = 1;
+
+        let free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
+        let mut free_dir_page =
+            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
+        page_cache.put_page(free_dir_page.get_page());
+        let mut free_page_tracker = FreePageTracker::new(
+            page_cache.get_page(free_dir_page_no),
+            new_version,
+            *page_cache.get_page_config(),
+        );
+
+        let compressor_none = Compressor::new(CompressorType::None);
+
+        let small_key = vec![1u8; 10];
+        let small_value = vec![2u8; 10];
+        let tuple = TupleProcessor::generate_tuple(
+            &small_key,
+            &small_value,
+            &mut page_cache,
+            &mut free_page_tracker,
+            1,
+            &compressor_none,
+        );
+        assert_eq!(tuple.get_overflow(), Overflow::None);
+
+        let compressor_lz4 = Compressor::new(CompressorType::LZ4);
+        let compressible_value = vec![2u8; 2000];
+        let tuple_compressed = TupleProcessor::generate_tuple(
+            &small_key,
+            &compressible_value,
+            &mut page_cache,
+            &mut free_page_tracker,
+            1,
+            &compressor_lz4,
+        );
+        assert_eq!(tuple_compressed.get_overflow(), Overflow::ValueCompressed);
+
+        let large_value = vec![3u8; 2000];
+        let tuple_large_val = TupleProcessor::generate_tuple(
+            &small_key,
+            &large_value,
+            &mut page_cache,
+            &mut free_page_tracker,
+            1,
+            &compressor_none,
+        );
+        assert_eq!(tuple_large_val.get_overflow(), Overflow::ValueOverflow);
+
+        let large_key = vec![4u8; 300];
+        let tuple_large_key = TupleProcessor::generate_tuple(
+            &large_key,
+            &small_value,
+            &mut page_cache,
+            &mut free_page_tracker,
+            1,
+            &compressor_none,
+        );
+        assert_eq!(tuple_large_key.get_overflow(), Overflow::KeyOverflow);
+
+        let tuple_large_both = TupleProcessor::generate_tuple(
+            &large_key,
+            &large_value,
+            &mut page_cache,
+            &mut free_page_tracker,
+            1,
+            &compressor_none,
+        );
+        assert_eq!(tuple_large_both.get_overflow(), Overflow::KeyValueOverflow);
+
+        let tuple_large_both_comp = TupleProcessor::generate_tuple(
+            &large_key,
+            &large_value,
+            &mut page_cache,
+            &mut free_page_tracker,
+            1,
+            &compressor_lz4,
+        );
+        assert_eq!(tuple_large_both_comp.get_overflow(), Overflow::KeyValueOverflow);
+    }
+}
