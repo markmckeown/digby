@@ -52,3 +52,47 @@ impl Compressor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compressor_type_try_from() {
+        assert_eq!(CompressorType::try_from(0).unwrap(), CompressorType::None);
+        assert_eq!(CompressorType::try_from(1).unwrap(), CompressorType::LZ4);
+        assert!(CompressorType::try_from(2).is_err());
+    }
+
+    #[test]
+    fn test_compressor_type_from() {
+        assert_eq!(u8::from(CompressorType::None), 0);
+        assert_eq!(u8::from(CompressorType::LZ4), 1);
+    }
+
+    #[test]
+    fn test_compressor_none() {
+        let compressor = Compressor::new(CompressorType::None);
+        let data = b"hello world";
+
+        let compressed = compressor.compress(data);
+        assert_eq!(compressed, data);
+
+        let decompressed = compressor.decompress(&compressed);
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    fn test_compressor_lz4() {
+        let compressor = Compressor::new(CompressorType::LZ4);
+        // Create some highly compressible data
+        let data = vec![b'a'; 1000];
+
+        let compressed = compressor.compress(&data);
+        // Compressed data should be smaller than the original data
+        assert!(compressed.len() < data.len());
+
+        let decompressed = compressor.decompress(&compressed);
+        assert_eq!(decompressed, data);
+    }
+}
