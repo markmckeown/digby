@@ -65,5 +65,6 @@ mod tests {
         let tree_dir_entry2 = TreeDirEntry::from_bytes(tree_dir_entry1.get_serialized().to_vec());
         assert!(b"mmk".to_vec() == tree_dir_entry2.get_key());
         assert!(45 == tree_dir_entry2.get_page_no());
+        assert_eq!(tree_dir_entry1.get_byte_size(), 12);
     }
 }
