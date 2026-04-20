@@ -176,6 +176,41 @@ mod tests {
         assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
 
+
+    #[test]
+    fn test_block_layer_put_get_encrypted() {
+        let block_size: usize = 4096;
+        let temp_file = tempfile().expect("Failed to create temp file");
+        let file_layer = FileLayer::new(temp_file, block_size);
+        // Use oversized key to test that only the first 16 bytes are used for AES-128-GCM
+        let key = [0u8; 32].to_vec(); // Sample key for AES-128-GCM
+        let mut block_layer = BlockLayer::new_with_key(file_layer, block_size, key);
+        let page_number = 0;
+        block_layer.generate_free_pages(10);
+        let mut page = Page::create_new(block_layer.get_page_config());
+        page.set_page_number(page_number);
+        page.set_type(PageType::Free);
+        page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
+        block_layer.write_page(&mut page);
+        let retrieved_page = block_layer.read_page(page_number);
+        assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
+    }
+
+
+    #[test]
+    #[should_panic(expected = "Writing page outside the file.")]
+    fn test_block_out_side_page_range() {
+        let block_size: usize = 4096;
+        let temp_file = tempfile().expect("Failed to create temp file");
+        let file_layer = FileLayer::new(temp_file, block_size);
+        let mut block_layer = BlockLayer::new(file_layer, block_size);
+        let mut page = Page::create_new(block_layer.get_page_config());
+        page.set_page_number(4);
+        page.set_type(PageType::Free);
+        // This should panic as out of range of file.
+        block_layer.write_page(&mut page);
+    }
+
     #[test]
     fn test_create_new_pages() {
         let block_size: usize = 4096;
