@@ -64,9 +64,13 @@ impl TupleProcessor {
                 Overflow::KeyValueCompressed,
             )
         } else {
+            // Overflow::None here as this is the overflow tuple - it is either None
+            // or compressesed. The overflow_type is used in the tuple we store in
+            // the tree
             OverflowTuple::new(key, value, version, Overflow::None)
         };
 
+        // Store the oversize tuple in overflow pages and get back the page_no
         let overflow_page_no = OverflowPageHandler::store_overflow_tuple(
             overflow_tuple,
             page_cache,
@@ -74,6 +78,9 @@ impl TupleProcessor {
             version,
         );
 
+        // Need to store a reference to the tuple in the tree, so need to create
+        // a tuple that is not oversized. Reuse the key, or a shorted version of
+        // the tree and the overflow page number.
         if TupleProcessor::is_oversized_key(key) {
             let new_key = TupleProcessor::generate_short_key(key);
             return Tuple::new_with_overflow(

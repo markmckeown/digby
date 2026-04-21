@@ -1,7 +1,9 @@
+use crate::VersionHolder;
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::tuple::Tuple;
 use crate::tuple::TupleTrait;
+use crate::tuple::Overflow;
 use crate::{Page, block_layer::PageConfig};
 use core::panic;
 use std::cmp::Ordering;
@@ -550,10 +552,12 @@ impl LeafPage {
         let mut full_key = Vec::with_capacity(key_prefix.len() + key.len());
         full_key.extend_from_slice(key_prefix);
         full_key.extend_from_slice(key);
-        Tuple::new(
+        let version_holder = VersionHolder::from_bytes(&value[0..8]);
+        Tuple::new_with_overflow(
             &full_key,
             &value[8..],
-            u64::from_le_bytes(value[0..8].try_into().unwrap()),
+            version_holder.get_version(),
+            Overflow::try_from(version_holder.get_flags()).unwrap()
         )
     }
 
