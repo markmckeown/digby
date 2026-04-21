@@ -1465,6 +1465,9 @@ mod tests {
         let mut large_value = vec![0u8; 5000];
         let block_size = 4096;
         rng().fill_bytes(&mut large_value);
+        let mut numbers: Vec<u64> = (0..=size).collect();
+        let mut rng = rng();
+        numbers.shuffle(&mut rng);
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let mut db = Db::new_with_page_size(
@@ -1473,10 +1476,7 @@ mod tests {
                 CompressorType::None,
                 block_size,
             );
-            let mut numbers: Vec<u64> = (0..=size).collect();
-            let mut rng = rng();
-            numbers.shuffle(&mut rng);
-            for i in numbers {
+            for i in &numbers {
                 let mut key = vec![0u8; 512];
                 key[0..8].copy_from_slice(i.to_be_bytes().as_ref());
                 db.put(&key, &large_value);
@@ -1491,6 +1491,14 @@ mod tests {
                 CompressorType::None,
                 block_size,
             );
+            numbers.shuffle(&mut rng);
+            for i in &numbers {
+                let mut key = vec![0u8; 512];
+                key[0..8].copy_from_slice(i.to_be_bytes().as_ref());
+                let returned_value = db.get(&key);
+                assert!(returned_value.is_some());
+                assert_eq!(large_value, returned_value.unwrap());
+            }
             db.clear();
             let key = vec![0u8; 512];
             let returned_value = db.get(&key);
@@ -1504,9 +1512,8 @@ mod tests {
                 block_size,
             );
             let mut numbers: Vec<u64> = (0..=size).collect();
-            let mut rng = rng();
             numbers.shuffle(&mut rng);
-            for i in numbers {
+            for i in &numbers {
                 let mut key = vec![0u8; 512];
                 key[0..8].copy_from_slice(i.to_be_bytes().as_ref());
                 let returned_value = db.get(&key);
