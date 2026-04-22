@@ -32,8 +32,6 @@ impl PageTrait for FreePage {
     }
 }
 
-
-
 impl FreePage {
     pub fn create_new(page_config: &PageConfig, page_number: u64) -> Self {
         FreePage::new(page_config.block_size, page_config.page_size, page_number)
@@ -69,7 +67,7 @@ mod tests {
             page_size: 4092,
         };
         let free_page = FreePage::create_new(&page_config, 42);
-        
+
         assert_eq!(free_page.get_page_number(), 42);
         // We can access `page` through the trait method
         // but we know it's a FreePage type by successfully creating it

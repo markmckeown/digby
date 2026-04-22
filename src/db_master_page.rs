@@ -170,7 +170,7 @@ mod tests {
         let mut master_page = DbMasterPage::new(4096, 4092, 1, 1);
         master_page.flip_page_number();
         assert_eq!(master_page.get_page_number(), 2);
-        
+
         master_page.flip_page_number();
         assert_eq!(master_page.get_page_number(), 1);
     }

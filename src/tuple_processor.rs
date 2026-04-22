@@ -120,12 +120,12 @@ impl TupleProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compressor::{Compressor, CompressorType};
     use crate::block_layer::BlockLayer;
+    use crate::compressor::{Compressor, CompressorType};
     use crate::file_layer::FileLayer;
-    use tempfile::NamedTempFile;
-    use crate::tuple::TupleTrait;
     use crate::page::PageTrait;
+    use crate::tuple::TupleTrait;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_tuple_processor_oversized_key() {
@@ -236,6 +236,9 @@ mod tests {
             1,
             &compressor_lz4,
         );
-        assert_eq!(tuple_large_both_comp.get_overflow(), Overflow::KeyValueOverflow);
+        assert_eq!(
+            tuple_large_both_comp.get_overflow(),
+            Overflow::KeyValueOverflow
+        );
     }
 }

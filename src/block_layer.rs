@@ -176,7 +176,6 @@ mod tests {
         assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
 
-
     #[test]
     fn test_block_layer_put_get_encrypted() {
         let block_size: usize = 4096;
@@ -195,7 +194,6 @@ mod tests {
         let retrieved_page = block_layer.read_page(page_number);
         assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
-
 
     #[test]
     #[should_panic(expected = "Writing page outside the file.")]

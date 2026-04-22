@@ -1,9 +1,9 @@
 use crate::VersionHolder;
 use crate::page::PageTrait;
 use crate::page::PageType;
+use crate::tuple::Overflow;
 use crate::tuple::Tuple;
 use crate::tuple::TupleTrait;
-use crate::tuple::Overflow;
 use crate::{Page, block_layer::PageConfig};
 use core::panic;
 use std::cmp::Ordering;
@@ -170,7 +170,6 @@ impl LeafPage {
         true
     }
 
-
     fn reset_with_new_left_fence(&mut self, new_left_fence: &[u8]) -> bool {
         // Need a full copy of the left fence as we are going to nuke it in the page.
         let page_copy = self.page.get_page_bytes_mut().to_vec();
@@ -204,7 +203,6 @@ impl LeafPage {
         }
         true
     }
-
 
     fn set_left_fence_key(&mut self, key: &[u8]) {
         assert!(
@@ -428,7 +426,6 @@ impl LeafPage {
             return self.add_tuple(tuple);
         }
 
-
         if prefix_length > 0 {
             assert!(
                 tuple_key.len() >= prefix_length,
@@ -441,7 +438,7 @@ impl LeafPage {
             // If the tuple key does not start with the prefix then then the
             // tuple key is greater than the right fence - which we would
             // have handled above.
-            if tuple_key < self.get_left_fence_key(){
+            if tuple_key < self.get_left_fence_key() {
                 assert!(
                     tuple_key > self.get_left_fence_key(),
                     "Tuple key is smaller than the left fence key of the page."
@@ -557,7 +554,7 @@ impl LeafPage {
             &full_key,
             &value[8..],
             version_holder.get_version(),
-            Overflow::try_from(version_holder.get_flags()).unwrap()
+            Overflow::try_from(version_holder.get_flags()).unwrap(),
         )
     }
 
@@ -992,8 +989,8 @@ impl LeafPage {
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
     use super::*;
+    use std::vec;
 
     #[test]
     fn test_tail_compression1() {
@@ -1438,7 +1435,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_reset() {
         let page_config = PageConfig {
@@ -1446,10 +1442,10 @@ mod tests {
             page_size: 4092,
         };
 
-        let key1: [u8; 8] = [0, 0,0,0,0,0,0, 1];
-        let key2: [u8; 8] = [0, 0,0,0,0,0,0, 2];
-        let key3: [u8; 8] = [0, 0,0,0,0,0,0, 3];
-        let key4: [u8; 8] = [0, 0,0,0,0,0,0, 4];
+        let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
+        let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
+        let key3: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
+        let key4: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 4];
         let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
         let tuple1 = Tuple::new(&key1, b"value1", 123);
         let tuple2 = Tuple::new(&key2, b"value2", 123);
@@ -1458,14 +1454,14 @@ mod tests {
         leaf_page.set_left_fence_key(&key1);
         leaf_page.set_right_fence_key(&key4);
         leaf_page.set_prefix_length(7);
-        
+
         assert!(leaf_page.add_tuple(&tuple1).0);
         assert!(leaf_page.add_tuple(&tuple2).0);
         assert!(leaf_page.add_tuple(&tuple3).0);
         assert!(leaf_page.add_tuple(&tuple4).0);
         assert_eq!(leaf_page.get_entries_size(), 4);
-    
-        let key5: [u8; 8] = [0, 0,0,0,0,0,1, 0];
+
+        let key5: [u8; 8] = [0, 0, 0, 0, 0, 0, 1, 0];
         let tuple5 = Tuple::new(&key5, b"value5", 123);
         assert!(leaf_page.add_tuple(&tuple5).0);
         assert_eq!(leaf_page.get_entries_size(), 5);
@@ -1475,8 +1471,7 @@ mod tests {
         assert_eq!(leaf_page.get_right_fence_key(), &key5);
     }
 
-
-     #[test]
+    #[test]
     fn test_reset_no_prefix() {
         // Left most page - no prefix and no left fence.
         // No compression.
@@ -1485,10 +1480,10 @@ mod tests {
             page_size: 4092,
         };
 
-        let key1: [u8; 8] = [0, 0,0,0,0,0,0, 1];
-        let key2: [u8; 8] = [0, 0,0,0,0,0,0, 2];
-        let key3: [u8; 8] = [0, 0,0,0,0,0,0, 3];
-        let key4: [u8; 8] = [0, 0,0,0,0,0,0, 4];
+        let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
+        let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
+        let key3: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
+        let key4: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 4];
         let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
         let tuple1 = Tuple::new(&key1, b"value1", 123);
         let tuple2 = Tuple::new(&key2, b"value2", 123);
@@ -1496,21 +1491,20 @@ mod tests {
         let tuple4 = Tuple::new(&key4, b"value4", 123);
         leaf_page.set_right_fence_key(&key4);
         leaf_page.set_prefix_length(0);
-        
+
         assert!(leaf_page.add_tuple(&tuple1).0);
         assert!(leaf_page.add_tuple(&tuple2).0);
         assert!(leaf_page.add_tuple(&tuple3).0);
         assert!(leaf_page.add_tuple(&tuple4).0);
         assert_eq!(leaf_page.get_entries_size(), 4);
-    
-        let key5: [u8; 8] = [0, 0,0,0,0,0,1, 0];
+
+        let key5: [u8; 8] = [0, 0, 0, 0, 0, 0, 1, 0];
         let tuple5 = Tuple::new(&key5, b"value5", 123);
         assert!(leaf_page.add_tuple(&tuple5).0);
         assert_eq!(leaf_page.get_entries_size(), 5);
         assert_eq!(leaf_page.get_prefix_length(), 0);
         assert_eq!(leaf_page.get_right_fence_key(), &key5);
     }
-
 
     #[test]
     fn test_reset_to_small_to_reset() {
@@ -1520,10 +1514,10 @@ mod tests {
         };
 
         // Page is too samll for the reset
-        let key1: [u8; 8] = [0, 0,0,0,0,0,0, 1];
-        let key2: [u8; 8] = [0, 0,0,0,0,0,0, 2];
-        let key3: [u8; 8] = [0, 0,0,0,0,0,0, 3];
-        let key4: [u8; 8] = [0, 0,0,0,0,0,0, 4];
+        let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
+        let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
+        let key3: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
+        let key4: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 4];
         let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
         let tuple1 = Tuple::new(&key1, b"value1", 123);
         let tuple2 = Tuple::new(&key2, b"value2", 123);
@@ -1532,14 +1526,14 @@ mod tests {
         leaf_page.set_left_fence_key(&key1);
         leaf_page.set_right_fence_key(&key4);
         leaf_page.set_prefix_length(7);
-        
+
         assert!(leaf_page.add_tuple(&tuple1).0);
         assert!(leaf_page.add_tuple(&tuple2).0);
         assert!(leaf_page.add_tuple(&tuple3).0);
         assert!(leaf_page.add_tuple(&tuple4).0);
         assert_eq!(leaf_page.get_entries_size(), 4);
 
-        let key5: [u8; 8] = [0, 0,0,0,0,0,1, 0];
+        let key5: [u8; 8] = [0, 0, 0, 0, 0, 0, 1, 0];
         let tuple5 = Tuple::new(&key5, b"value5", 123);
         // Page is too small
         assert!(!leaf_page.add_tuple(&tuple5).0);
@@ -1550,7 +1544,7 @@ mod tests {
         assert_eq!(leaf_page.get_right_fence_key(), &key4);
     }
 
-     #[test]
+    #[test]
     fn test_reset_to_small_after_reset_to_add_tuple() {
         let page_config = PageConfig {
             block_size: 4096,
@@ -1558,10 +1552,10 @@ mod tests {
         };
 
         // Page is too samll - it can be reset but not with the new tuple
-        let key1: [u8; 8] = [0, 0,0,0,0,0,0, 1];
-        let key2: [u8; 8] = [0, 0,0,0,0,0,0, 2];
-        let key3: [u8; 8] = [0, 0,0,0,0,0,0, 3];
-        let key4: [u8; 8] = [0, 0,0,0,0,0,0, 4];
+        let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
+        let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
+        let key3: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
+        let key4: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 4];
         let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
         let tuple1 = Tuple::new(&key1, b"value1", 123);
         let tuple2 = Tuple::new(&key2, b"value2", 123);
@@ -1570,14 +1564,14 @@ mod tests {
         leaf_page.set_left_fence_key(&key1);
         leaf_page.set_right_fence_key(&key4);
         leaf_page.set_prefix_length(7);
-        
+
         assert!(leaf_page.add_tuple(&tuple1).0);
         assert!(leaf_page.add_tuple(&tuple2).0);
         assert!(leaf_page.add_tuple(&tuple3).0);
         assert!(leaf_page.add_tuple(&tuple4).0);
         assert_eq!(leaf_page.get_entries_size(), 4);
 
-        let key5: [u8; 8] = [0, 0,0,0,0,0,1, 0];
+        let key5: [u8; 8] = [0, 0, 0, 0, 0, 0, 1, 0];
         let tuple5 = Tuple::new(&key5, b"value5", 123);
         // Page is too small
         assert!(!leaf_page.add_tuple(&tuple5).0);
@@ -1587,5 +1581,4 @@ mod tests {
         assert_eq!(leaf_page.get_left_fence_key(), &key1);
         assert_eq!(leaf_page.get_right_fence_key(), &key5);
     }
-
 }

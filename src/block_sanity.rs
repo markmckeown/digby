@@ -74,10 +74,13 @@ mod tests {
         assert_eq!(BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm), 28);
     }
 
-    #[test] 
+    #[test]
     fn test_block_sanity_try_from() {
-        assert_eq!(BlockSanity::try_from(0).unwrap(), BlockSanity::XxH32Checksum);
+        assert_eq!(
+            BlockSanity::try_from(0).unwrap(),
+            BlockSanity::XxH32Checksum
+        );
         assert_eq!(BlockSanity::try_from(1).unwrap(), BlockSanity::Aes128Gcm);
         assert!(BlockSanity::try_from(2).is_err());
     }
-}   
+}

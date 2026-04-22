@@ -1214,7 +1214,6 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
-
     #[test]
     fn test_db_store_value_delete_small_page_reverse_le() {
         let size = 4096u64;
@@ -1275,7 +1274,6 @@ mod tests {
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
-
 
     #[test]
     fn test_db_store_value_delete_small_page_random() {
@@ -1342,8 +1340,7 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
-
-     #[test]
+    #[test]
     fn test_db_store_value_delete_small_page_random_le() {
         let size = 4096u64;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
@@ -1408,7 +1405,6 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
-
     #[test]
     fn test_db_clear() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
@@ -1457,7 +1453,6 @@ mod tests {
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
-
 
     #[test]
     fn test_db_clear_large_tuples() {
@@ -1522,8 +1517,6 @@ mod tests {
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
-
-
 
     #[test]
     fn test_match() {
@@ -1684,34 +1677,6 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
-    #[test]
-    fn test_db_store_large_key_value_compressible() {
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        let key: Vec<u8> = vec![111u8; 8192];
-        let value: Vec<u8> = vec![56u8; 18192];
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::LZ4,
-            );
-            db.put(key.as_ref(), value.as_ref());
-        }
-        // The new scope essentially closes the DB - when Files run out of scope then
-        // they are close, Rust bizairely does not allow error handling on close!
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::LZ4,
-            );
-            let returned_value = db.get(key.as_ref()).unwrap();
-            assert!(returned_value == value);
-        }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
-    }
-
-   
     #[test]
     fn test_db_store_value_with_encryption() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");

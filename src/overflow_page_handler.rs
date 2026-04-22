@@ -152,19 +152,27 @@ mod tests {
         assert_eq!(reloaded_tuple.get_value(), value);
 
         let tuple_no_overflow = Tuple::new(&key[0..10], &value[0..10], 1);
-        let count = OverflowPageHandler::delete_overflow_tuple_pages(None, &mut page_cache, &mut free_page_tracker);
+        let count = OverflowPageHandler::delete_overflow_tuple_pages(
+            None,
+            &mut page_cache,
+            &mut free_page_tracker,
+        );
         assert_eq!(count, 0);
-        let count = OverflowPageHandler::delete_overflow_tuple_pages(Some(tuple_no_overflow.clone()), &mut page_cache, &mut free_page_tracker);
+        let count = OverflowPageHandler::delete_overflow_tuple_pages(
+            Some(tuple_no_overflow.clone()),
+            &mut page_cache,
+            &mut free_page_tracker,
+        );
         assert_eq!(count, 0);
 
         let page_no_bytes = overflow_tuple_page_no.to_le_bytes();
-        let overflow_tuple_val = Tuple::new_with_overflow(
-            &key[0..10],
-            &page_no_bytes,
-            1,
-            Overflow::KeyValueOverflow,
+        let overflow_tuple_val =
+            Tuple::new_with_overflow(&key[0..10], &page_no_bytes, 1, Overflow::KeyValueOverflow);
+        let count = OverflowPageHandler::delete_overflow_tuple_pages(
+            Some(overflow_tuple_val.clone()),
+            &mut page_cache,
+            &mut free_page_tracker,
         );
-        let count = OverflowPageHandler::delete_overflow_tuple_pages(Some(overflow_tuple_val.clone()), &mut page_cache, &mut free_page_tracker);
         assert!(count > 0);
 
         // Flush the free pages.

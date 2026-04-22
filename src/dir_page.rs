@@ -1044,7 +1044,6 @@ mod tests {
         assert_eq!(dir_page.get_page_to_left(), 1);
     }
 
-
     #[test]
     fn test_add_child_page_reset_right_fence() {
         let page_config = PageConfig {
@@ -1109,8 +1108,6 @@ mod tests {
         assert_eq!(dir_page.get_prefix_length(), 3);
         assert_eq!(dir_page.get_page_to_left(), 1);
     }
-
-
 
     #[test]
     fn test_get_next_page() {

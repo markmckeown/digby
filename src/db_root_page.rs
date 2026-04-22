@@ -174,7 +174,9 @@ mod tests {
         // Manually write the magic number to the page buffer so validation passes
         let mut cursor = Cursor::new(page.get_page_bytes_mut());
         cursor.set_position(16);
-        cursor.write_u32::<LittleEndian>(DbRootPage::MAGIC_NUMBER).unwrap();
+        cursor
+            .write_u32::<LittleEndian>(DbRootPage::MAGIC_NUMBER)
+            .unwrap();
 
         let root_page = DbRootPage::from_page(page);
         assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
