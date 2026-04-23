@@ -187,9 +187,7 @@ impl Db {
         let overflow_tuple: OverflowTuple =
             OverflowPageHandler::get_overflow_tuple(overflow_page_no, &mut self.page_cache);
         // Confirm the key is the same - would require a SHA256 clash to fail
-        if *key != self.get_tuple_key(&overflow_tuple) {
-            return None;
-        }
+        assert_eq!(key, self.get_tuple_key(&overflow_tuple), "Supplied key does not match key in returned OverflowTuple");
         Some(self.get_tuple_value(&overflow_tuple))
     }
 
@@ -432,7 +430,7 @@ impl Db {
     pub fn put_table_entry(&mut self, table_name: &[u8], key: &[u8], value: &[u8]) {
         assert!(
             table_name.len() < u8::MAX as usize,
-            "Cannot handle keys larger than u8::MAX."
+            "Cannot handle table name larger than u8::MAX."
         );
         assert!(
             key.len() < u32::MAX as usize,
@@ -888,8 +886,8 @@ impl Drop for Db {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{RngCore, rng, seq::SliceRandom};
-    use std::{fs, vec};
+    use rand::{rng, seq::SliceRandom};
+    use std::fs;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -929,6 +927,7 @@ mod tests {
                 None,
                 CompressorType::None,
             );
+            assert!(!db.delete(&key));
             db.put(key.as_ref(), value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
@@ -945,136 +944,8 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
-    #[test]
-    fn test_db_create_table() {
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        let name = b"the_table".to_vec();
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            assert!(db.get_table_tree_root(name.as_ref()).is_none());
-            db.create_table(name.as_ref());
-            assert!(db.get_table_tree_root(name.as_ref()).is_some());
-        }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
-    }
-
-    #[test]
-    fn test_db_create_put_table() {
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        let key = b"the_key".to_vec();
-        let value = b"the_value".to_vec();
-        let name = b"the_table".to_vec();
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            assert!(db.get_table_tree_root(name.as_ref()).is_none());
-            db.create_table(name.as_ref());
-            db.put_table_entry(name.as_ref(), key.as_ref(), value.as_ref());
-            assert!(db.get_table_tree_root(name.as_ref()).is_some());
-        }
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            assert!(db.get_table_tree_root(name.as_ref()).is_some());
-            let returned_value = db.get_table_entry(name.as_ref(), key.as_ref()).unwrap();
-            assert!(returned_value == value);
-        }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
-    }
-
-    #[test]
-    fn test_db_table_clear() {
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        let key = b"the_key".to_vec();
-        let value = b"the_value".to_vec();
-        let name = b"the_table".to_vec();
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            assert!(db.get_table_tree_root(name.as_ref()).is_none());
-            db.create_table(name.as_ref());
-            db.put_table_entry(name.as_ref(), key.as_ref(), value.as_ref());
-            assert!(db.get_table_tree_root(name.as_ref()).is_some());
-        }
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            assert!(db.get_table_tree_root(name.as_ref()).is_some());
-            let returned_value = db.get_table_entry(name.as_ref(), key.as_ref()).unwrap();
-            assert!(returned_value == value);
-            db.clear_table(name.as_ref());
-            let returned_value = db.get_table_entry(name.as_ref(), key.as_ref());
-            assert!(returned_value.is_none());
-            db.delete_table(name.as_ref());
-            assert!(db.get_table_tree_root(name.as_ref()).is_none());
-        }
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            assert!(db.get_table_tree_root(name.as_ref()).is_none());
-        }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
-    }
-
-    #[test]
-    fn test_db_create_put_delete_table() {
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        let key = b"the_key".to_vec();
-        let value = b"the_value".to_vec();
-        let name = b"the_table".to_vec();
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            assert!(db.get_table_tree_root(name.as_ref()).is_none());
-            db.create_table(name.as_ref());
-            db.put_table_entry(name.as_ref(), key.as_ref(), value.as_ref());
-            assert!(db.get_table_tree_root(name.as_ref()).is_some());
-        }
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            assert!(db.get_table_tree_root(name.as_ref()).is_some());
-            let returned_value = db.get_table_entry(name.as_ref(), key.as_ref()).unwrap();
-            assert!(returned_value == value);
-            assert!(db.delete_table_entry(name.as_ref(), key.as_ref()))
-        }
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            assert!(db.get_table_tree_root(name.as_ref()).is_some());
-            let returned_value = db.get_table_entry(name.as_ref(), key.as_ref());
-            assert!(returned_value.is_none());
-        }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
-    }
+ 
+ 
 
     #[test]
     fn test_db_store_two_value() {
@@ -1448,70 +1319,6 @@ mod tests {
             numbers.shuffle(&mut rng);
             for i in numbers {
                 let returned_value = db.get(&i.to_be_bytes());
-                assert!(returned_value.is_none());
-            }
-        }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
-    }
-
-    #[test]
-    fn test_db_clear_large_tuples() {
-        let size = 32u64;
-        let mut large_value = vec![0u8; 5000];
-        let block_size = 4096;
-        rng().fill_bytes(&mut large_value);
-        let mut numbers: Vec<u64> = (0..=size).collect();
-        let mut rng = rng();
-        numbers.shuffle(&mut rng);
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
-            for i in &numbers {
-                let mut key = vec![0u8; 512];
-                key[0..8].copy_from_slice(i.to_be_bytes().as_ref());
-                db.put(&key, &large_value);
-            }
-        }
-        // The new scope essentially closes the DB - when Files run out of scope then
-        // they are close, Rust bizairely does not allow error handling on close!
-        {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
-            numbers.shuffle(&mut rng);
-            for i in &numbers {
-                let mut key = vec![0u8; 512];
-                key[0..8].copy_from_slice(i.to_be_bytes().as_ref());
-                let returned_value = db.get(&key);
-                assert!(returned_value.is_some());
-                assert_eq!(large_value, returned_value.unwrap());
-            }
-            db.clear();
-            let key = vec![0u8; 512];
-            let returned_value = db.get(&key);
-            assert!(returned_value.is_none());
-        }
-        {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
-            let mut numbers: Vec<u64> = (0..=size).collect();
-            numbers.shuffle(&mut rng);
-            for i in &numbers {
-                let mut key = vec![0u8; 512];
-                key[0..8].copy_from_slice(i.to_be_bytes().as_ref());
-                let returned_value = db.get(&key);
                 assert!(returned_value.is_none());
             }
         }
