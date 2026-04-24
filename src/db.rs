@@ -86,10 +86,6 @@ impl Db {
     }
 
     pub fn delete(&mut self, key: &[u8]) -> bool {
-        assert!(
-            key.len() < u32::MAX as usize,
-            "Cannot handle keys larger than u32::MAX."
-        );
         let key_to_use: Vec<u8> = if TupleProcessor::is_oversized_key(key) {
             TupleProcessor::generate_short_key(key)
         } else {
@@ -154,10 +150,6 @@ impl Db {
     }
 
     pub fn get(&mut self, key: &[u8]) -> Option<Vec<u8>> {
-        assert!(
-            key.len() < u32::MAX as usize,
-            "Cannot handle keys larger than u32::MAX."
-        );
         let master_page = self.get_master_page();
         let tree_page_no = master_page.get_global_tree_root_page_no();
         self.get_from_tree(key, tree_page_no)
@@ -192,16 +184,6 @@ impl Db {
     }
 
     pub fn put(&mut self, key: &[u8], value: &[u8]) {
-        // Assert on the things that cannot be handled yet.
-        assert!(
-            key.len() < u32::MAX as usize,
-            "Cannot handle keys larger than u32::MAX."
-        );
-        assert!(
-            value.len() < u32::MAX as usize,
-            "Cannot handle values larger than u32::MAX."
-        );
-
         // Get the current master page. Note this is a copy of the page
         let mut master_page = self.get_master_page();
 
@@ -432,14 +414,7 @@ impl Db {
             table_name.len() < u8::MAX as usize,
             "Cannot handle table name larger than u8::MAX."
         );
-        assert!(
-            key.len() < u32::MAX as usize,
-            "Cannot handle keys larger than u32::MAX."
-        );
-        assert!(
-            value.len() < u32::MAX as usize,
-            "Cannot handle values larger than u32::MAX."
-        );
+        
 
         let mut table_root_page_no_wrapped = self.get_table_tree_root(table_name);
         if table_root_page_no_wrapped.is_none() {
@@ -639,11 +614,7 @@ impl Db {
             table_name.len() < u8::MAX as usize,
             "Cannot handle keys larger than u8::MAX."
         );
-        assert!(
-            key.len() < u32::MAX as usize,
-            "Cannot handle keys larger than u32::MAX."
-        );
-
+        
         let table_root_page_no_wrapped = self.get_table_tree_root(table_name);
         table_root_page_no_wrapped?;
 
@@ -652,10 +623,6 @@ impl Db {
     }
 
     pub fn delete_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> bool {
-        assert!(
-            key.len() < u32::MAX as usize,
-            "Cannot handle keys larger than u32::MAX."
-        );
         assert!(
             table_name.len() < u8::MAX as usize,
             "Cannot handle keys larger than u8::MAX."

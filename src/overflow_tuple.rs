@@ -7,8 +7,8 @@ use crate::version_holder::VersionHolder;
 // the key and value length rather than the u32 used in Tuple.
 #[derive(Clone)]
 pub struct OverflowTuple {
-    // key_len - 4 bytes
-    // value_len - 4 bytes
+    // key_len - 8 bytes
+    // value_len - 8 bytes
     // key - key_len bytes
     // version - 8 bytes
     // value - value_len bytes
@@ -17,23 +17,23 @@ pub struct OverflowTuple {
 
 impl TupleTrait for OverflowTuple {
     fn get_key(&self) -> &[u8] {
-        let key_len: usize = u32::from_le_bytes(self.serialized[0..4].try_into().unwrap()) as usize;
-        &self.serialized[8..8 + key_len]
+        let key_len: usize = u64::from_le_bytes(self.serialized[0..8].try_into().unwrap()) as usize;
+        &self.serialized[16..16 + key_len]
     }
 
     fn get_value(&self) -> &[u8] {
-        let key_len: usize = u32::from_le_bytes(self.serialized[0..4].try_into().unwrap()) as usize;
-        &self.serialized[16 + key_len..]
+        let key_len: usize = u64::from_le_bytes(self.serialized[0..8].try_into().unwrap()) as usize;
+        &self.serialized[24 + key_len..]
     }
 
     fn get_version(&self) -> u64 {
-        let key_len: usize = u32::from_le_bytes(self.serialized[0..4].try_into().unwrap()) as usize;
-        VersionHolder::from_bytes(&self.serialized[8 + key_len..8 + key_len + 8]).get_version()
+        let key_len: usize = u64::from_le_bytes(self.serialized[0..8].try_into().unwrap()) as usize;
+        VersionHolder::from_bytes(&self.serialized[16 + key_len..16 + key_len + 8]).get_version()
     }
 
     fn get_version_value(&self) -> &[u8] {
-        let key_len: usize = u32::from_le_bytes(self.serialized[0..4].try_into().unwrap()) as usize;
-        &self.serialized[8 + key_len..]
+        let key_len: usize = u64::from_le_bytes(self.serialized[0..8].try_into().unwrap()) as usize;
+        &self.serialized[16 + key_len..]
     }
 
     fn get_serialized(&self) -> &[u8] {
@@ -45,9 +45,9 @@ impl TupleTrait for OverflowTuple {
     }
 
     fn get_overflow(&self) -> Overflow {
-        let key_len: usize = u32::from_le_bytes(self.serialized[0..4].try_into().unwrap()) as usize;
+        let key_len: usize = u64::from_le_bytes(self.serialized[0..8].try_into().unwrap()) as usize;
         Overflow::try_from(
-            VersionHolder::from_bytes(&self.serialized[8 + key_len..8 + key_len + 8]).get_flags(),
+            VersionHolder::from_bytes(&self.serialized[16 + key_len..16 + key_len + 8]).get_flags(),
         )
         .unwrap()
     }
@@ -55,22 +55,13 @@ impl TupleTrait for OverflowTuple {
 
 impl OverflowTuple {
     pub fn new(key: &[u8], value: &[u8], version: u64, overflow: Overflow) -> Self {
-        assert!(
-            key.len() < u32::MAX as usize,
-            "Key size larger than u32 can hold."
-        );
-        assert!(
-            value.len() < u32::MAX as usize,
-            "Value size larger than u32 can hold."
-        );
-        let mut serialized = Vec::with_capacity(4 + key.len() + 4 + value.len() + 8);
-        serialized.extend_from_slice(&(key.len() as u32).to_le_bytes());
-        serialized.extend_from_slice(&(value.len() as u32).to_le_bytes());
+        let mut serialized = Vec::with_capacity(8 + key.len() + 8 + value.len() + 8);
+        serialized.extend_from_slice(&(key.len() as u64).to_le_bytes());
+        serialized.extend_from_slice(&(value.len() as u64).to_le_bytes());
         serialized.extend_from_slice(key);
         let version_holder = VersionHolder::new(overflow as u8, version);
         serialized.extend_from_slice(&version_holder.get_bytes()[0..8]);
         serialized.extend_from_slice(value);
-
         OverflowTuple { serialized }
     }
 
@@ -96,7 +87,7 @@ mod tests {
         assert_eq!(tuple.get_serialized(), &tuple.serialized);
         assert_eq!(
             tuple.get_version_value(),
-            &tuple.serialized[8 + key.len()..]
+            &tuple.serialized[16 + key.len()..]
         );
     }
 
