@@ -12,7 +12,7 @@ impl FileLayer {
         let file_size = metadata.len();
         assert!(
             file_size % block_size as u64 == 0,
-            "File size is not a multiple of page size."
+            "File size is not a multiple of block size."
         );
         let block_count: u64 = file_size / block_size as u64;
         FileLayer {
@@ -84,6 +84,8 @@ impl FileLayer {
 
 #[cfg(test)]
 mod tests {
+    use std::os::unix::fs::FileExt;
+
     use super::*;
     const BLOCK_SIZE: usize = 4096;
     use rand::Rng;
@@ -117,5 +119,35 @@ mod tests {
 
         // Verify that the read data matches the written data
         assert_eq!(page.get_block_bytes(), read_page.get_block_bytes());
+    }
+
+
+    #[test]
+    #[should_panic(expected = "page_number should match page_count")]
+    fn test_file_layer_write_bad_page_no() {
+        let temp_file = tempfile().expect("Failed to create temp file");
+        let mut file_layer = FileLayer::new(temp_file, BLOCK_SIZE);
+        let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4); // Create a new page
+        file_layer.append_new_page(&page, 24);
+        let test_data: String = rand::rng()
+            .sample_iter(&Alphanumeric)
+            .take(BLOCK_SIZE as usize)
+            .map(char::from)
+            .collect();
+        page.get_block_bytes_mut()
+            .copy_from_slice(test_data.as_bytes()); // Fill the page with test data
+
+        // Write the page to disk
+        file_layer
+            .append_new_page(&mut page, 0);
+    }
+
+
+    #[test]
+    #[should_panic(expected = "File size is not a multiple of block size.")]
+    fn test_file_layer_non_block_size_file() {
+        let temp_file = tempfile().expect("Failed to create temp file");
+        temp_file.write_all_at(b"Hello, Rust!", 0).expect("Failed to write to temp file");
+        let _file_layer = FileLayer::new(temp_file, BLOCK_SIZE);
     }
 }
