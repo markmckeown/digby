@@ -23,6 +23,7 @@ impl PageTrait for DbRootPage {
     }
 
     fn set_page_number(&mut self, page_no: u64) {
+        assert_eq!(page_no, 0, "DbRootPage must have page number 0");
         self.page.set_page_number(page_no)
     }
 
@@ -164,6 +165,43 @@ mod tests {
         assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
         assert_eq!(root_page.page.get_type(), PageType::DbRoot);
     }
+
+
+    #[test]
+    fn test_set_page_no() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4092,
+        };
+        let mut root_page = DbRootPage::create_new(&page_config);
+
+        assert_eq!(root_page.get_page_number(), 0);
+        assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
+        assert_eq!(root_page.get_db_major_version(), DbRootPage::VERSION_MAJOR);
+        assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
+        assert_eq!(root_page.page.get_type(), PageType::DbRoot);
+        assert_eq!(root_page.get_page_bytes().len(), 4092);
+        root_page.set_page_number(0);
+        assert_eq!(root_page.get_page_number(), 0); 
+    }
+
+    #[test]
+    #[should_panic(expected = "DbRootPage must have page number 0")]
+    fn test_set_page_no_bad_page_no() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4092,
+        };
+        let mut root_page = DbRootPage::create_new(&page_config);
+
+        assert_eq!(root_page.get_page_number(), 0);
+        assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
+        assert_eq!(root_page.get_db_major_version(), DbRootPage::VERSION_MAJOR);
+        assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
+        assert_eq!(root_page.page.get_type(), PageType::DbRoot);
+        root_page.set_page_number(23);
+    }
+
 
     #[test]
     fn test_from_page_valid() {
