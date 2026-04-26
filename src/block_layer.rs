@@ -154,7 +154,7 @@ impl BlockLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DbMasterPage;
+    use crate::{DbMasterPage, DbRootPage};
     use crate::file_layer::FileLayer;
     use crate::page::{Page, PageType};
     use tempfile::tempfile;
@@ -224,12 +224,12 @@ mod tests {
     }
 
     #[test]
-    fn test_create_header_page() {
+    fn test_create_root_page() {
         let block_size: usize = 4096;
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, block_size);
         let mut block_layer = BlockLayer::new(file_layer, block_size);
-        let mut page = DbMasterPage::create_new(block_layer.get_page_config(), 0, 0);
+        let mut page = DbRootPage::create_new(block_layer.get_page_config());
         block_layer.generate_free_pages(1);
         block_layer.write_page(page.get_page());
     }
