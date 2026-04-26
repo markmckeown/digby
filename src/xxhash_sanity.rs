@@ -18,7 +18,7 @@ impl XxHashSanity {
             .expect("Failed to write checksum");
     }
 
-    pub fn verify_checksum(page: &mut Page) {
+    pub fn verify_checksum(page: &Page) {
         let calculated_checksum = xxh32(&page.get_page_bytes()[0..], 0);
         let offset = page.block_size as u64 - 4;
         let mut cursor = std::io::Cursor::new(page.get_block_bytes());
@@ -29,5 +29,22 @@ impl XxHashSanity {
             "Calculated checksum does not match stored checksum for page {}",
             page.get_page_number()
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;   
+
+    #[test]
+    #[should_panic(expected = "Calculated checksum does not match stored checksum")]
+    fn test_checksum() {
+        let mut page = Page::new(4096, 4092);
+        page.set_page_number(42);
+        XxHashSanity::set_checksum(&mut page);
+        XxHashSanity::verify_checksum(&page);
+        // Modify the page and verify that checksum verification fails
+        page.set_version(34); // Corrupt the page
+        XxHashSanity::verify_checksum(&page); // This should panic due to checksum mismatch
     }
 }
