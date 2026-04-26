@@ -95,11 +95,6 @@ impl FreeDirPage {
             .expect("Failed to write next page");
     }
 
-    pub fn get_previous(&self) -> u64 {
-        let mut cursor = Cursor::new(self.page.get_page_bytes());
-        cursor.set_position(24);
-        cursor.read_u64::<LittleEndian>().unwrap()
-    }
 
     pub fn set_previous(&mut self, entries: u64) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
@@ -168,10 +163,11 @@ mod tests {
 
     #[test]
     fn test_adding_entries() {
-        let mut free_page_dir = FreeDirPage::new(4096, 4096, 34, 4564);
+        let mut free_page_dir = FreeDirPage::new(4096, 4092, 34, 4564);
         assert!(!free_page_dir.has_free_pages());
         free_page_dir.add_free_page(73);
         free_page_dir.add_free_page(103);
+        assert_eq!(4092, free_page_dir.get_page_bytes().len());
         assert!(free_page_dir.has_free_pages());
         assert!(103 == free_page_dir.get_free_page());
         assert!(73 == free_page_dir.get_free_page());
@@ -180,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_fill_free_page_dir() {
-        let mut free_page_dir = FreeDirPage::new(4096, 4096, 34, 657);
+        let mut free_page_dir = FreeDirPage::new(4096, 4092, 34, 657);
         let mut count = 0;
         for number in 1..=1020 {
             if !free_page_dir.is_full() {
@@ -192,5 +188,13 @@ mod tests {
         assert_eq!(count, 507);
         assert_eq!(507, free_page_dir.get_free_page());
         assert!(!free_page_dir.is_full());
+    }
+
+    #[test]
+    fn test_invalid_type() {
+        let mut free_page_dir = FreeDirPage::new(4096, 4092, 34, 657);
+        free_page_dir.page.set_type(crate::page::PageType::DbMaster);
+        let result = std::panic::catch_unwind(|| FreeDirPage::from_page(free_page_dir.page));
+        assert!(result.is_err());   
     }
 }
