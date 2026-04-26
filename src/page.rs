@@ -102,14 +102,6 @@ impl Page {
         }
     }
 
-    pub fn from_bytes(bytes: Vec<u8>, block_size: usize, page_size: usize) -> Self {
-        Page {
-            bytes,
-            block_size,
-            page_size,
-        }
-    }
-
     pub fn get_page_bytes_mut(&mut self) -> &mut [u8] {
         &mut self.bytes[0..self.page_size]
     }
@@ -138,10 +130,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_invalid_page_type() {
+        let page_type = PageType::try_from(255);
+        assert!(page_type.is_err());
+    }
+
+    #[test]
     fn test_page_creation() {
         let mut page = Page::new(4096, 4092);
         assert_eq!(page.get_page_bytes().len(), 4092);
         assert_eq!(page.get_page_number(), 0);
+        assert_eq!(0, page.get_version());
+        assert_eq!(0, page.get_page().get_page_number());
         page.set_page_number(42);
         page.set_type(PageType::LeafPage);
         assert_eq!(page.get_page_number(), 42);
