@@ -123,12 +123,40 @@ mod tests {
     #[test]
     fn test_adding_bytes() {
         let page_size = 4096;
-        let mut page = OverflowPage::new(page_size, page_size, 0, 0);
+        let mut page = OverflowPage::new(page_size, page_size, 334, 34);
         let buffer = b"This is a big buffer".to_vec();
 
         page.add_bytes(buffer[0..4].as_ref(), 4);
         let out = page.get_tuple_bytes();
         assert_eq!(out.len(), 4);
         assert_eq!(buffer[0..4], *out);
+        assert_eq!(page.get_version(), 34);
+        assert_eq!(page.get_next_page(), 0);
+        assert_eq!(page.get_used_size(), 4);
+        assert_eq!(page.get_page_number(), 334);
+        page.set_page_number(457);
+        assert_eq!(page.get_page_number(), 457);
     }
+
+    #[should_panic(expected = "Invalid page type for OverflowPage")]
+    #[test]
+    fn test_invalid_page_type() {
+        let mut page = Page::new(4096, 4092);
+        page.set_type(crate::page::PageType::DbMaster);
+        OverflowPage::from_page(page);
+    }
+
+    #[test]
+    fn test_create_new() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4092,
+        };
+        let overflow_page = OverflowPage::create_new(&page_config, 334, 34);
+        assert_eq!(overflow_page.get_page_number(), 334);
+        assert_eq!(overflow_page.get_version(), 34);
+        assert_eq!(overflow_page.page.get_type(), crate::page::PageType::Overflow);
+        assert_eq!(overflow_page.get_page_bytes().len(), 4092);
+    }
+
 }
