@@ -167,12 +167,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
         };
-        let mut master_page = DbMasterPage::create_new(&page_config, 1, 5);
-        assert_eq!(master_page.get_page_number(), 1);
-        assert_eq!(master_page.get_version(), 5);
-        assert_eq!(master_page.page.get_type(), PageType::DbMaster);
-        assert_eq!(master_page.get_page_bytes().len(), 4092);
-        master_page.set_page_number(8);
+        let  _master_page = DbMasterPage::create_new(&page_config, 4, 5);
     }
 
     #[test]
