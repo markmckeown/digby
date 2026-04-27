@@ -1237,6 +1237,70 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
+
+
+    #[test]
+    fn test_db_store_value_delete_overflow() {
+        let size = 40u64;
+        let value = vec![0u8; 2048];
+        let key = vec![0u8; 200];
+        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        {
+            let mut db = Db::new_with_page_size(
+                temp_file.path().to_str().unwrap(),
+                None,
+                CompressorType::None,
+                4096,
+            );
+            let mut numbers: Vec<u64> = (0..=size).collect();
+            let mut rng = rng();
+            numbers.shuffle(&mut rng);
+            for i in numbers {
+                let mut k = key.to_vec();
+                k[0..8].copy_from_slice(&i.to_le_bytes());
+                db.put(&k, &value);
+            }
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::new_with_page_size(
+                temp_file.path().to_str().unwrap(),
+                None,
+                CompressorType::None,
+                4096,
+            );
+            for i in 0u64..=size {
+                let mut k = key.to_vec();
+                k[0..8].copy_from_slice(&i.to_le_bytes());
+                let returned_value = db.get(&k);
+                assert!(returned_value.is_some());
+            }
+        }
+        {
+            let mut db = Db::new_with_page_size(
+                temp_file.path().to_str().unwrap(),
+                None,
+                CompressorType::None,
+                4096,
+            );
+            let mut numbers: Vec<u64> = (0..=size).collect();
+            let mut rng = rng();
+            numbers.shuffle(&mut rng);
+            for i in numbers {
+                let mut k = key.to_vec();
+                k[0..8].copy_from_slice(&i.to_le_bytes());
+                let deleted = db.delete(&k);
+                assert!(deleted);
+                let returned_value = db.get(&k);
+                assert!(returned_value.is_none());
+            }
+        }
+        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
+
+
     #[test]
     fn test_db_clear() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
