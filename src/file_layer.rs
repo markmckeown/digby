@@ -121,7 +121,6 @@ mod tests {
         assert_eq!(page.get_block_bytes(), read_page.get_block_bytes());
     }
 
-
     #[test]
     #[should_panic(expected = "page_number should match page_count")]
     fn test_file_layer_write_bad_page_no() {
@@ -138,16 +137,16 @@ mod tests {
             .copy_from_slice(test_data.as_bytes()); // Fill the page with test data
 
         // Write the page to disk
-        file_layer
-            .append_new_page(&mut page, 0);
+        file_layer.append_new_page(&mut page, 0);
     }
-
 
     #[test]
     #[should_panic(expected = "File size is not a multiple of block size.")]
     fn test_file_layer_non_block_size_file() {
         let temp_file = tempfile().expect("Failed to create temp file");
-        temp_file.write_all_at(b"Hello, Rust!", 0).expect("Failed to write to temp file");
+        temp_file
+            .write_all_at(b"Hello, Rust!", 0)
+            .expect("Failed to write to temp file");
         let _file_layer = FileLayer::new(temp_file, BLOCK_SIZE);
     }
 }

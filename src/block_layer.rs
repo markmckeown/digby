@@ -154,7 +154,7 @@ impl BlockLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DbRootPage};
+    use crate::DbRootPage;
     use crate::file_layer::FileLayer;
     use crate::page::{Page, PageType};
     use tempfile::tempfile;

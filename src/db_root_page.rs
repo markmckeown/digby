@@ -166,7 +166,6 @@ mod tests {
         assert_eq!(root_page.page.get_type(), PageType::DbRoot);
     }
 
-
     #[test]
     fn test_set_page_no() {
         let page_config = PageConfig {
@@ -182,7 +181,7 @@ mod tests {
         assert_eq!(root_page.page.get_type(), PageType::DbRoot);
         assert_eq!(root_page.get_page_bytes().len(), 4092);
         root_page.set_page_number(0);
-        assert_eq!(root_page.get_page_number(), 0); 
+        assert_eq!(root_page.get_page_number(), 0);
     }
 
     #[test]
@@ -201,7 +200,6 @@ mod tests {
         assert_eq!(root_page.page.get_type(), PageType::DbRoot);
         root_page.set_page_number(23);
     }
-
 
     #[test]
     fn test_from_page_valid() {

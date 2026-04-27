@@ -22,7 +22,10 @@ impl PageTrait for DbMasterPage {
     }
 
     fn set_page_number(&mut self, page_no: u64) {
-        assert!(page_no == 1 || page_no == 2, "DbMasterPage must have page number 1 or 2");
+        assert!(
+            page_no == 1 || page_no == 2,
+            "DbMasterPage must have page number 1 or 2"
+        );
         self.page.set_page_number(page_no)
     }
 
@@ -41,7 +44,10 @@ impl PageTrait for DbMasterPage {
 
 impl DbMasterPage {
     pub fn create_new(page_config: &PageConfig, page_number: u64, version: u64) -> Self {
-        assert!(page_number == 1 || page_number == 2, "DbMasterPage must have page number 1 or 2");
+        assert!(
+            page_number == 1 || page_number == 2,
+            "DbMasterPage must have page number 1 or 2"
+        );
         DbMasterPage::new(
             page_config.block_size,
             page_config.page_size,

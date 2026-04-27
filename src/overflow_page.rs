@@ -155,8 +155,10 @@ mod tests {
         let overflow_page = OverflowPage::create_new(&page_config, 334, 34);
         assert_eq!(overflow_page.get_page_number(), 334);
         assert_eq!(overflow_page.get_version(), 34);
-        assert_eq!(overflow_page.page.get_type(), crate::page::PageType::Overflow);
+        assert_eq!(
+            overflow_page.page.get_type(),
+            crate::page::PageType::Overflow
+        );
         assert_eq!(overflow_page.get_page_bytes().len(), 4092);
     }
-
 }

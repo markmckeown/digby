@@ -123,6 +123,10 @@ impl Page {
         version_holder.set_flags(page_type as u8);
         self.bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
     }
+
+    pub fn replace_bytes(&mut self, new_bytes: Vec<u8>) {
+        self.bytes = new_bytes;
+    }
 }
 
 #[cfg(test)]

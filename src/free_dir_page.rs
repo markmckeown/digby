@@ -95,7 +95,6 @@ impl FreeDirPage {
             .expect("Failed to write next page");
     }
 
-
     pub fn set_previous(&mut self, entries: u64) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(24);
@@ -195,6 +194,6 @@ mod tests {
         let mut free_page_dir = FreeDirPage::new(4096, 4092, 34, 657);
         free_page_dir.page.set_type(crate::page::PageType::DbMaster);
         let result = std::panic::catch_unwind(|| FreeDirPage::from_page(free_page_dir.page));
-        assert!(result.is_err());   
+        assert!(result.is_err());
     }
 }

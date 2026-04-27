@@ -90,6 +90,32 @@ fn test_db_store_large_key_value_compressible() {
 }
 
 #[test]
+#[should_panic(expected = "Db compression mis-match, stored type is 1, requested type None")]
+fn test_db_store_large_key_value_compressible_mismatch() {
+    let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    let key: Vec<u8> = vec![111u8; 8192];
+    let value: Vec<u8> = vec![56u8; 18192];
+    {
+        let mut db = Db::new(
+            temp_file.path().to_str().unwrap(),
+            None,
+            CompressorType::LZ4,
+        );
+        db.put(key.as_ref(), value.as_ref());
+    }
+    // The new scope essentially closes the DB - when Files run out of scope then
+    // they are close, Rust bizairely does not allow error handling on close!
+    {
+        let _db = Db::new(
+            temp_file.path().to_str().unwrap(),
+            None,
+            CompressorType::None,
+        );
+    }
+    fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+}
+
+#[test]
 fn test_db_clear_large_tuples() {
     let size = 32u64;
     let mut large_value = vec![0u8; 5000];

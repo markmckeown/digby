@@ -28,9 +28,10 @@ impl Aes128GcmSanity {
         let key: &Key<Aes128Gcm> = input_key.as_slice().into();
         let cipher = Aes128Gcm::new(key);
         let nonce: &Nonce<U12> = (&page.get_block_bytes()[block_size - 12..block_size]).into();
-        let plaintext = cipher
-            .decrypt(nonce, &page.get_block_bytes()[0..block_size - 12])
-            .unwrap();
-        page.get_page_bytes_mut().copy_from_slice(&plaintext);
+        let plaintext = cipher.decrypt(nonce, &page.get_block_bytes()[0..block_size - 12]);
+        let mut plaintext = plaintext.expect("Failed to decrypt page");
+        // Pad the plaintext to the block size if necessary
+        plaintext.resize(page.get_block_bytes().len(), 0);
+        page.replace_bytes(plaintext);
     }
 }

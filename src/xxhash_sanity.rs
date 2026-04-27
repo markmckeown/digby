@@ -34,7 +34,7 @@ impl XxHashSanity {
 
 #[cfg(test)]
 mod tests {
-    use super::*;   
+    use super::*;
 
     #[test]
     #[should_panic(expected = "Calculated checksum does not match stored checksum")]
