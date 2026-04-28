@@ -206,10 +206,6 @@ impl LeafPage {
 
     fn set_left_fence_key(&mut self, key: &[u8]) {
         assert!(
-            key.len() <= u8::MAX as usize,
-            "Left fence key size larger than u8 can hold."
-        );
-        assert!(
             self.get_entries_size() == 0,
             "Cannot set left fence key on a page that already has entries."
         );
@@ -254,10 +250,6 @@ impl LeafPage {
     }
 
     fn set_right_fence_key(&mut self, key: &[u8]) {
-        assert!(
-            key.len() <= u8::MAX as usize,
-            "Right fence key size larger than u8 can hold."
-        );
         assert!(
             self.get_entries_size() == 0,
             "Cannot set right fence key on a page that already has entries."
