@@ -1008,15 +1008,100 @@ mod tests {
             dir_page.get_free_space(),
             1024 - DirPage::HEADER_SIZE as u16
         );
+        assert!(!dir_page.has_left_fence());
+        assert!(!dir_page.has_right_fence());
+        assert_eq!(dir_page.get_prefix_length(), 0);
+        assert_eq!(dir_page.get_page_to_left(), 0);
+        assert_eq!(dir_page.get_dir_left_key(), None);
+    }
+
+    #[test]
+    #[should_panic(expected = "Page type is not DirPage")]
+    fn test_invalid_page_size() {
+        let page_config = PageConfig {
+            block_size: 1028,
+            page_size: 1024,
+        };
+        let mut leaf_page = Page::new(page_config.block_size, page_config.page_size);
+        leaf_page.set_type(PageType::LeafPage);
+        let _dir_page = DirPage::from_page(leaf_page);
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot set left fence key on a page that already has entries.")]
+    fn test_cannot_set_left_fence_after_adding_entries() {
+        let page_config = PageConfig {
+            block_size: 1028,
+            page_size: 1024,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        assert_eq!(dir_page.get_page_bytes().len(), 1024);
+        let key1 = b"key1";
+        let page_no1 = 2;
+        dir_page.add_child_page(key1, page_no1);
+        assert_eq!(dir_page.get_entries_size(), 1);
+        // Cannot set left or right fence after adding entries.
+        dir_page.set_left_fence_key(b"key0");
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot set right fence key on a page that already has entries.")]
+    fn test_cannot_set_right_fence_after_adding_entries() {
+        let page_config = PageConfig {
+            block_size: 1028,
+            page_size: 1024,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        assert_eq!(dir_page.get_page_bytes().len(), 1024);
+        let key1 = b"key1";
+        let page_no1 = 2;
+        dir_page.add_child_page(key1, page_no1);
+        assert_eq!(dir_page.get_entries_size(), 1);
+        // Cannot set left or right fence after adding entries.
+        dir_page.set_right_fence_key(b"key0");
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
+    fn test_cannot_set_right_prefix_after_adding_entries() {
+        let page_config = PageConfig {
+            block_size: 1028,
+            page_size: 1024,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        assert_eq!(dir_page.get_page_bytes().len(), 1024);
+        let key1 = b"key1";
+        let page_no1 = 2;
+        dir_page.add_child_page(key1, page_no1);
+        assert_eq!(dir_page.get_entries_size(), 1);
+        // Cannot set left or right fence after adding entries.
+        dir_page.set_prefix_length(3);
+    }
+
+    #[test]
+    #[should_panic(expected = "Prefix length cannot be larger than the right fence key size.")]
+    fn test_prefix_larger_than_right_fence() {
+        let page_config = PageConfig {
+            block_size: 1028,
+            page_size: 1024,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        assert_eq!(dir_page.get_page_bytes().len(), 1024);
+        let key1 = b"key1";
+        let key2 = b"key2";
+        dir_page.set_left_fence_key(key1);
+        dir_page.set_right_fence_key(key2);
+        dir_page.set_prefix_length(5);
     }
 
     #[test]
     fn test_add_child_page() {
         let page_config = PageConfig {
-            block_size: 1024,
+            block_size: 1028,
             page_size: 1024,
         };
         let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let key2 = b"key2";
         let page_no1 = 2;

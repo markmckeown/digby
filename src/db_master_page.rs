@@ -167,7 +167,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
         };
-        let  _master_page = DbMasterPage::create_new(&page_config, 4, 5);
+        let _master_page = DbMasterPage::create_new(&page_config, 4, 5);
     }
 
     #[test]
@@ -178,6 +178,17 @@ mod tests {
 
         let master_page = DbMasterPage::from_page(page);
         assert_eq!(master_page.get_page_number(), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "DbMasterPage must have page number 1 or 2")]
+    fn test_set_invalid_page_no() {
+        let mut page = Page::new(4096, 4092);
+        page.set_type(PageType::DbMaster);
+        page.set_page_number(2);
+
+        let mut master_page = DbMasterPage::from_page(page);
+        master_page.set_page_number(3);
     }
 
     #[test]

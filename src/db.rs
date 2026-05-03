@@ -79,8 +79,7 @@ impl Db {
             db.init_db_file(sanity_type)
                 .expect("Failed to initialize DB file");
         } else {
-            db.check_db_integrity()
-                .expect("DB integrity check failed");
+            db.check_db_integrity().expect("DB integrity check failed");
         }
         db
     }
@@ -179,7 +178,11 @@ impl Db {
         let overflow_tuple: OverflowTuple =
             OverflowPageHandler::get_overflow_tuple(overflow_page_no, &mut self.page_cache);
         // Confirm the key is the same - would require a SHA256 clash to fail
-        assert_eq!(key, self.get_tuple_key(&overflow_tuple), "Supplied key does not match key in returned OverflowTuple");
+        assert_eq!(
+            key,
+            self.get_tuple_key(&overflow_tuple),
+            "Supplied key does not match key in returned OverflowTuple"
+        );
         Some(self.get_tuple_value(&overflow_tuple))
     }
 
@@ -414,7 +417,6 @@ impl Db {
             table_name.len() < u8::MAX as usize,
             "Cannot handle table name larger than u8::MAX."
         );
-        
 
         let mut table_root_page_no_wrapped = self.get_table_tree_root(table_name);
         if table_root_page_no_wrapped.is_none() {
@@ -513,8 +515,8 @@ impl Db {
         self.clear_table_with_delete(table_name, true);
     }
 
-    // Clear the contents of a table. If delete is true then the table will be deleted, if false 
-    // then the table will be cleared but remain in place. 
+    // Clear the contents of a table. If delete is true then the table will be deleted, if false
+    // then the table will be cleared but remain in place.
     pub fn clear_table_with_delete(&mut self, table_name: &[u8], delete: bool) {
         assert!(
             table_name.len() < u8::MAX as usize,
@@ -901,9 +903,6 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
- 
- 
-
     #[test]
     fn test_db_store_two_value() {
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
@@ -1237,8 +1236,6 @@ mod tests {
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
-
-
     #[test]
     fn test_db_store_value_delete_overflow() {
         let size = 40u64;
@@ -1298,8 +1295,6 @@ mod tests {
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
-
-
 
     #[test]
     fn test_db_clear() {
@@ -1508,5 +1503,4 @@ mod tests {
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
-
 }
