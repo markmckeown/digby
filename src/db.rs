@@ -983,13 +983,14 @@ mod tests {
     #[test]
     fn test_db_store_value_delete_small_page_reverse() {
         let size = 4096u64;
+        let block_size = 256;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let mut db = Db::new_with_page_size(
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..=size {
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
@@ -1002,7 +1003,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
@@ -1014,7 +1015,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in (0..(size + 1)).rev() {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
@@ -1032,7 +1033,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
@@ -1043,6 +1044,7 @@ mod tests {
 
     #[test]
     fn test_db_store_value_delete_small_page_reverse_le() {
+        let block_size = 256;
         let size = 4096u64;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
@@ -1050,7 +1052,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..=size {
                 db.put(&i.to_le_bytes(), &i.to_le_bytes());
@@ -1063,7 +1065,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
@@ -1075,7 +1077,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in (0..(size + 1)).rev() {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
@@ -1093,7 +1095,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             let i: u64 = 0;
             let returned_value = db.get(&i.to_le_bytes());
@@ -1111,7 +1113,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                256,
             );
             let deleted = db.delete(&0u64.to_be_bytes());
             assert!(!deleted);
@@ -1131,7 +1133,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                256,
             );
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
@@ -1143,7 +1145,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                256,
             );
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
@@ -1162,7 +1164,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                256,
             );
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
@@ -1174,13 +1176,14 @@ mod tests {
     #[test]
     fn test_db_store_value_delete_small_page_random_le() {
         let size = 4096u64;
+        let block_size = 256;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let mut db = Db::new_with_page_size(
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
@@ -1196,7 +1199,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
@@ -1208,7 +1211,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
@@ -1227,7 +1230,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             let i: u64 = 0;
             let returned_value = db.get(&i.to_le_bytes());
@@ -1298,13 +1301,14 @@ mod tests {
 
     #[test]
     fn test_db_clear() {
+        let block_size = 256;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let mut db = Db::new_with_page_size(
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             let mut numbers: Vec<u64> = (0..=256).collect();
             let mut rng = rng();
@@ -1320,7 +1324,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             db.clear();
             let i: u64 = 0;
@@ -1332,7 +1336,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             let mut numbers: Vec<u64> = (0..=256).collect();
             let mut rng = rng();
@@ -1363,13 +1367,14 @@ mod tests {
     #[test]
     fn test_db_store_value_delete_small_page() {
         let size = 4096u64;
+        let block_size = 256;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let mut db = Db::new_with_page_size(
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..size {
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
@@ -1386,7 +1391,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_be_bytes());
@@ -1404,7 +1409,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
@@ -1422,7 +1427,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
@@ -1434,13 +1439,14 @@ mod tests {
     #[test]
     fn test_db_store_value_delete_small_page_little_endian() {
         let size = 4096u64;
+        let block_size = 256;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let mut db = Db::new_with_page_size(
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..size {
                 db.put(&i.to_le_bytes(), &i.to_le_bytes());
@@ -1459,7 +1465,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_le_bytes());
@@ -1477,7 +1483,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
@@ -1495,7 +1501,7 @@ mod tests {
                 temp_file.path().to_str().unwrap(),
                 None,
                 CompressorType::None,
-                128,
+                block_size,
             );
             let i: u64 = 0;
             let returned_value = db.get(&i.to_le_bytes());

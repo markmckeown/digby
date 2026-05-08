@@ -427,15 +427,6 @@ impl LeafPage {
                 tuple_key.starts_with(self.get_key_prefix()),
                 "Tuple key does not start with the prefix of the page."
             );
-            // If the tuple key does not start with the prefix then then the
-            // tuple key is greater than the right fence - which we would
-            // have handled above.
-            if tuple_key < self.get_left_fence_key() {
-                assert!(
-                    tuple_key > self.get_left_fence_key(),
-                    "Tuple key is smaller than the left fence key of the page."
-                )
-            }
         }
         let key_suffix = &tuple_key[prefix_length..];
         let (found, index) = self.get_index_for_key(key_suffix);
@@ -512,20 +503,16 @@ impl LeafPage {
         self.set_free_space(free_space as u16 - new_entry_total_size as u16);
     }
 
+
     pub fn get_tuple(&self, key: &[u8]) -> Option<Tuple> {
-        let prefix_length = self.get_prefix_length() as usize;
-        if prefix_length > 0 {
-            // If key does not start with prefix then we do not have it - this could happen
-            // if the page to the right has been deleted.
-            // Using compression - if the key is greater than the right fence then we do not have it.
-            if key >= self.get_right_fence_key() {
-                return None;
-            }
-            let key_prefix = self.get_key_prefix();
-            if !key.starts_with(key_prefix) {
-                return None;
-            }
+        if self.has_right_fence() && key > self.get_right_fence_key() {
+            return None;
         }
+        if self.has_left_fence() && key < self.get_left_fence_key() {
+            return None;
+        }
+
+        let prefix_length = self.get_prefix_length() as usize;
         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
         if !found {
             return None;
@@ -614,6 +601,11 @@ impl LeafPage {
 
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
+        // TODO - we are setting the right fence to a key that is not in the page.
+        // Is this the right thing? The only time something less that something greater
+        // than the right fence comes into the page will be if the page to the right
+        // disappears. If we use the largest current value in the page then we might
+        // have to reset the right fence a lot.
         left_page.set_right_fence_key(mid_key);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -713,11 +705,10 @@ impl LeafPage {
         // Create page to the left.
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
-        // Should we use the left fence key from the current page?
-        let low_key = self.get_key_suffix_at_index(0);
-        left_page.set_left_fence_key(low_key);
+        // TODO Should we use the left fence key from the current page?
+        left_page.set_left_fence_key(self.get_left_fence_key());
         left_page.set_right_fence_key(mid_key);
-        let left_prefix_length = low_key
+        let left_prefix_length = self.get_left_fence_key()
             .iter()
             .zip(mid_key)
             .take_while(|(a, b)| a == b)
@@ -766,11 +757,9 @@ impl LeafPage {
         let mid = entries / 2;
 
         let mid_key = self.get_key_at_index(mid);
-        let low_key = self.get_key_at_index(0);
-        left_page.set_left_fence_key(&low_key);
+        left_page.set_left_fence_key(self.get_left_fence_key());
         left_page.set_right_fence_key(&mid_key);
-        let left_prefix_length = low_key
-            .as_slice()
+        let left_prefix_length = self.get_left_fence_key()
             .iter()
             .zip(mid_key.as_slice())
             .take_while(|(a, b)| a == b)
@@ -803,7 +792,7 @@ impl LeafPage {
         (left_page, right_page, Some(split_key))
     }
 
-    fn split_page_small(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
+    fn split_page_low_entry_count(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         let mut left_page = LeafPage::create_new(
             &PageConfig {
                 block_size: self.page.block_size,
@@ -821,7 +810,7 @@ impl LeafPage {
             version,
         );
 
-        // Handling large items in small pages.
+        // Handling large items in pages with low entry counts.
         // Copy over the fences but set the prefix length to zero to stop compression
         if self.has_left_fence() {
             left_page.set_left_fence_key(self.get_left_fence_key());
@@ -851,9 +840,9 @@ impl LeafPage {
         let entries = self.get_entries_size();
         assert!(entries > 0, "Page must have at least one entry to split.");
 
-        // Handle small pages separately
+        // Handle low entry count tables separately
         if entries <= 2 {
-            return self.split_page_small(version);
+            return self.split_page_low_entry_count(version);
         }
 
         // First page - no left or right pages.

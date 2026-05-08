@@ -1,3 +1,4 @@
+
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::tree_dir_entry;
@@ -162,11 +163,11 @@ impl DirPage {
         self.page.get_page_bytes_mut()[21..23].copy_from_slice(&[0, 0]);
     }
 
-    pub fn get_left_fence_key_size(&self) -> u8 {
+    fn get_left_fence_key_size(&self) -> u8 {
         self.page.get_page_bytes()[23]
     }
 
-    pub fn get_left_fence_key_offset(&self) -> u16 {
+    fn get_left_fence_key_offset(&self) -> u16 {
         let bytes = &self.page.get_page_bytes()[21..23];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
@@ -200,12 +201,12 @@ impl DirPage {
         self.page.get_page_bytes_mut()[24..26].copy_from_slice(&[0, 0]);
     }
 
-    pub fn get_right_fence_key_offset(&self) -> u16 {
+    fn get_right_fence_key_offset(&self) -> u16 {
         let bytes = &self.page.get_page_bytes()[24..26];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
-    pub fn get_right_fence_key_size(&self) -> u8 {
+    fn get_right_fence_key_size(&self) -> u8 {
         self.page.get_page_bytes()[26]
     }
 
@@ -307,24 +308,44 @@ impl DirPage {
     // There are two ways to in which a child page no can be added to the dir page,
     // - if we are updating an existing entry, we need to find the correct entry (the key may not be an exact match)
     // - if a child page has split then we need to update on entry and add a new entry.
+    // This function is to update an existing key with a new page number.
     fn update_child_page_no(&mut self, key: &[u8], page_no: u64) {
-        let prefix_length = self.get_prefix_length() as usize;
-        assert!(
-            key.len() >= prefix_length,
-            "Key length is smaller than the prefix length of the page."
-        );
-        assert!(
-            key.starts_with(self.get_key_prefix()),
-            "Key does not match the prefix of the page."
-        );
-        let key_suffix = &key[prefix_length..];
-
         let entries = self.get_entries_size() as usize;
         // Page empty - we can just add the page number as the left most page and return.
         if entries == 0 {
             self.set_page_to_left(page_no);
             return;
         }
+        
+        // Sanity check - we are updating an entry in this dir page 
+        // as we have just updated a child page - this means we have just
+        // found found the old child page reference in here.
+        if self.has_left_fence() && key < self.get_left_fence_key() {
+            self.set_page_to_left(page_no);
+            return;
+        }
+
+        if self.has_right_fence() && key > self.get_right_fence_key() {
+            let slot_to_update = self.get_slot_at_index(entries - 1);
+            let val_offset = (slot_to_update.offset + slot_to_update.key_len as u16) as usize;
+            let val_bytes = page_no.to_le_bytes();
+            self.page.get_page_bytes_mut()[val_offset..val_offset + DirPage::VALUE_SIZE]
+                .copy_from_slice(&val_bytes);
+            return;
+        }
+
+        let prefix_length = self.get_prefix_length() as usize;
+        let prefix = self.get_key_prefix();
+        assert!(
+            key.len() >= prefix_length,
+            "Key length is smaller than the prefix length of the page."
+        );
+        assert!(
+            key.starts_with(prefix),
+            "Key does not match the prefix of the page."
+        );
+        let key_suffix = &key[prefix_length..];
+
 
         // Get first key and check if the key belongs to the left most page.
         let slot = self.get_slot_at_index(0);
@@ -412,6 +433,8 @@ impl DirPage {
         true
     }
 
+    // Called when a child page has split and we need to add a 
+    // new entry for the new page in the dir_page.
     fn add_child_page(&mut self, key: &[u8], page_no: u64) -> bool {
         if self.has_left_fence() && key < self.get_left_fence_key() {
             if !self.reset_with_new_left_fence(key) {
@@ -521,6 +544,7 @@ impl DirPage {
         self.set_free_space(free_space as u16 - new_entry_total_size as u16);
     }
 
+    // Only used in testing.
     pub fn get_page_no_for_key(&self, key: &[u8]) -> Option<u64> {
         let prefix_length = self.get_prefix_length() as usize;
         if prefix_length > 0 {
@@ -614,9 +638,7 @@ impl DirPage {
         let mid_key = self.get_key_suffix_at_index(mid);
         // Page to the left remains the same for the new page on the left.
         left_page.set_page_to_left(self.get_page_to_left());
-        // Set the right fence to the mid_key which will be the left key
-        // for the new page on the right.
-        left_page.set_right_fence_key(mid_key);
+        left_page.set_right_fence_key(self.get_key_suffix_at_index(mid-1));
         left_page.set_prefix_length(0);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -627,7 +649,7 @@ impl DirPage {
         // For the right page there is no right fence or prefix.
         // Set the left fence to the mid_key - this also the page to the left.
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
-        right_page.set_left_fence_key(mid_key);
+        right_page.set_left_fence_key(self.get_key_suffix_at_index(mid+1));
         right_page.set_prefix_length(0);
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -671,22 +693,28 @@ impl DirPage {
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
         left_page.set_page_to_left(self.get_page_to_left());
-        left_page.set_right_fence_key(mid_key);
+        left_page.set_right_fence_key(self.get_key_suffix_at_index(mid-1));
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
             left_page.add_key_value_at_index(i, key, value);
         }
 
-        let right_fence_key = self.get_right_fence_key();
-        let right_prefix_length = mid_key
+        // Right fence for new page to the right remains the same.
+        let right_lowest_key = self.get_key_at_index(mid+1);
+        let right_fence_right_key = self.get_key_at_index(entries - 1);
+        assert!(
+            right_fence_right_key > right_lowest_key,
+            "Right page right fence key is not greater than right page left fence key."
+        );
+        let right_prefix_length = right_lowest_key.as_slice()
             .iter()
-            .zip(right_fence_key)
+            .zip(right_fence_right_key.as_slice())
             .take_while(|(a, b)| a == b)
             .count();
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
-        right_page.set_left_fence_key(mid_key);
-        right_page.set_right_fence_key(right_fence_key);
+        right_page.set_left_fence_key(right_lowest_key.as_ref());
+        right_page.set_right_fence_key(right_fence_right_key.as_ref());
         right_page.set_prefix_length(right_prefix_length as u8);
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -728,15 +756,20 @@ impl DirPage {
 
         // Create page to the left.
         // No prefix so we can just copy the key suffixes as they are.
-        let low_key = self.get_left_fence_key();
+        let low_key = &self.get_key_at_index(0);
         // No prefix in self so can use suffix as the full key for the mid key.
         let mid_key = self.get_key_suffix_at_index(mid);
+        let left_page_right_fence_key = self.get_key_suffix_at_index(mid-1);
+        assert!(
+            left_page_right_fence_key > low_key,
+            "Left page right fence key is not greater than left page left fence key."   
+        );
         left_page.set_page_to_left(self.get_page_to_left());
         left_page.set_left_fence_key(low_key);
-        left_page.set_right_fence_key(mid_key);
+        left_page.set_right_fence_key(left_page_right_fence_key);
         let left_prefix_length = low_key
             .iter()
-            .zip(mid_key)
+            .zip(left_page_right_fence_key)
             .take_while(|(a, b)| a == b)
             .count();
         left_page.set_prefix_length(left_prefix_length as u8);
@@ -747,7 +780,7 @@ impl DirPage {
         }
 
         // Create page to the right.
-        right_page.set_left_fence_key(mid_key);
+        right_page.set_left_fence_key(self.get_key_suffix_at_index(mid+1));
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -781,15 +814,19 @@ impl DirPage {
         let mid = entries / 2;
 
         // Could have a prefix so need full keys.
-        let low_key = self.get_left_fence_key();
-        // Note we get full key for the mid.
+        let low_key = self.get_key_at_index(0);
         let mid_key = self.get_key_at_index(mid);
+        let left_page_right_fence_key = self.get_key_at_index(mid-1);
         left_page.set_page_to_left(self.get_page_to_left());
-        left_page.set_left_fence_key(low_key);
-        left_page.set_right_fence_key(mid_key.as_slice());
+        left_page.set_left_fence_key(&low_key);
+        left_page.set_right_fence_key(&left_page_right_fence_key);
+        assert!(
+            left_page_right_fence_key > low_key,
+            "Left page right fence key is not greater than left page left fence key."
+        );
         let left_prefix_length = low_key
             .iter()
-            .zip(mid_key.as_slice())
+            .zip(left_page_right_fence_key.as_slice())
             .take_while(|(a, b)| a == b)
             .count();
         let left_prefix_offset = left_prefix_length - self.get_prefix_length() as usize; // The offset of the suffix in the key is the prefix length of the page.
@@ -800,15 +837,21 @@ impl DirPage {
             left_page.add_key_value_at_index(i, &key[left_prefix_offset..], value);
         }
 
-        let right_prefix_length = mid_key
+        let right_page_low_key = self.get_key_at_index(mid+1);
+        let right_page_high_key = self.get_key_at_index(entries - 1);
+        let right_prefix_length = right_page_low_key
             .iter()
-            .zip(self.get_right_fence_key())
+            .zip(right_page_high_key.as_slice())
             .take_while(|(a, b)| a == b)
             .count();
         let right_suffix_offset = right_prefix_length - self.get_prefix_length() as usize;
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
-        right_page.set_left_fence_key(mid_key.as_slice());
-        right_page.set_right_fence_key(self.get_right_fence_key());
+        right_page.set_left_fence_key(right_page_low_key.as_slice());
+        right_page.set_right_fence_key(&right_page_high_key);
+        assert!(
+            right_page_low_key < right_page_high_key,
+            "Right page left fence key is not less than right page right fence key."
+        );
         right_page.set_prefix_length(right_prefix_length as u8);
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -910,10 +953,31 @@ impl DirPage {
     }
 
     pub fn get_next_page(&self, key: &[u8]) -> u64 {
+        // There is only the page to the left.
         let entries = self.get_entries_size();
         if entries == 0 {
             return self.get_page_to_left();
         }
+        
+        if self.has_left_fence() {
+            if key < self.get_left_fence_key() {
+                return self.get_page_to_left();
+            }
+        }
+
+        if self.has_right_fence() {
+            if key > self.get_right_fence_key() {
+                return self.get_page_no_at_index(self.get_entries_size() as usize - 1);
+            }
+        }
+
+
+        // If we get here then if there is a left and right fence the key is between them
+        // and the key should have the prefix if there is one.
+        // If there is no left or right fence then there is no prefix and the prefix
+        // length is zero.
+        assert!(key.len() >= self.get_prefix_length() as usize, "Key length is smaller than the prefix length of the page.");
+        assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
 
         let key_suffix = &key[self.get_prefix_length() as usize..];
 
@@ -947,12 +1011,12 @@ impl DirPage {
             return;
         }
 
-        let key_suffix = &key[self.get_prefix_length() as usize..];
+        let prefix_length = self.get_prefix_length() as usize;
+        let key_suffix = &key[prefix_length..];
         // If removing the left most page need to move the next page into its place.
         // There is a next page as entries > 0 from above.
         if page_no == self.get_page_to_left() {
             let slot = self.get_slot_at_index(0);
-            assert!(key_suffix < self.get_key_at_slot(&slot));
             let new_left_most_page = self.get_value_at_slot(&slot);
             // TODO should just copy bytes instead of uwrapping and rewrapping the page number.
             self.set_page_to_left(u64::from_le_bytes(new_left_most_page.try_into().unwrap()));
