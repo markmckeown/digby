@@ -1097,13 +1097,37 @@ mod tests {
         };
         let mut dir_page = DirPage::create_new(&page_config, 1, 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
+        assert_eq!(dir_page.get_all_child_pages(), vec![]);
         let key1 = b"key1";
         let page_no1 = 2;
         dir_page.add_child_page(key1, page_no1);
         assert_eq!(dir_page.get_entries_size(), 1);
+        assert_eq!(dir_page.get_all_child_pages(), vec![2]);
         // Cannot set left or right fence after adding entries.
         dir_page.set_right_fence_key(b"key0");
     }
+
+    #[test]
+    #[should_panic(expected = "Cannot split a page with fewer than 3 entries.")]
+    fn test_cannot_split_page_with_less_than_3_entries() {
+        let page_config = PageConfig {
+            block_size: 1028,
+            page_size: 1024,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        assert_eq!(dir_page.get_page_bytes().len(), 1024);
+        let key1 = b"key1";
+        let page_no1 = 2;
+        dir_page.add_child_page(key1, page_no1);
+        let key2 = b"key2";
+        let page_no2 = 3;
+        dir_page.add_child_page(key2, page_no2);
+
+        assert_eq!(dir_page.get_entries_size(), 2);
+        assert_eq!(dir_page.get_all_child_pages(), vec![2, 3]);
+        dir_page.split_page(45);
+    }
+
 
     #[test]
     #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
