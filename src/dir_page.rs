@@ -544,27 +544,7 @@ impl DirPage {
         self.set_free_space(free_space as u16 - new_entry_total_size as u16);
     }
 
-    // Only used in testing.
-    pub fn get_page_no_for_key(&self, key: &[u8]) -> Option<u64> {
-        let prefix_length = self.get_prefix_length() as usize;
-        if prefix_length > 0 {
-            // If tuples are removed and deleted then tree can rebalance so that
-            // it checks this page for entries - for example if the page to the
-            // right of this page is deleted.
-            if key.len() < prefix_length {
-                return None;
-            }
-            if !key.starts_with(self.get_key_prefix()) {
-                return None;
-            }
-        }
-        let (found, index) = self.get_index_for_key(&key[prefix_length..]);
-        if !found {
-            return None;
-        }
-        Some(self.get_page_no_at_index(index))
-    }
-
+    
     fn get_page_no_at_index(&self, index: usize) -> u64 {
         let slot = self.get_slot_at_index(index);
         u64::from_le_bytes(self.get_value_at_slot(&slot)[0..8].try_into().unwrap())
@@ -1177,8 +1157,8 @@ mod tests {
         dir_page.add_child_page(key1, page_no1);
         dir_page.add_child_page(key2, page_no2);
         assert_eq!(dir_page.get_entries_size(), 2);
-        assert_eq!(dir_page.get_page_no_for_key(key1).unwrap(), page_no1);
-        assert_eq!(dir_page.get_page_no_for_key(key2).unwrap(), page_no2);
+        assert_eq!(dir_page.get_next_page(key1), page_no1);
+        assert_eq!(dir_page.get_next_page(key2), page_no2);
         assert_eq!(dir_page.get_left_fence_key(), key1);
         assert_eq!(dir_page.get_right_fence_key(), b"key3");
         assert_eq!(dir_page.get_prefix_length(), 3);
@@ -1203,8 +1183,8 @@ mod tests {
         dir_page.add_child_page(key1, page_no1);
         dir_page.add_child_page(key2, page_no2);
         assert_eq!(dir_page.get_entries_size(), 2);
-        assert_eq!(dir_page.get_page_no_for_key(key1).unwrap(), page_no1);
-        assert_eq!(dir_page.get_page_no_for_key(key2).unwrap(), page_no2);
+        assert_eq!(dir_page.get_next_page(key1), page_no1);
+        assert_eq!(dir_page.get_next_page(key2), page_no2);
         assert_eq!(dir_page.get_left_fence_key(), key1);
         assert_eq!(dir_page.get_right_fence_key(), b"key3");
         assert_eq!(dir_page.get_prefix_length(), 3);
@@ -1235,8 +1215,8 @@ mod tests {
         dir_page.add_child_page(key1, page_no1);
         dir_page.add_child_page(key2, page_no2);
         assert_eq!(dir_page.get_entries_size(), 2);
-        assert_eq!(dir_page.get_page_no_for_key(key1).unwrap(), page_no1);
-        assert_eq!(dir_page.get_page_no_for_key(key2).unwrap(), page_no2);
+        assert_eq!(dir_page.get_next_page(key1), page_no1);
+        assert_eq!(dir_page.get_next_page(key2), page_no2);
         assert_eq!(dir_page.get_left_fence_key(), key1);
         assert_eq!(dir_page.get_right_fence_key(), b"key4");
         assert_eq!(dir_page.get_prefix_length(), 3);
@@ -1312,11 +1292,11 @@ mod tests {
         assert_eq!(right_page.get_entries_size(), 9);
         for i in 1..10 {
             let key = (i as u64).to_le_bytes().to_vec();
-            assert_eq!(left_page.get_page_no_for_key(&key).unwrap(), i as u64);
+            assert_eq!(left_page.get_next_page(&key), i as u64);
         }
         for i in 11..20 {
             let key = (i as u64).to_le_bytes().to_vec();
-            assert_eq!(right_page.get_page_no_for_key(&key).unwrap(), i as u64);
+            assert_eq!(right_page.get_next_page(&key), i as u64);
         }
     }
 }
