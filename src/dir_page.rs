@@ -1061,7 +1061,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Page type is not DirPage")]
-    fn test_invalid_page_size() {
+    fn test_invalid_page() {
         let page_config = PageConfig {
             block_size: 1028,
             page_size: 1024,

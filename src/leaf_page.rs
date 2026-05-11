@@ -970,8 +970,8 @@ impl LeafPage {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::vec;
+   use super::*;
+   use std::vec;
 
     #[test]
     fn test_tail_compression1() {
@@ -990,12 +990,30 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Page type is not Leaf")]
+    fn test_not_leaf_page() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4000,
+        };
+        let mut dir_page = Page::new(page_config.block_size, page_config.page_size);
+        dir_page.set_type(PageType::DirPage);
+        let _leaf_page = LeafPage::from_page(dir_page);
+    }
+
+
+    #[test]
     fn test_split() {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, 1, 23);
+        assert_eq!(leaf_page.get_page_bytes().len(), 4000);
+        assert_eq!(leaf_page.get_version(), 23);
+        assert!(!leaf_page.has_left_fence());
+        assert!(!leaf_page.has_right_fence());
+        assert_eq!(leaf_page.get_prefix_length(), 0);
         let mut tuples = vec![];
         for i in 0..20 {
             let key = format!("key{}", i).into_bytes();
@@ -1111,6 +1129,63 @@ mod tests {
             right_page2.get_left_fence_key()
         );
     }
+
+    #[test]
+    #[should_panic(expected = "Cannot set left fence key on a page that already has entries.")]
+    fn test_set_left_fence_empty_page() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4000,
+        };
+        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        assert_eq!(leaf_page.get_entries_size(), 0);
+        assert_eq!(leaf_page.get_left_key(), None);
+        let tuple_1 = Tuple::new(b"a", b"a_value", 123);
+        assert!(leaf_page.add_tuple(&tuple_1).0);
+        leaf_page.set_left_fence_key(b"left_fence");
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot set right fence key on a page that already has entries.")]
+    fn test_set_right_fence_empty_page() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4000,
+        };
+        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        assert_eq!(leaf_page.get_entries_size(), 0);
+        assert_eq!(leaf_page.get_left_key(), None);
+        let tuple_1 = Tuple::new(b"a", b"a_value", 123);
+        assert!(leaf_page.add_tuple(&tuple_1).0);
+        leaf_page.set_right_fence_key(b"right_fence");
+    }
+
+
+    #[test]
+    #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
+    fn test_set_prefix_empty_page() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4000,
+        };
+        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let tuple_1 = Tuple::new(b"a", b"a_value", 123);
+        assert!(leaf_page.add_tuple(&tuple_1).0);
+        leaf_page.set_prefix_length(5);
+    }
+
+    #[test]
+    #[should_panic(expected = "Prefix length cannot be larger than the right fence key size.")]
+    fn test_set_prefix_bad_fence() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4000,
+        };
+        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        leaf_page.set_right_fence_key(b"left_fence");
+        leaf_page.set_prefix_length(15);
+    }
+
 
     #[test]
     fn test_multi_length_keys() {
