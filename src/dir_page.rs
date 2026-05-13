@@ -366,6 +366,14 @@ impl DirPage {
     }
 
     fn reset_with_new_right_fence(&mut self, new_right_fence: &[u8]) -> bool {
+        // TODO - This is suboptimal approach. Should create a new page buffer,
+        // rewrite the buffer with the new fence - if it does not fit then throw
+        // away the page buffer and request a split. If it does fit then reset
+        // the self page to use the new buffer. Currently we are copying the page
+        // twice - the new approach would only require one copy.
+        // The get_key_values is effectively a copy - we should be able to iterate
+        // over the key/values.
+        //
         // Need a full copy of the left fence as we are going to nuke it in the page.
         let page_copy = self.page.get_page_bytes_mut().to_vec();
         let old_prefix_length = self.get_prefix_length() as usize;
@@ -1252,6 +1260,31 @@ mod tests {
         assert_eq!(dir_page.get_left_fence_key(), key3);
         assert_eq!(dir_page.get_prefix_length(), 3);
         assert_eq!(dir_page.get_page_to_left(), 1);
+    }
+
+    #[test]
+    fn test_reset_left_fence_full() {
+        let page_config = PageConfig {
+            block_size: 160,
+            page_size: 112,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);        
+        let key1 = b"aaaaaaaaaaaaaaaaaaaa";
+        let key2 = b"aaaaaaaaaaaaaaaaaaaz";
+        let key3 = b"aaaaaaaaaaaaaaaaaaab";
+        dir_page.set_left_fence_key(key1);
+        dir_page.set_right_fence_key(key2);      
+        dir_page.set_prefix_length(19);
+        dir_page.set_page_to_left(1);
+        dir_page.add_child_page(key1, 2);
+        dir_page.add_child_page(key2, 3);
+        dir_page.add_child_page(key3, 4);
+        assert_eq!(dir_page.get_entries_size(), 3);
+        assert_eq!(dir_page.get_free_space(), 1);
+        let reset = dir_page.reset_with_new_left_fence(b"aaaa");
+        assert!(!reset);
+        assert_eq!(dir_page.get_entries_size(), 3);
+        assert_eq!(dir_page.get_free_space(), 1);
     }
 
     #[test]
