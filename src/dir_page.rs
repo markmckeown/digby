@@ -1,4 +1,3 @@
-
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::tree_dir_entry;
@@ -316,8 +315,8 @@ impl DirPage {
             self.set_page_to_left(page_no);
             return;
         }
-        
-        // Sanity check - we are updating an entry in this dir page 
+
+        // Sanity check - we are updating an entry in this dir page
         // as we have just updated a child page - this means we have just
         // found found the old child page reference in here.
         if self.has_left_fence() && key < self.get_left_fence_key() {
@@ -345,7 +344,6 @@ impl DirPage {
             "Key does not match the prefix of the page."
         );
         let key_suffix = &key[prefix_length..];
-
 
         // Get first key and check if the key belongs to the left most page.
         let slot = self.get_slot_at_index(0);
@@ -441,7 +439,7 @@ impl DirPage {
         true
     }
 
-    // Called when a child page has split and we need to add a 
+    // Called when a child page has split and we need to add a
     // new entry for the new page in the dir_page.
     fn add_child_page(&mut self, key: &[u8], page_no: u64) -> bool {
         if self.has_left_fence() && key < self.get_left_fence_key() {
@@ -552,7 +550,6 @@ impl DirPage {
         self.set_free_space(free_space as u16 - new_entry_total_size as u16);
     }
 
-    
     fn get_page_no_at_index(&self, index: usize) -> u64 {
         let slot = self.get_slot_at_index(index);
         u64::from_le_bytes(self.get_value_at_slot(&slot)[0..8].try_into().unwrap())
@@ -626,7 +623,7 @@ impl DirPage {
         let mid_key = self.get_key_suffix_at_index(mid);
         // Page to the left remains the same for the new page on the left.
         left_page.set_page_to_left(self.get_page_to_left());
-        left_page.set_right_fence_key(self.get_key_suffix_at_index(mid-1));
+        left_page.set_right_fence_key(self.get_key_suffix_at_index(mid - 1));
         left_page.set_prefix_length(0);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -637,7 +634,7 @@ impl DirPage {
         // For the right page there is no right fence or prefix.
         // Set the left fence to the mid_key - this also the page to the left.
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
-        right_page.set_left_fence_key(self.get_key_suffix_at_index(mid+1));
+        right_page.set_left_fence_key(self.get_key_suffix_at_index(mid + 1));
         right_page.set_prefix_length(0);
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -681,7 +678,7 @@ impl DirPage {
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
         left_page.set_page_to_left(self.get_page_to_left());
-        left_page.set_right_fence_key(self.get_key_suffix_at_index(mid-1));
+        left_page.set_right_fence_key(self.get_key_suffix_at_index(mid - 1));
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
@@ -689,13 +686,14 @@ impl DirPage {
         }
 
         // Right fence for new page to the right remains the same.
-        let right_lowest_key = self.get_key_at_index(mid+1);
+        let right_lowest_key = self.get_key_at_index(mid + 1);
         let right_fence_right_key = self.get_key_at_index(entries - 1);
         assert!(
             right_fence_right_key > right_lowest_key,
             "Right page right fence key is not greater than right page left fence key."
         );
-        let right_prefix_length = right_lowest_key.as_slice()
+        let right_prefix_length = right_lowest_key
+            .as_slice()
             .iter()
             .zip(right_fence_right_key.as_slice())
             .take_while(|(a, b)| a == b)
@@ -747,10 +745,10 @@ impl DirPage {
         let low_key = &self.get_key_at_index(0);
         // No prefix in self so can use suffix as the full key for the mid key.
         let mid_key = self.get_key_suffix_at_index(mid);
-        let left_page_right_fence_key = self.get_key_suffix_at_index(mid-1);
+        let left_page_right_fence_key = self.get_key_suffix_at_index(mid - 1);
         assert!(
             left_page_right_fence_key > low_key,
-            "Left page right fence key is not greater than left page left fence key."   
+            "Left page right fence key is not greater than left page left fence key."
         );
         left_page.set_page_to_left(self.get_page_to_left());
         left_page.set_left_fence_key(low_key);
@@ -768,7 +766,7 @@ impl DirPage {
         }
 
         // Create page to the right.
-        right_page.set_left_fence_key(self.get_key_suffix_at_index(mid+1));
+        right_page.set_left_fence_key(self.get_key_suffix_at_index(mid + 1));
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -804,7 +802,7 @@ impl DirPage {
         // Could have a prefix so need full keys.
         let low_key = self.get_key_at_index(0);
         let mid_key = self.get_key_at_index(mid);
-        let left_page_right_fence_key = self.get_key_at_index(mid-1);
+        let left_page_right_fence_key = self.get_key_at_index(mid - 1);
         left_page.set_page_to_left(self.get_page_to_left());
         left_page.set_left_fence_key(&low_key);
         left_page.set_right_fence_key(&left_page_right_fence_key);
@@ -825,7 +823,7 @@ impl DirPage {
             left_page.add_key_value_at_index(i, &key[left_prefix_offset..], value);
         }
 
-        let right_page_low_key = self.get_key_at_index(mid+1);
+        let right_page_low_key = self.get_key_at_index(mid + 1);
         let right_page_high_key = self.get_key_at_index(entries - 1);
         let right_prefix_length = right_page_low_key
             .iter()
@@ -946,7 +944,7 @@ impl DirPage {
         if entries == 0 {
             return self.get_page_to_left();
         }
-        
+
         if self.has_left_fence() {
             if key < self.get_left_fence_key() {
                 return self.get_page_to_left();
@@ -959,13 +957,18 @@ impl DirPage {
             }
         }
 
-
         // If we get here then if there is a left and right fence the key is between them
         // and the key should have the prefix if there is one.
         // If there is no left or right fence then there is no prefix and the prefix
         // length is zero.
-        assert!(key.len() >= self.get_prefix_length() as usize, "Key length is smaller than the prefix length of the page.");
-        assert!(key.starts_with(self.get_key_prefix()), "Key does not match the prefix of the page.");
+        assert!(
+            key.len() >= self.get_prefix_length() as usize,
+            "Key length is smaller than the prefix length of the page."
+        );
+        assert!(
+            key.starts_with(self.get_key_prefix()),
+            "Key does not match the prefix of the page."
+        );
 
         let key_suffix = &key[self.get_prefix_length() as usize..];
 
@@ -1136,7 +1139,6 @@ mod tests {
         dir_page.split_page(45);
     }
 
-
     #[test]
     #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
     fn test_cannot_set_right_prefix_after_adding_entries() {
@@ -1268,12 +1270,12 @@ mod tests {
             block_size: 160,
             page_size: 112,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);        
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
         let key3 = b"aaaaaaaaaaaaaaaaaaab";
         dir_page.set_left_fence_key(key1);
-        dir_page.set_right_fence_key(key2);      
+        dir_page.set_right_fence_key(key2);
         dir_page.set_prefix_length(19);
         dir_page.set_page_to_left(1);
         dir_page.add_child_page(key1, 2);
@@ -1283,6 +1285,81 @@ mod tests {
         assert_eq!(dir_page.get_free_space(), 1);
         let reset = dir_page.reset_with_new_left_fence(b"aaaa");
         assert!(!reset);
+        assert_eq!(dir_page.get_entries_size(), 3);
+        assert_eq!(dir_page.get_free_space(), 1);
+    }
+
+    #[test]
+    fn test_add_left_fence_full() {
+        let page_config = PageConfig {
+            block_size: 160,
+            page_size: 112,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let key1 = b"aaaaaaaaaaaaaaaaaaaa";
+        let key2 = b"aaaaaaaaaaaaaaaaaaaz";
+        let key3 = b"aaaaaaaaaaaaaaaaaaab";
+        dir_page.set_left_fence_key(key1);
+        dir_page.set_right_fence_key(key2);
+        dir_page.set_prefix_length(19);
+        dir_page.set_page_to_left(1);
+        dir_page.add_child_page(key1, 2);
+        dir_page.add_child_page(key2, 3);
+        dir_page.add_child_page(key3, 4);
+        assert_eq!(dir_page.get_entries_size(), 3);
+        assert_eq!(dir_page.get_free_space(), 1);
+        let ok = dir_page.add_child_page(b"aaaa", 5);
+        assert!(!ok);
+        assert_eq!(dir_page.get_entries_size(), 3);
+        assert_eq!(dir_page.get_free_space(), 1);
+    }
+
+    #[test]
+    fn test_reset_right_fence_full() {
+        let page_config = PageConfig {
+            block_size: 160,
+            page_size: 112,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let key1 = b"aaaaaaaaaaaaaaaaaaaa";
+        let key2 = b"aaaaaaaaaaaaaaaaaaaz";
+        let key3 = b"aaaaaaaaaaaaaaaaaaab";
+        dir_page.set_left_fence_key(key1);
+        dir_page.set_right_fence_key(key2);
+        dir_page.set_prefix_length(19);
+        dir_page.set_page_to_left(1);
+        dir_page.add_child_page(key1, 2);
+        dir_page.add_child_page(key2, 3);
+        dir_page.add_child_page(key3, 4);
+        assert_eq!(dir_page.get_entries_size(), 3);
+        assert_eq!(dir_page.get_free_space(), 1);
+        let reset = dir_page.reset_with_new_right_fence(b"aaaaaaaaaaaaaaaaaaazaaa");
+        assert!(!reset);
+        assert_eq!(dir_page.get_entries_size(), 3);
+        assert_eq!(dir_page.get_free_space(), 1);
+    }
+
+    #[test]
+    fn test_add_right_fence_full() {
+        let page_config = PageConfig {
+            block_size: 160,
+            page_size: 112,
+        };
+        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let key1 = b"aaaaaaaaaaaaaaaaaaaa";
+        let key2 = b"aaaaaaaaaaaaaaaaaaaz";
+        let key3 = b"aaaaaaaaaaaaaaaaaaab";
+        dir_page.set_left_fence_key(key1);
+        dir_page.set_right_fence_key(key2);
+        dir_page.set_prefix_length(19);
+        dir_page.set_page_to_left(1);
+        dir_page.add_child_page(key1, 2);
+        dir_page.add_child_page(key2, 3);
+        dir_page.add_child_page(key3, 4);
+        assert_eq!(dir_page.get_entries_size(), 3);
+        assert_eq!(dir_page.get_free_space(), 1);
+        let ok = dir_page.add_child_page(b"aaaaaaaaaaaaaaaaaaazaaa", 5);
+        assert!(!ok);
         assert_eq!(dir_page.get_entries_size(), 3);
         assert_eq!(dir_page.get_free_space(), 1);
     }

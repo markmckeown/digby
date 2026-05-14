@@ -503,7 +503,6 @@ impl LeafPage {
         self.set_free_space(free_space as u16 - new_entry_total_size as u16);
     }
 
-
     pub fn get_tuple(&self, key: &[u8]) -> Option<Tuple> {
         if self.has_right_fence() && key > self.get_right_fence_key() {
             return None;
@@ -708,7 +707,8 @@ impl LeafPage {
         // TODO Should we use the left fence key from the current page?
         left_page.set_left_fence_key(self.get_left_fence_key());
         left_page.set_right_fence_key(mid_key);
-        let left_prefix_length = self.get_left_fence_key()
+        let left_prefix_length = self
+            .get_left_fence_key()
             .iter()
             .zip(mid_key)
             .take_while(|(a, b)| a == b)
@@ -759,7 +759,8 @@ impl LeafPage {
         let mid_key = self.get_key_at_index(mid);
         left_page.set_left_fence_key(self.get_left_fence_key());
         left_page.set_right_fence_key(&mid_key);
-        let left_prefix_length = self.get_left_fence_key()
+        let left_prefix_length = self
+            .get_left_fence_key()
             .iter()
             .zip(mid_key.as_slice())
             .take_while(|(a, b)| a == b)
@@ -970,8 +971,8 @@ impl LeafPage {
 
 #[cfg(test)]
 mod tests {
-   use super::*;
-   use std::vec;
+    use super::*;
+    use std::vec;
 
     #[test]
     fn test_tail_compression1() {
@@ -1000,7 +1001,6 @@ mod tests {
         dir_page.set_type(PageType::DirPage);
         let _leaf_page = LeafPage::from_page(dir_page);
     }
-
 
     #[test]
     fn test_split() {
@@ -1160,7 +1160,6 @@ mod tests {
         leaf_page.set_right_fence_key(b"right_fence");
     }
 
-
     #[test]
     #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
     fn test_set_prefix_empty_page() {
@@ -1185,7 +1184,6 @@ mod tests {
         leaf_page.set_right_fence_key(b"left_fence");
         leaf_page.set_prefix_length(15);
     }
-
 
     #[test]
     fn test_multi_length_keys() {
