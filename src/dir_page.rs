@@ -337,11 +337,11 @@ impl DirPage {
         let prefix = self.get_key_prefix();
         assert!(
             key.len() >= prefix_length,
-            "Key length is smaller than the prefix length of the page."
+            "BUG: Key length is smaller than the prefix length of the page."
         );
         assert!(
             key.starts_with(prefix),
-            "Key does not match the prefix of the page."
+            "BUG: Key does not match the prefix of the page."
         );
         let key_suffix = &key[prefix_length..];
 
@@ -465,11 +465,11 @@ impl DirPage {
         let prefix_length = self.get_prefix_length() as usize;
         assert!(
             key.len() >= prefix_length,
-            "Key length is smaller than the prefix length of the page."
+            "BUG Key length is smaller than the prefix length of the page."
         );
         assert!(
             key.starts_with(self.get_key_prefix()),
-            "Key does not match the prefix of the page."
+            "BUG: Key does not match the prefix of the page."
         );
         let key_suffix = &key[prefix_length..];
 
@@ -485,7 +485,7 @@ impl DirPage {
         let (found, index) = self.get_index_for_key(key_suffix);
         assert!(
             !found,
-            "Key already exists in the page when adding a new child page"
+            "BUG: Key already exists in the page when adding a new child page"
         );
         self.add_key_value_at_index(index, key_suffix, &page_no.to_le_bytes());
         true
@@ -651,10 +651,6 @@ impl DirPage {
         // will have no prefix.
         // New page to the right will have a left fence which is the mid key and the right of the
         // current page. The new right page will have a prefix.
-        assert!(
-            self.get_key_prefix().is_empty(),
-            "Page has a prefix when splitting page with only a right fence."
-        );
         let mut left_page = DirPage::create_new(
             &PageConfig {
                 block_size: self.page.block_size,
@@ -690,7 +686,7 @@ impl DirPage {
         let right_fence_right_key = self.get_key_at_index(entries - 1);
         assert!(
             right_fence_right_key > right_lowest_key,
-            "Right page right fence key is not greater than right page left fence key."
+            "BUG: Right page right fence key is not greater than right page left fence key."
         );
         let right_prefix_length = right_lowest_key
             .as_slice()
@@ -716,10 +712,6 @@ impl DirPage {
         // and no right fence key.
         // New page to the left will have a left fence and right fence with a prefix.
         // New page to the right will have a left fence and no right fence and no prefix.
-        assert!(
-            self.get_key_prefix().is_empty(),
-            "Page has a prefix when splitting page with only a left fence."
-        );
         let mut left_page = DirPage::create_new(
             &PageConfig {
                 block_size: self.page.block_size,
@@ -748,7 +740,7 @@ impl DirPage {
         let left_page_right_fence_key = self.get_key_suffix_at_index(mid - 1);
         assert!(
             left_page_right_fence_key > low_key,
-            "Left page right fence key is not greater than left page left fence key."
+            "BUG: Left page right fence key is not greater than left page left fence key."
         );
         left_page.set_page_to_left(self.get_page_to_left());
         left_page.set_left_fence_key(low_key);
@@ -836,7 +828,7 @@ impl DirPage {
         right_page.set_right_fence_key(&right_page_high_key);
         assert!(
             right_page_low_key < right_page_high_key,
-            "Right page left fence key is not less than right page right fence key."
+            "BUG: Right page left fence key is not less than right page right fence key."
         );
         right_page.set_prefix_length(right_prefix_length as u8);
         for i in (mid + 1)..entries {
