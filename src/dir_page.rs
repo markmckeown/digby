@@ -800,7 +800,7 @@ impl DirPage {
         left_page.set_right_fence_key(&left_page_right_fence_key);
         assert!(
             left_page_right_fence_key > low_key,
-            "Left page right fence key is not greater than left page left fence key."
+            "BUG:Left page right fence key is not greater than left page left fence key."
         );
         let left_prefix_length = low_key
             .iter()
@@ -955,11 +955,11 @@ impl DirPage {
         // length is zero.
         assert!(
             key.len() >= self.get_prefix_length() as usize,
-            "Key length is smaller than the prefix length of the page."
+            "BUG: Key length is smaller than the prefix length of the page."
         );
         assert!(
             key.starts_with(self.get_key_prefix()),
-            "Key does not match the prefix of the page."
+            "BUG: Key does not match the prefix of the page."
         );
 
         let key_suffix = &key[self.get_prefix_length() as usize..];

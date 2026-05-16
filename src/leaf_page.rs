@@ -421,11 +421,11 @@ impl LeafPage {
         if prefix_length > 0 {
             assert!(
                 tuple_key.len() >= prefix_length,
-                "Tuple key length is smaller than the prefix length of the page."
+                "BUG: Tuple key length is smaller than the prefix length of the page."
             );
             assert!(
                 tuple_key.starts_with(self.get_key_prefix()),
-                "Tuple key does not start with the prefix of the page."
+                "BUG: Tuple key does not start with the prefix of the page."
             );
         }
         let key_suffix = &tuple_key[prefix_length..];
@@ -576,7 +576,7 @@ impl LeafPage {
         // but no right fence. Both pages will have no prefix.
         assert!(
             self.get_key_prefix().is_empty(),
-            "Page has a prefix when splitting page with no fences."
+            "BUG: Page has a prefix when splitting page with no fences."
         );
         let mut left_page = LeafPage::create_new(
             &PageConfig {
@@ -628,7 +628,7 @@ impl LeafPage {
         // and a right fence key.
         assert!(
             self.get_key_prefix().is_empty(),
-            "Page has a prefix when splitting page with only a right fence."
+            "BUG: Page has a prefix when splitting page with only a right fence."
         );
         let mut left_page = LeafPage::create_new(
             &PageConfig {
@@ -811,17 +811,11 @@ impl LeafPage {
             version,
         );
 
-        // Handling large items in pages with low entry counts.
-        // Copy over the fences but set the prefix length to zero to stop compression
-        if self.has_left_fence() {
-            left_page.set_left_fence_key(self.get_left_fence_key());
-            right_page.set_left_fence_key(self.get_left_fence_key());
-        }
-
-        if self.has_right_fence() {
-            left_page.set_right_fence_key(self.get_right_fence_key());
-            right_page.set_right_fence_key(self.get_right_fence_key());
-        }
+        // No fences.
+        left_page.set_left_fence_key(&[]);
+        right_page.set_left_fence_key(&[]);
+        left_page.set_right_fence_key(&[]);
+        right_page.set_right_fence_key(&[]);
         left_page.set_prefix_length(0);
         right_page.set_prefix_length(0);
 
@@ -884,21 +878,14 @@ impl LeafPage {
      * false if the key was not found.
      */
     pub fn delete_key(&mut self, key: &[u8]) -> Option<Tuple> {
-        let prefix_length = self.get_prefix_length() as usize;
-        if prefix_length > 0 {
-            // We are using compression - if greater than right fence then we do not have the key.
-            if key > self.get_right_fence_key() {
-                return None;
-            }
-            assert!(
-                key.len() >= prefix_length,
-                "Key length is smaller than the prefix length of the page."
-            );
-            assert!(
-                key.starts_with(self.get_key_prefix()),
-                "Key does not match the prefix of the page."
-            );
+        if self.has_right_fence() && key > self.get_right_fence_key() {
+            return None;
         }
+        if self.has_left_fence() && key < self.get_left_fence_key() {
+            return None;
+        }
+
+        let prefix_length = self.get_prefix_length() as usize;
         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
         if !found {
             return None;
