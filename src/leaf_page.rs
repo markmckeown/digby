@@ -1241,6 +1241,29 @@ use super::*;
         assert!(leaf_page.get_tuple(tuple_1.get_key()).is_some());
         assert!(leaf_page.get_tuple(tuple_2.get_key()).is_some());
     }
+
+
+    #[test]
+   fn test_delete_out_of_range() {
+        let page_config = PageConfig {
+            block_size: 4096,
+            page_size: 4000,
+        };
+        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let left_fence_key = b"aaaaaaaaaaaaaaa";
+        let right_fence_key = b"aaaaaaaaaaaaaay";
+        leaf_page.set_left_fence_key(left_fence_key);
+        leaf_page.set_right_fence_key(right_fence_key);
+        let tuple_1 = Tuple::new(left_fence_key, 0u64.to_le_bytes().as_slice(), 123);
+        let tuple_2 = Tuple::new(right_fence_key, 0u64.to_le_bytes().as_slice(), 123);
+        let tuple_3 = Tuple::new(b"aaaaaaaaaaaaaab", 0u64.to_le_bytes().as_slice(), 123);
+
+        assert!(leaf_page.add_tuple(&tuple_1).0);
+        assert!(leaf_page.add_tuple(&tuple_2).0);
+        assert!(leaf_page.add_tuple(&tuple_3).0);
+        assert!(leaf_page.delete_key(b"aaaaaaaaaaaaaa0").is_none());
+        assert!(leaf_page.delete_key(b"aaaaaaaaaaaaaaz").is_none());
+    }
         
 
 
