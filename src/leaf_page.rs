@@ -47,9 +47,21 @@ pub struct LeafSlot {
 // Header
 // | Page No (8 bytes) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) |
 // | prefix_length (u8) | left_fence_key_offset (u16) | left_fence_key_size (u8) | right_fence_key_offset (u16) | right_fence_key_size (u8) |
-// | slot | slot | slot | ...
-// | heap
-// | key | value | key | value | right_fence_key | left_fence_key | ...
+// | slot | slot | free space ...
+// | key | value | key | value | right_fence_key | left_fence_key |
+//
+// TODO - possible re-arranging the ordering of the above might be more efficient.
+//
+// The arrays of slots is the index into the key/values of the tuples. The slot contains the offset into 
+// the page, the key length and the value length. The slots are sorted in ascending order - when looking
+// for a key there is a binary search into the slots. When adding a key/value it is added to the free space
+// from the bottom (key/values grow up) and the slots are split with some moved down to fit in the new slot.
+//
+// When a tuple is deleted the key/values are moved down to reclaim the space and the slots move also - 
+// it would be possible to leave holes and attempt to fill the holes when adding new tuples. The added
+// complexity of this does not seem worth it. 
+//
+// If updating a tuple we overwrite the key/value if the size is the same, otherwise it is a delete and add.
 //
 // The page uses delta compression for keys, the prefix_length field indicates the length of the common
 // prefix for all keys in the page. The slot only stores the suffix of the key after the prefix. This allows
@@ -59,13 +71,41 @@ pub struct LeafSlot {
 // the index of a key, which allows for efficient lookups while still benefiting from the space savings of
 // delta compression.
 //
-// If the page is on the very left of the tree, it will not have a left fence key and the has_left_fence
-// field will be set to 0. If the page is not on the very left of the tree, it will have a left fence key
-// and the has_left_fence field will be set to 1. The smallest key in the page.
+// If the left most key  is set then it will be the smallest key in the page, similarly the right most
+// key will be the largest key in the page. Smaller and larger are defined by comparing byte vecs. If
+// the left most and right most key share a comman prefix then the keys can be compressed - the prefix
+// length is stored and only the remaining part of a key is stored in the page.
+// 
+// If key is to be stored that is less than the left most page or greater than the right most key then
+// then the page will need to rebuilt as compression/prefix may have changed. This should not happen often
+// as the b-tree will generally only add keys to a page that lie within its range - deleting keys which triggers
+// deleting pages can cause keys out of range to be added.
 //
-// The right fence key is stored in the heap area of the page and its offset and size are stored in the header.
-// If the right fence key size is zero then there is no right fence key, which means this page is on the very
-// right of the tree. The right fence key is the largest key in the page.
+// If the page is on the very left of the tree, it will not have a left fence key and the left key size will be 
+// zero and there will be no prefix. Its quite possible to add keys that are less than the existing value. As
+// there is no left fence there is no compression in this page.
+//
+// Similarly for the rightmost page no right fence key is stored and not compression.
+//
+// TODO - not clear the value of the right most fence, the left most fence is used to get the prefix
+// for compression and we easily look up the largest key. The literature generally has both fences.
+//
+// The first leaf page, ie the initial root page, will have no fences and no prefix.
+// When it first splits the page to the left will have no left fence but will have a right fence,
+// and when this page splits the page to the left will have no left fence and the page to the right
+// will have both fences. 
+// The page to the right after the root page split will have a left fence but no right fence, when it
+// splits the page to the right will have no right fence but the page to the left will have both fences.
+//
+// The other case when the leaf page will have no fences is when it has only a couple if entries, ie
+// large tuples.
+//
+// When a leaf page splits tail compression is used. If the largest key in the left page 
+// is "aeaf" and the smallest key in the page to the right is "aecd" then the directory entry
+// for the for the new page to the right can be "aec". Anything less than "aec" will go to
+// the page to the left.
+// 
+
 impl LeafPage {
     const HEADER_SIZE: usize = 27; // 8 + 8 + 2 + 2 + 1 + 2 +1 + 2 + 1
     const SLOT_SIZE: usize = 5; // 2 (offset) + 1 (key_len) + 2 (val_len)
