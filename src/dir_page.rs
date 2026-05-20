@@ -1,3 +1,4 @@
+use crate::LeafPage;
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::tree_dir_entry;
@@ -654,7 +655,8 @@ impl DirPage {
         let mid_key = self.get_key_suffix_at_index(mid);
         // Page to the left remains the same for the new page on the left.
         left_page.set_page_to_left(self.get_page_to_left());
-        left_page.set_right_fence_key(self.get_key_suffix_at_index(mid - 1));
+        let last_key = self.get_key_suffix_at_index(mid - 1);
+        left_page.set_right_fence_key(last_key);
         left_page.set_prefix_length(0);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -672,7 +674,9 @@ impl DirPage {
             right_page.add_key_value_at_index(i - (mid + 1), key, value);
         }
 
-        (left_page, right_page, mid_key.to_vec())
+        let split_key = LeafPage::tail_compress_key(&last_key, &mid_key);
+
+        (left_page, right_page, split_key.to_vec())
     }
 
     fn split_page_2(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
@@ -705,7 +709,8 @@ impl DirPage {
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
         left_page.set_page_to_left(self.get_page_to_left());
-        left_page.set_right_fence_key(self.get_key_suffix_at_index(mid - 1));
+        let last_key = self.get_key_suffix_at_index(mid - 1);
+        left_page.set_right_fence_key(last_key);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
@@ -735,7 +740,9 @@ impl DirPage {
             right_page.add_key_value_at_index(i - (mid + 1), &key[right_prefix_length..], value);
         }
 
-        (left_page, right_page, mid_key.to_vec())
+
+        let split_key = LeafPage::tail_compress_key(&last_key, &mid_key);
+        (left_page, right_page, split_key.to_vec())
     }
 
     fn split_page_3(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
@@ -796,7 +803,8 @@ impl DirPage {
             right_page.add_key_value_at_index(i - (mid + 1), key, value);
         }
 
-        (left_page, right_page, mid_key.to_vec())
+        let split_key = LeafPage::tail_compress_key(&left_page_right_fence_key, &mid_key);
+        (left_page, right_page, split_key.to_vec())
     }
 
     fn split_page_4(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
@@ -867,7 +875,8 @@ impl DirPage {
             right_page.add_key_value_at_index(i - (mid + 1), &key[right_suffix_offset..], value);
         }
 
-        (left_page, right_page, mid_key)
+        let split_key = LeafPage::tail_compress_key(&left_page_right_fence_key, &mid_key);
+        (left_page, right_page, split_key.to_vec())
     }
 
     pub fn split_page(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
