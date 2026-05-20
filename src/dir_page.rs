@@ -46,8 +46,39 @@ pub struct DirSlot {
 // | prefix_length (u8) | left_fence_key_offset (u16) | left_fence_key_size (u8) | right_fence_key_offset (u16) | right_fence_key_size (u8) |
 // | page_to_the_left (u64) |
 // | slot | slot | slot | ...
-// | heap
-// | key | value | key | value | right_fence_key | left_fence_key | ...
+// | free space
+// | key | value | key | value | fence_key | fence_key | ...
+//
+//
+// A dir_page is an internal node in the b-tree. It holds pointers to other pages, 
+// either other dir_pages ot leaf_pages.
+//
+// The page layout is similart to leaf_page, there is a header, then an index into
+// for the keys stored in the dir_page which grows down, then free space, then
+// the actual keys and their associated page numbers that grow up and finally
+// the fence keys for the dir_page if it has any.
+//
+// If the page has n keys then it holds n+1 references to pages. The left (or smallest) most
+// page it references is stored in "page_to_the_left". If the client has a key that is smaller
+// than the lowest key in the page then goes to this page, the "page_to_the_left".
+//
+// The keys stored in the page may be using head and tail compression. Head compression
+// is where all the keys have a common prefix and the prefix is only stored once. To support
+// head compression fence keys are stored. The left fence key is the smallest key in the page 
+// while the right fence is the largest key page. If a larger or smaller key than the right or
+// left fence comes into the page then the page would need to be rebuilt.
+//
+// A dir_page may not have fence - the first dir_page in the tree will not have fences and
+// thus no compression. The left most page will not have a left fence, and the right most
+// page will not have a right fence. After the root dir page splits the child pages
+// will get fences and thus compression.
+//
+// Tail compression the end of the child page key is not stored. 
+// COnsider if a child node splits. If the largest key in the left page 
+// is "aeaf" and the smallest key in the page to the right is "aecd" then the directory entry
+// for the for the new page to the right can be "aec". Anything less than "aec" will go to
+// the page to the left.
+// 
 //
 impl DirPage {
     const HEADER_SIZE: usize = 35; // 8 + 8 + 2 + 2 + 1 + 2 +1 + 2 + 1 + 8
