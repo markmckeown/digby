@@ -5,6 +5,7 @@ use crate::tree_dir_entry;
 use crate::{Page, block_layer::PageConfig};
 use core::panic;
 use std::cmp::Ordering;
+use log::debug;
 
 pub struct DirPage {
     page: Page,
@@ -675,6 +676,8 @@ impl DirPage {
         }
 
         let split_key = LeafPage::tail_compress_key(&last_key, &mid_key);
+        debug!("split_page_1: last_key: {:?}, mid_key: {:?}, split_key: {:?}", 
+               last_key, mid_key, split_key);
 
         (left_page, right_page, split_key.to_vec())
     }
@@ -742,6 +745,8 @@ impl DirPage {
 
 
         let split_key = LeafPage::tail_compress_key(&last_key, &mid_key);
+        debug!("split_page_2: last_key: {:?}, mid_key: {:?}, split_key: {:?}", 
+               last_key, mid_key, split_key);
         (left_page, right_page, split_key.to_vec())
     }
 
@@ -781,8 +786,11 @@ impl DirPage {
             "BUG: Left page right fence key is not greater than left page left fence key."
         );
         left_page.set_page_to_left(self.get_page_to_left());
+        debug!("split_page_3: left_page page_to_left: {:?}", self.get_page_to_left());
         left_page.set_left_fence_key(low_key);
         left_page.set_right_fence_key(left_page_right_fence_key);
+        debug!("split_page_3: left_page left_fence: {:?}, right_fence: {:?}", 
+               low_key, left_page_right_fence_key);
         let left_prefix_length = low_key
             .iter()
             .zip(left_page_right_fence_key)
@@ -793,17 +801,25 @@ impl DirPage {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // Use the prefix length to only store the key suffix.
             left_page.add_key_value_at_index(i, &key[left_prefix_length..], value);
+            debug!("split_page_3: left_page adding key: {:?}, value: {:?}",
+                        &key[left_prefix_length..], u64::from_le_bytes(value.try_into().unwrap()));
         }
 
         // Create page to the right.
         right_page.set_left_fence_key(self.get_key_suffix_at_index(mid + 1));
         right_page.set_page_to_left(self.get_page_no_at_index(mid));
+        debug!("split_page_3: right_page page_to_left: {:?}", self.get_page_no_at_index(mid));
+        debug!("split_page_3: right_page left_fence: {:?}", self.get_key_suffix_at_index(mid + 1));    
         for i in (mid + 1)..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             right_page.add_key_value_at_index(i - (mid + 1), key, value);
+            debug!("split_page_3: right_page adding key: {:?}, value: {:?}",
+                        key, u64::from_le_bytes(value.try_into().unwrap()));
         }
 
         let split_key = LeafPage::tail_compress_key(&left_page_right_fence_key, &mid_key);
+        debug!("split_page_3: last_key: {:?}, mid_key: {:?}, split_key: {:?}", 
+               left_page_right_fence_key, mid_key, split_key);
         (left_page, right_page, split_key.to_vec())
     }
 
@@ -876,6 +892,8 @@ impl DirPage {
         }
 
         let split_key = LeafPage::tail_compress_key(&left_page_right_fence_key, &mid_key);
+        debug!("split_page_4: last_key: {:?}, mid_key: {:?}, split_key: {:?}", 
+               left_page_right_fence_key, mid_key, split_key);
         (left_page, right_page, split_key.to_vec())
     }
 

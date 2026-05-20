@@ -12,6 +12,10 @@ sha2 = "0.10.9"
 aes-gcm = "0.10.3"
 aes = "0.8.4"
 lz4_flex = "0.11.5"
+log = "0.4"
+
+[dev-dependencies]
+env_logger = "0.11"
 
 [lib]
 path = "src/lib.rs"

@@ -9,6 +9,7 @@ use crate::overflow_tuple::OverflowTuple;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
 use crate::tuple::{Overflow, TupleTrait};
+use log::{debug};
 use crate::{
     ClearHandler, Compressor, FreeDirPage, LeafPage, OverflowPageHandler, StoreTupleProcessor,
     TreeDeleteHandler, TupleProcessor,
@@ -1366,6 +1367,7 @@ mod tests {
 
     #[test]
     fn test_db_store_value_delete_small_page() {
+        let _ = env_logger::builder().is_test(true).try_init();
         let size = 4096u64;
         let block_size = 256;
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
@@ -1377,10 +1379,11 @@ mod tests {
                 block_size,
             );
             for i in 0u64..size {
+                debug!("Storing {:?}", i.to_be_bytes());
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
                 for j in 0u64..i {
                     let returned_value = db.get(&j.to_be_bytes());
-                    assert!(returned_value.is_some());
+                    assert!(returned_value.is_some(), "Failed to get {:?}",  j.to_be_bytes());
                 }
             }
         }

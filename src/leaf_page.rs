@@ -7,6 +7,7 @@ use crate::tuple::TupleTrait;
 use crate::{Page, block_layer::PageConfig};
 use core::panic;
 use std::cmp::Ordering;
+use log::debug;
 
 pub struct LeafPage {
     page: Page,
@@ -428,6 +429,10 @@ impl LeafPage {
     pub fn add_tuple(&mut self, tuple: &Tuple) -> (bool, Option<Tuple>) {
         let tuple_key = tuple.get_key();
         let prefix_length = self.get_prefix_length() as usize;
+
+        debug!("Adding key: {:?} to page: {:?} left_fence: {:?}, right_fence: {:?}", 
+                 tuple.get_key(), self.get_page_number(), 
+                 self.get_left_fence_key(), self.get_right_fence_key());
         // If using compression and a key comes in larger than the right fence reset.
         // The page to the right of this page could have been deleted, then a key that
         // originally belonged to that page is added again and is now routed to this page
@@ -545,15 +550,20 @@ impl LeafPage {
 
     pub fn get_tuple(&self, key: &[u8]) -> Option<Tuple> {
         if self.has_right_fence() && key > self.get_right_fence_key() {
+            debug!("Failed to find key: {:?} in leaf page {:?}, greater than right fence {:?}", 
+                    key, self.get_page_number(), self.get_right_fence_key());
             return None;
         }
         if self.has_left_fence() && key < self.get_left_fence_key() {
+            debug!("Failed to find key: {:?} in leaf page {:?}, less than left fence {:?}", 
+                    key, self.get_page_number(), self.get_left_fence_key());
             return None;
         }
 
         let prefix_length = self.get_prefix_length() as usize;
         let (found, index) = self.get_index_for_key(&key[prefix_length..]);
         if !found {
+            debug!("Failed to find key: {:?} in leaf page {:?}", key, self.get_page_number());
             return None;
         }
         Some(self.get_tuple_at_index(index))
@@ -639,20 +649,16 @@ impl LeafPage {
         let mid = entries / 2;
 
         // No prefix so we can just copy the key suffixes as they are.
+        let left_page_right_fence = self.get_key_suffix_at_index(mid - 1);
         let mid_key = self.get_key_suffix_at_index(mid);
-        // TODO - we are setting the right fence to a key that is not in the page.
-        // Is this the right thing? The only time something less that something greater
-        // than the right fence comes into the page will be if the page to the right
-        // disappears. If we use the largest current value in the page then we might
-        // have to reset the right fence a lot.
-        left_page.set_right_fence_key(mid_key);
+        left_page.set_right_fence_key(left_page_right_fence);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
             left_page.add_key_value_at_index(i, key, value);
         }
 
-        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
+        let split_key = LeafPage::tail_compress_key(left_page_right_fence, mid_key);
 
         right_page.set_left_fence_key(mid_key);
         for i in mid..entries {
@@ -692,14 +698,15 @@ impl LeafPage {
 
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
-        left_page.set_right_fence_key(mid_key);
+        let left_page_right_fence = self.get_key_suffix_at_index(mid - 1);
+        left_page.set_right_fence_key(left_page_right_fence);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
             left_page.add_key_value_at_index(i, key, value);
         }
 
-        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
+        let split_key = LeafPage::tail_compress_key(left_page_right_fence, mid_key);
 
         let right_fence_key = self.get_right_fence_key();
         right_page.set_right_fence_key(right_fence_key);
@@ -744,13 +751,14 @@ impl LeafPage {
         // Create page to the left.
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
+        let left_page_right_fence = self.get_key_suffix_at_index(mid - 1);
         // TODO Should we use the left fence key from the current page?
         left_page.set_left_fence_key(self.get_left_fence_key());
-        left_page.set_right_fence_key(mid_key);
+        left_page.set_right_fence_key(left_page_right_fence);
         let left_prefix_length = self
             .get_left_fence_key()
             .iter()
-            .zip(mid_key)
+            .zip(left_page_right_fence)
             .take_while(|(a, b)| a == b)
             .count();
         left_page.set_prefix_length(left_prefix_length as u8);
@@ -760,7 +768,9 @@ impl LeafPage {
             left_page.add_key_value_at_index(i, &key[left_prefix_length..], value);
         }
 
-        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
+        let split_key = LeafPage::tail_compress_key(left_page_right_fence, mid_key);
+        debug!("split_page_3: entries: {:?}, left_page_right_fence: {:?}, mid_key: {:?}, split_key: {:?}", 
+                 entries, left_page_right_fence, mid_key, split_key);
 
         // Create page to the right.
         right_page.set_left_fence_key(mid_key);
@@ -797,13 +807,14 @@ impl LeafPage {
         let mid = entries / 2;
 
         let mid_key = self.get_key_at_index(mid);
+        let left_page_right_fence = self.get_key_at_index(mid - 1);
         left_page.set_left_fence_key(self.get_left_fence_key());
-        left_page.set_right_fence_key(&mid_key);
+        left_page.set_right_fence_key(&left_page_right_fence);
         let left_prefix_length = self
             .get_left_fence_key()
             .iter()
-            .zip(mid_key.as_slice())
-            .take_while(|(a, b)| a == b)
+            .zip(left_page_right_fence)
+            .take_while(|(a, b)| *a == b)
             .count();
         let left_suffix_offset = left_prefix_length - self.get_prefix_length() as usize;
         left_page.set_prefix_length(left_prefix_length as u8);

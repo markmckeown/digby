@@ -3,6 +3,7 @@ use crate::leaf_page::LeafPage;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
 use crate::tuple::{Tuple, TupleTrait};
+use log::debug;
 
 pub struct LeafPageHandler {}
 
@@ -32,9 +33,11 @@ impl LeafPageHandler {
         for entry in pages {
             let old_page_no = entry.0.get_page_number();
             if old_page_no != 0 {
+                debug!("Returned old page number: {:?}", old_page_no);
                 free_page_tracker.return_free_page_no(old_page_no);
             }
             let new_page_no = free_page_tracker.get_free_page(page_cache);
+            debug!("New page number: {:?}, {:?}", new_page_no, entry.1);
             entry.0.set_page_number(new_page_no);
             entry.0.set_version(version);
         }
@@ -50,6 +53,7 @@ impl LeafPageHandler {
         let (ok, existing_tuple) = page.0.add_tuple(&tuple);
         if ok {
             // Tuple was added without needing to split the page.
+            debug!("key: {:?} added to page: {:?}", tuple.get_key(), page.0.get_page_number());
             return existing_tuple;
         }
 
@@ -74,6 +78,7 @@ impl LeafPageHandler {
 
         // Tuple is to the left of the split entries so try and add to the left page.
         if tuple.get_key() < left_key.as_slice() {
+            debug!("key: {:?} added to left_page after leaf split", tuple.get_key());
             let (ok, _) = left_page.add_tuple(&tuple);
             if ok {
                 new_pages.push((left_page, None));
@@ -94,6 +99,7 @@ impl LeafPageHandler {
                 existing_tuple
             }
         } else {
+            debug!("key: {:?} added to right_page after leaf split", tuple.get_key());
             // If we get here then the tuple should go into the right page if it can fit.
             let (ok, _) = right_page.add_tuple(&tuple);
             if ok {
