@@ -640,19 +640,15 @@ impl LeafPage {
 
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
-        // TODO - we are setting the right fence to a key that is not in the page.
-        // Is this the right thing? The only time something less that something greater
-        // than the right fence comes into the page will be if the page to the right
-        // disappears. If we use the largest current value in the page then we might
-        // have to reset the right fence a lot.
-        left_page.set_right_fence_key(mid_key);
+        let left_page_right_fence_key = self.get_key_suffix_at_index(mid - 1);
+        left_page.set_right_fence_key(left_page_right_fence_key);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
             left_page.add_key_value_at_index(i, key, value);
         }
 
-        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
+        let split_key = LeafPage::tail_compress_key(left_page_right_fence_key, mid_key);
 
         right_page.set_left_fence_key(mid_key);
         for i in mid..entries {
@@ -692,14 +688,15 @@ impl LeafPage {
 
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
-        left_page.set_right_fence_key(mid_key);
+        let left_page_right_fence_key = self.get_key_suffix_at_index(mid - 1);
+        left_page.set_right_fence_key(left_page_right_fence_key);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             // This should avoid moving bytes around - we will be appending slots.
             left_page.add_key_value_at_index(i, key, value);
         }
 
-        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
+        let split_key = LeafPage::tail_compress_key(left_page_right_fence_key, mid_key);
 
         let right_fence_key = self.get_right_fence_key();
         right_page.set_right_fence_key(right_fence_key);
@@ -744,13 +741,14 @@ impl LeafPage {
         // Create page to the left.
         // No prefix so we can just copy the key suffixes as they are.
         let mid_key = self.get_key_suffix_at_index(mid);
-        // TODO Should we use the left fence key from the current page?
-        left_page.set_left_fence_key(self.get_left_fence_key());
-        left_page.set_right_fence_key(mid_key);
-        let left_prefix_length = self
-            .get_left_fence_key()
+        let left_page_right_fence_key = self.get_key_suffix_at_index(mid - 1);
+        let left_page_left_fence_key = self.get_left_fence_key();
+        left_page.set_left_fence_key(left_page_left_fence_key);
+        left_page.set_right_fence_key(left_page_right_fence_key);
+        let left_prefix_length =
+            left_page_left_fence_key
             .iter()
-            .zip(mid_key)
+            .zip(left_page_right_fence_key)
             .take_while(|(a, b)| a == b)
             .count();
         left_page.set_prefix_length(left_prefix_length as u8);
@@ -760,7 +758,7 @@ impl LeafPage {
             left_page.add_key_value_at_index(i, &key[left_prefix_length..], value);
         }
 
-        let split_key = LeafPage::tail_compress_key(self.get_key_suffix_at_index(mid - 1), mid_key);
+        let split_key = LeafPage::tail_compress_key(left_page_right_fence_key, mid_key);
 
         // Create page to the right.
         right_page.set_left_fence_key(mid_key);
@@ -797,12 +795,14 @@ impl LeafPage {
         let mid = entries / 2;
 
         let mid_key = self.get_key_at_index(mid);
-        left_page.set_left_fence_key(self.get_left_fence_key());
-        left_page.set_right_fence_key(&mid_key);
-        let left_prefix_length = self
-            .get_left_fence_key()
+        let last_key = self.get_key_at_index(mid - 1);
+        let left_page_left_fence_key = self.get_left_fence_key();
+        left_page.set_left_fence_key(left_page_left_fence_key);
+        left_page.set_right_fence_key(last_key.as_slice());
+        let left_prefix_length = 
+            left_page_left_fence_key
             .iter()
-            .zip(mid_key.as_slice())
+            .zip(last_key.as_slice())
             .take_while(|(a, b)| a == b)
             .count();
         let left_suffix_offset = left_prefix_length - self.get_prefix_length() as usize;
@@ -813,14 +813,14 @@ impl LeafPage {
             left_page.add_key_value_at_index(i, &key[left_suffix_offset..], value);
         }
 
-        let last_key = self.get_key_at_index(mid - 1);
         let split_key = LeafPage::tail_compress_key(&last_key, &mid_key);
 
         right_page.set_left_fence_key(&mid_key);
-        right_page.set_right_fence_key(self.get_right_fence_key());
+        let right_page_right_fence_key = self.get_right_fence_key();
+        right_page.set_right_fence_key(right_page_right_fence_key);
         let right_prefix_length = mid_key
             .iter()
-            .zip(self.get_right_fence_key())
+            .zip(right_page_right_fence_key)
             .take_while(|(a, b)| a == b)
             .count();
         right_page.set_prefix_length(right_prefix_length as u8);
@@ -1065,10 +1065,6 @@ mod tests {
         assert!(!left_page.has_left_fence());
         assert!(right_page.has_left_fence());
         assert!(!right_page.has_right_fence());
-        assert_eq!(
-            left_page.get_right_fence_key(),
-            right_page.get_left_fence_key()
-        );
         for i in 0..10 {
             assert!(
                 left_page
@@ -1134,28 +1130,16 @@ mod tests {
         assert!(left_page2.has_left_fence());
         assert!(left_page2.has_right_fence());
         assert!(left_page2.get_prefix_length() > 0);
-        assert_eq!(
-            left_page2.get_left_fence_key(),
-            left_page1.get_right_fence_key()
-        );
 
         // right_page1
         assert!(right_page1.has_right_fence());
         assert!(right_page1.has_left_fence());
         assert!(right_page1.get_prefix_length() > 0);
-        assert_eq!(
-            left_page2.get_right_fence_key(),
-            right_page1.get_left_fence_key()
-        );
 
         // right_page2
         assert!(right_page2.has_left_fence());
         assert!(!right_page2.has_right_fence());
         assert_eq!(right_page2.get_prefix_length(), 0);
-        assert_eq!(
-            right_page1.get_right_fence_key(),
-            right_page2.get_left_fence_key()
-        );
     }
 
     #[test]
