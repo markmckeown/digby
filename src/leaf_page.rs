@@ -52,14 +52,14 @@ pub struct LeafSlot {
 //
 // TODO - possible re-arranging the ordering of the above might be more efficient.
 //
-// The arrays of slots is the index into the key/values of the tuples. The slot contains the offset into 
+// The arrays of slots is the index into the key/values of the tuples. The slot contains the offset into
 // the page, the key length and the value length. The slots are sorted in ascending order - when looking
 // for a key there is a binary search into the slots. When adding a key/value it is added to the free space
 // from the bottom (key/values grow up) and the slots are split with some moved down to fit in the new slot.
 //
-// When a tuple is deleted the key/values are moved down to reclaim the space and the slots move also - 
+// When a tuple is deleted the key/values are moved down to reclaim the space and the slots move also -
 // it would be possible to leave holes and attempt to fill the holes when adding new tuples. The added
-// complexity of this does not seem worth it. 
+// complexity of this does not seem worth it.
 //
 // If updating a tuple we overwrite the key/value if the size is the same, otherwise it is a delete and add.
 //
@@ -75,13 +75,13 @@ pub struct LeafSlot {
 // key will be the largest key in the page. Smaller and larger are defined by comparing byte vecs. If
 // the left most and right most key share a comman prefix then the keys can be compressed - the prefix
 // length is stored and only the remaining part of a key is stored in the page.
-// 
+//
 // If key is to be stored that is less than the left most page or greater than the right most key then
 // then the page will need to rebuilt as compression/prefix may have changed. This should not happen often
 // as the b-tree will generally only add keys to a page that lie within its range - deleting keys which triggers
 // deleting pages can cause keys out of range to be added.
 //
-// If the page is on the very left of the tree, it will not have a left fence key and the left key size will be 
+// If the page is on the very left of the tree, it will not have a left fence key and the left key size will be
 // zero and there will be no prefix. Its quite possible to add keys that are less than the existing value. As
 // there is no left fence there is no compression in this page.
 //
@@ -93,18 +93,18 @@ pub struct LeafSlot {
 // The first leaf page, ie the initial root page, will have no fences and no prefix.
 // When it first splits the page to the left will have no left fence but will have a right fence,
 // and when this page splits the page to the left will have no left fence and the page to the right
-// will have both fences. 
+// will have both fences.
 // The page to the right after the root page split will have a left fence but no right fence, when it
 // splits the page to the right will have no right fence but the page to the left will have both fences.
 //
 // The other case when the leaf page will have no fences is when it has only a couple if entries, ie
 // large tuples.
 //
-// When a leaf page splits tail compression is used. If the largest key in the left page 
+// When a leaf page splits tail compression is used. If the largest key in the left page
 // is "aeaf" and the smallest key in the page to the right is "aecd" then the directory entry
 // for the for the new page to the right can be "aec". Anything less than "aec" will go to
 // the page to the left.
-// 
+//
 
 impl LeafPage {
     const HEADER_SIZE: usize = 27; // 8 + 8 + 2 + 2 + 1 + 2 +1 + 2 + 1
@@ -999,7 +999,7 @@ impl LeafPage {
 #[cfg(test)]
 mod tests {
 
-use super::*;
+    use super::*;
     use std::vec;
 
     #[test]
@@ -1213,8 +1213,8 @@ use super::*;
         leaf_page.set_prefix_length(15);
     }
 
-   #[test]
-   fn test_page_reset_left_fence_overflow() {
+    #[test]
+    fn test_page_reset_left_fence_overflow() {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 129,
@@ -1233,11 +1233,10 @@ use super::*;
         assert!(!leaf_page.reset_with_new_left_fence(b"aaaaaaaaaaaaaa00"));
         assert!(leaf_page.get_tuple(tuple_1.get_key()).is_some());
         assert!(leaf_page.get_tuple(tuple_2.get_key()).is_some());
-   }
-
+    }
 
     #[test]
-   fn test_add_page_reset_left_fence_overflow() {
+    fn test_add_page_reset_left_fence_overflow() {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 129,
@@ -1257,11 +1256,10 @@ use super::*;
         assert!(!leaf_page.add_tuple(&tuple_3).0);
         assert!(leaf_page.get_tuple(tuple_1.get_key()).is_some());
         assert!(leaf_page.get_tuple(tuple_2.get_key()).is_some());
-   }
+    }
 
-
-   #[test]
-   fn test_page_reset_right_fence_overflow() {
+    #[test]
+    fn test_page_reset_right_fence_overflow() {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 129,
@@ -1282,9 +1280,8 @@ use super::*;
         assert!(leaf_page.get_tuple(tuple_2.get_key()).is_some());
     }
 
-
     #[test]
-   fn test_delete_out_of_range() {
+    fn test_delete_out_of_range() {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
@@ -1304,8 +1301,6 @@ use super::*;
         assert!(leaf_page.delete_key(b"aaaaaaaaaaaaaa0").is_none());
         assert!(leaf_page.delete_key(b"aaaaaaaaaaaaaaz").is_none());
     }
-        
-
 
     #[test]
     fn test_multi_length_keys() {
