@@ -305,17 +305,17 @@ mod tests {
             .expect("Failed to open or create DB file");
 
         let file_layer: crate::FileLayer =
-            crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE as usize);
+            crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
         let block_layer: crate::BlockLayer =
-            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE as usize);
+            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
-        let free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
+        let free_dir_page_no = *page_cache.generate_free_pages(1).first().unwrap();
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
-        let root_tree_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
+        let root_tree_page_no = *page_cache.generate_free_pages(1).first().unwrap();
         let mut leaf_page =
             LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
@@ -357,17 +357,17 @@ mod tests {
             .expect("Failed to open or create DB file");
 
         let file_layer: crate::FileLayer =
-            crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE as usize);
+            crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
         let block_layer: crate::BlockLayer =
-            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE as usize);
+            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
-        let mut free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
+        let mut free_dir_page_no = *page_cache.generate_free_pages(1).first().unwrap();
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
-        let mut root_tree_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
+        let mut root_tree_page_no = *page_cache.generate_free_pages(1).first().unwrap();
         let mut leaf_page =
             LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
@@ -375,7 +375,7 @@ mod tests {
         let mut j: u32 = 0;
         for i in 0u32..4000 {
             j = i;
-            version = version + 1;
+            version += 1;
             let mut free_page_tracker = FreePageTracker::new(
                 page_cache.get_page(free_dir_page_no),
                 version,
@@ -423,23 +423,23 @@ mod tests {
             .expect("Failed to open or create DB file");
 
         let file_layer: crate::FileLayer =
-            crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE as usize);
+            crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
         let block_layer: crate::BlockLayer =
-            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE as usize);
+            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
-        let mut free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
+        let mut free_dir_page_no = *page_cache.generate_free_pages(1).first().unwrap();
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
-        let mut root_tree_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
+        let mut root_tree_page_no = *page_cache.generate_free_pages(1).first().unwrap();
         let mut leaf_page =
             LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
 
         for i in 0u64..20000 {
-            version = version + 1;
+            version += 1;
             let mut free_page_tracker = FreePageTracker::new(
                 page_cache.get_page(free_dir_page_no),
                 version,
@@ -476,7 +476,7 @@ mod tests {
             root_page,
             &mut page_cache,
         );
-        assert!(!tuple.is_none());
+        assert!(tuple.is_some());
         assert!(tuple.unwrap().get_value() == 13000u64.to_be_bytes().to_vec());
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }

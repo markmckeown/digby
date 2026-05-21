@@ -1070,7 +1070,7 @@ mod tests {
                 left_page
                     .get_tuple(tuples.get(i).unwrap().get_key())
                     .unwrap()
-                    .equals(&tuples.get(i).unwrap())
+                    .equals(tuples.get(i).unwrap())
             );
         }
         for i in 10..20 {
@@ -1078,7 +1078,7 @@ mod tests {
                 right_page
                     .get_tuple(tuples.get(i).unwrap().get_key())
                     .unwrap()
-                    .equals(&tuples.get(i).unwrap())
+                    .equals(tuples.get(i).unwrap())
             );
         }
 
@@ -1090,7 +1090,7 @@ mod tests {
                 left_page1
                     .get_tuple(tuples.get(i).unwrap().get_key())
                     .unwrap()
-                    .equals(&tuples.get(i).unwrap())
+                    .equals(tuples.get(i).unwrap())
             );
         }
         for i in 5..10 {
@@ -1098,7 +1098,7 @@ mod tests {
                 left_page2
                     .get_tuple(tuples.get(i).unwrap().get_key())
                     .unwrap()
-                    .equals(&tuples.get(i).unwrap())
+                    .equals(tuples.get(i).unwrap())
             );
         }
         let (right_page1, right_page2, _) = right_page.split_page(0);
@@ -1109,7 +1109,7 @@ mod tests {
                 right_page1
                     .get_tuple(tuples.get(i).unwrap().get_key())
                     .unwrap()
-                    .equals(&tuples.get(i).unwrap())
+                    .equals(tuples.get(i).unwrap())
             );
         }
         for i in 15..20 {
@@ -1117,7 +1117,7 @@ mod tests {
                 right_page2
                     .get_tuple(tuples.get(i).unwrap().get_key())
                     .unwrap()
-                    .equals(&tuples.get(i).unwrap())
+                    .equals(tuples.get(i).unwrap())
             );
         }
 

@@ -138,7 +138,7 @@ mod tests {
         };
         // Each loop is a new commit.
         for i in 1u32..1024 {
-            new_version = new_version + 1;
+            new_version += 1;
             tuple = Tuple::new(
                 i.to_le_bytes().to_vec().as_ref(),
                 i.to_le_bytes().to_vec().as_ref(),
@@ -172,7 +172,7 @@ mod tests {
         // Each loop is a new commit.
         let mut tree_leaf_page_count = 0;
         for _i in 0u32..2 {
-            new_version = new_version + 1;
+            new_version += 1;
             let value = vec![0u8; 2048];
             // Same key used
             tuple = Tuple::new(
@@ -203,7 +203,7 @@ mod tests {
         // Each loop is a new commit.
         let mut tree_leaf_page_count = 0;
         for i in 0u32..2 {
-            new_version = new_version + 1;
+            new_version += 1;
             let value = vec![0u8; 2048];
             tuple = Tuple::new(
                 i.to_le_bytes().to_vec().as_ref(),
@@ -234,7 +234,7 @@ mod tests {
         // Each loop is a new commit.
         let mut tree_leaf_page_count = 0;
         for i in 0u32..3 {
-            new_version = new_version + 1;
+            new_version += 1;
             let value: Vec<u8>;
             if i == 0 {
                 value = vec![0u8; 8];
@@ -268,7 +268,7 @@ mod tests {
         // Each loop is a new commit.
         let mut tree_leaf_page_count = 0;
         for i in 0u32..3 {
-            new_version = new_version + 1;
+            new_version += 1;
             let value: Vec<u8>;
             if i == 1 {
                 value = vec![0u8; 8];
@@ -305,7 +305,7 @@ mod tests {
         // Each loop is a new commit.
         let mut tree_leaf_page_count = 0;
         for i in 0u32..3 {
-            new_version = new_version + 1;
+            new_version += 1;
             let j = 3 - i;
             let value: Vec<u8>;
             if j == 3 {

@@ -179,7 +179,7 @@ mod tests {
         let mut count = 0;
         for number in 1..=1020 {
             if !free_page_dir.is_full() {
-                count = count + 1;
+                count += 1;
                 free_page_dir.add_free_page(number);
             }
         }

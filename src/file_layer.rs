@@ -100,7 +100,7 @@ mod tests {
         file_layer.append_new_page(&page, 0);
         let test_data: String = rand::rng()
             .sample_iter(&Alphanumeric)
-            .take(BLOCK_SIZE as usize)
+            .take(BLOCK_SIZE)
             .map(char::from)
             .collect();
         page.get_block_bytes_mut()
@@ -130,7 +130,7 @@ mod tests {
         file_layer.append_new_page(&page, 24);
         let test_data: String = rand::rng()
             .sample_iter(&Alphanumeric)
-            .take(BLOCK_SIZE as usize)
+            .take(BLOCK_SIZE)
             .map(char::from)
             .collect();
         page.get_block_bytes_mut()

@@ -1243,7 +1243,7 @@ mod tests {
     fn test_db_store_value_delete_overflow() {
         let size = 40u64;
         let value = vec![0u8; 2048];
-        let key = vec![0u8; 200];
+        let key = [0u8; 200];
         let temp_file = NamedTempFile::new().expect("Failed to create temp file");
         {
             let mut db = Db::new_with_page_size(

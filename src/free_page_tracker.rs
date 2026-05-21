@@ -166,12 +166,12 @@ mod tests {
 
         let version = 0;
         let file_layer: crate::FileLayer =
-            crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE as usize);
+            crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
         let block_layer: crate::BlockLayer =
-            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE as usize);
+            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE);
         let mut page_cache: PageCache = PageCache::new(block_layer);
 
-        let free_dir_page_no = *page_cache.generate_free_pages(1).get(0).unwrap();
+        let free_dir_page_no = *page_cache.generate_free_pages(1).first().unwrap();
         let mut free_dir_page =
             FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
