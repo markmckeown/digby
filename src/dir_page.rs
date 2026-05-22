@@ -968,15 +968,13 @@ impl DirPage {
             return self.get_page_to_left();
         }
 
-        if self.has_left_fence()
-            && key < self.get_left_fence_key() {
-                return self.get_page_to_left();
-            }
+        if self.has_left_fence() && key < self.get_left_fence_key() {
+            return self.get_page_to_left();
+        }
 
-        if self.has_right_fence()
-            && key > self.get_right_fence_key() {
-                return self.get_page_no_at_index(self.get_entries_size() as usize - 1);
-            }
+        if self.has_right_fence() && key > self.get_right_fence_key() {
+            return self.get_page_no_at_index(self.get_entries_size() as usize - 1);
+        }
 
         // If we get here then if there is a left and right fence the key is between them
         // and the key should have the prefix if there is one.

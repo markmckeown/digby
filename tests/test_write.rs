@@ -56,7 +56,11 @@ fn write_page_to_disk(
     page_data: &[u8],
     page_size: u64,
 ) -> std::io::Result<()> {
-    let mut file = OpenOptions::new().write(true).create(true).open(path)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)?;
 
     let offset = page_number * page_size;
     file.seek(SeekFrom::Start(offset))?;

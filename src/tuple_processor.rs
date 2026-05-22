@@ -152,6 +152,7 @@ mod tests {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(temp_file.path())
             .unwrap();
         let file_layer = FileLayer::new(file, 4096);

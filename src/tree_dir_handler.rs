@@ -125,9 +125,7 @@ mod tests {
         let tuple1: Tuple = Tuple::new(b"h".to_vec().as_ref(), b"h_value".to_vec().as_ref(), 345);
         tree_leaf_page1.add_tuple(&tuple1);
 
-        let mut leaf_pages: Vec<LeafPage> = Vec::new();
-        leaf_pages.push(tree_leaf_page);
-        leaf_pages.push(tree_leaf_page1);
+        let mut leaf_pages: Vec<LeafPage> = vec![tree_leaf_page, tree_leaf_page1];
 
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for leaf_page in leaf_pages {
@@ -150,8 +148,7 @@ mod tests {
         tree_leaf_page = LeafPage::create_new(&page_config, 0, 0);
         tree_leaf_page.add_tuple(&tuple3);
         tree_leaf_page.set_page_number(79);
-        leaf_pages = Vec::new();
-        leaf_pages.push(tree_leaf_page);
+        leaf_pages = vec![tree_leaf_page];
 
         entries = Vec::new();
         for leaf_page in leaf_pages {

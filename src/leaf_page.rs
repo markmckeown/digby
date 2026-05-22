@@ -745,8 +745,7 @@ impl LeafPage {
         let left_page_left_fence_key = self.get_left_fence_key();
         left_page.set_left_fence_key(left_page_left_fence_key);
         left_page.set_right_fence_key(left_page_right_fence_key);
-        let left_prefix_length =
-            left_page_left_fence_key
+        let left_prefix_length = left_page_left_fence_key
             .iter()
             .zip(left_page_right_fence_key)
             .take_while(|(a, b)| a == b)
@@ -799,8 +798,7 @@ impl LeafPage {
         let left_page_left_fence_key = self.get_left_fence_key();
         left_page.set_left_fence_key(left_page_left_fence_key);
         left_page.set_right_fence_key(last_key.as_slice());
-        let left_prefix_length = 
-            left_page_left_fence_key
+        let left_prefix_length = left_page_left_fence_key
             .iter()
             .zip(last_key.as_slice())
             .take_while(|(a, b)| a == b)

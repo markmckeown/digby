@@ -235,12 +235,11 @@ mod tests {
         let mut tree_leaf_page_count = 0;
         for i in 0u32..3 {
             new_version += 1;
-            let value: Vec<u8>;
-            if i == 0 {
-                value = vec![0u8; 8];
+            let value: Vec<u8> = if i == 0 {
+                vec![0u8; 8]
             } else {
-                value = vec![0u8; 2048];
-            }
+                vec![0u8; 2048]
+            };
             // Use the same key
             tuple = Tuple::new(
                 i.to_le_bytes().to_vec().as_ref(),
@@ -269,12 +268,11 @@ mod tests {
         let mut tree_leaf_page_count = 0;
         for i in 0u32..3 {
             new_version += 1;
-            let value: Vec<u8>;
-            if i == 1 {
-                value = vec![0u8; 8];
+            let value: Vec<u8> = if i == 1 {
+                vec![0u8; 8]
             } else {
-                value = vec![0u8; 2048];
-            }
+                vec![0u8; 2048]
+            };
             // Use the same key
             tuple = Tuple::new(
                 i.to_le_bytes().to_vec().as_ref(),
@@ -307,12 +305,11 @@ mod tests {
         for i in 0u32..3 {
             new_version += 1;
             let j = 3 - i;
-            let value: Vec<u8>;
-            if j == 3 {
-                value = vec![0u8; 8];
+            let value: Vec<u8> = if j == 3 {
+                vec![0u8; 8]
             } else {
-                value = vec![0u8; 2048];
-            }
+                vec![0u8; 2048]
+            };
             // Use the same key
             tuple = Tuple::new(
                 j.to_le_bytes().to_vec().as_ref(),

@@ -108,7 +108,7 @@ mod tests {
 
         // Write the page to disk
         file_layer
-            .write_page_to_disk(&mut page, 0)
+            .write_page_to_disk(&page, 0)
             .expect("Failed to write page");
 
         // Read the page back from disk
@@ -137,7 +137,7 @@ mod tests {
             .copy_from_slice(test_data.as_bytes()); // Fill the page with test data
 
         // Write the page to disk
-        file_layer.append_new_page(&mut page, 0);
+        file_layer.append_new_page(&page, 0);
     }
 
     #[test]
