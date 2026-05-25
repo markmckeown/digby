@@ -101,8 +101,7 @@ impl BlockLayer {
         self.file_layer.get_page_count()
     }
 
-    pub fn write_page(&mut self, page: &mut Page) {
-        let page_number = page.get_page_number();
+    pub fn write_page(&mut self, page: &mut Page, page_number: u64) {
         assert!(
             page_number < self.file_layer.get_page_count(),
             "Writing page outside the file."
@@ -171,7 +170,7 @@ mod tests {
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
-        block_layer.write_page(&mut page);
+        block_layer.write_page(&mut page, page_number);
         let retrieved_page = block_layer.read_page(page_number);
         assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
@@ -190,7 +189,7 @@ mod tests {
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
-        block_layer.write_page(&mut page);
+        block_layer.write_page(&mut page, page_number);
         let retrieved_page = block_layer.read_page(page_number);
         assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
@@ -209,7 +208,7 @@ mod tests {
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
-        block_layer.write_page(&mut page);
+        block_layer.write_page(&mut page, page_number);
         let retrieved_page = block_layer.read_page(page_number);
         assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
@@ -225,7 +224,7 @@ mod tests {
         page.set_page_number(4);
         page.set_type(PageType::Free);
         // This should panic as out of range of file.
-        block_layer.write_page(&mut page);
+        block_layer.write_page(&mut page, 4);
     }
 
     #[test]
@@ -250,6 +249,6 @@ mod tests {
         let mut block_layer = BlockLayer::new(file_layer, block_size);
         let mut page = DbRootPage::create_new(block_layer.get_page_config());
         block_layer.generate_free_pages(1);
-        block_layer.write_page(page.get_page());
+        block_layer.write_page(page.get_page(), 0);
     }
 }
