@@ -1031,14 +1031,27 @@ impl DirPage {
             // TODO should just copy bytes instead of uwrapping and rewrapping the page number.
             self.set_page_to_left(u64::from_le_bytes(new_left_most_page.try_into().unwrap()));
             self.remove_key_value_at_index(0);
+            // get the key at 0
+            if self.get_entries_size() > 0 {
+              let new_left_fence = self.get_key_at_index(0);
+              // TODO - BUG resetting the left fence may overflow the page
+              assert!(self.reset_with_new_left_fence(new_left_fence.as_ref())); 
+            }           
             return;
         }
+
+        // TODO Do we need to reset the right fence?
 
         // Now get the index for the key and remove the entry.
         let (found, index) = self.get_index_for_key(key_suffix);
         if found {
             assert_eq!(page_no, self.get_page_no_at_index(index));
             self.remove_key_value_at_index(index);
+            if index == 0 && self.get_entries_size() > 0 {
+              let new_left_fence = self.get_key_at_index(0);
+              // TODO - BUG resetting the left fence may overflow the page
+              assert!(self.reset_with_new_left_fence(new_left_fence.as_ref())); 
+            }
         } else {
             assert_eq!(page_no, self.get_page_no_at_index(index - 1));
             self.remove_key_value_at_index(index - 1);
