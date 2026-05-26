@@ -19,11 +19,11 @@ pub struct PageCache {
 // copy of the page.
 impl PageCache {
     pub fn new(block_layer: BlockLayer) -> Self {
-        PageCache { 
-          block_layer: block_layer, 
-          page_map: HashMap::new(),
-          deque: VecDeque::new(),
-          cache_size_limit: 1024usize, 
+        PageCache {
+            block_layer,
+            page_map: HashMap::new(),
+            deque: VecDeque::new(),
+            cache_size_limit: 1024usize,
         }
     }
 
@@ -44,31 +44,57 @@ impl PageCache {
     // that returns a copy of the page.
     pub fn get_page(&mut self, page_number: u64) -> Page {
         match self.page_map.get(&page_number) {
-           Some(page) => {
-              let mut page_copy = Page::create_new(self.get_page_config());
-              page_copy.get_block_bytes_mut().copy_from_slice(page.get_block_bytes());
-              page_copy
-           },
-           None => self.block_layer.read_page(page_number),
+            Some(page) => {
+                let mut page_copy = Page::create_new(self.get_page_config());
+                page_copy
+                    .get_block_bytes_mut()
+                    .copy_from_slice(page.get_block_bytes());
+                page_copy
+            }
+            None => {
+                let page = self.block_layer.read_page(page_number);
+                let mut page_for_cache = Page::create_new(self.get_page_config());
+                page_for_cache
+                    .get_block_bytes_mut()
+                    .copy_from_slice(page.get_block_bytes());
+                self.add_page_to_cache(page_number, page_for_cache);
+                page
+            }
+        }
+    }
+
+    pub fn get_page_ref(&mut self, page_number: u64) -> &Page {
+        if self.page_map.contains_key(&page_number) {
+            return self.page_map.get(&page_number).unwrap();
+        }
+
+        let new_page = self.block_layer.read_page(page_number);
+        self.add_page_to_cache(page_number, new_page);
+        self.page_map.get(&page_number).unwrap()
+    }
+
+    fn add_page_to_cache(&mut self, page_no: u64, page: Page) {
+        if self.page_map.insert(page_no, page).is_none() {
+            // Added new page. Add to the dequeue and if it overflows
+            // delete an entry.
+            self.deque.push_back(page_no);
+            if self.deque.len() > self.cache_size_limit {
+                let page_to_delete = self.deque.pop_front().unwrap();
+                self.page_map.remove(&page_to_delete);
+            }
         }
     }
 
     pub fn put_page(&mut self, page: &mut Page) {
         let page_no = page.get_page_number();
-        // Take a copy of the page before the block_layer processes it, 
+        // Take a copy of the page before the block_layer processes it,
         // the block layer might encrypt it.
         let mut page_for_cache = Page::create_new(self.get_page_config());
-        page_for_cache.get_block_bytes_mut().copy_from_slice(page.get_block_bytes());
+        page_for_cache
+            .get_block_bytes_mut()
+            .copy_from_slice(page.get_block_bytes());
         self.block_layer.write_page(page, page_no);
-        if self.page_map.insert(page_no, page_for_cache).is_none() {
-             // Added new page. Add to the dequeue and if it overflows
-             // delete an entry.
-             self.deque.push_back(page_no);
-             if self.deque.len() > self.cache_size_limit {
-                 let page_to_delete = self.deque.pop_front().unwrap();
-                 self.page_map.remove(&page_to_delete);
-             }           
-        }
+        self.add_page_to_cache(page_no, page_for_cache);
     }
 
     pub fn get_total_page_count(&self) -> u64 {

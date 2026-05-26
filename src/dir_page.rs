@@ -125,7 +125,11 @@ impl DirPage {
     }
 
     pub fn get_entries_size(&self) -> u16 {
-        let bytes = &self.page.get_page_bytes()[16..18];
+        Self::get_no_entries_in_page(&self.page)
+    }
+
+    pub fn get_no_entries_in_page(page: &Page) -> u16 {
+        let bytes = &page.get_page_bytes()[16..18];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
@@ -144,13 +148,21 @@ impl DirPage {
         self.page.get_page_bytes_mut()[18..20].copy_from_slice(&bytes);
     }
 
+    fn get_prefix_length_page(page: &Page) -> u8 {
+        page.get_page_bytes()[20]
+    }
+
     fn get_prefix_length(&self) -> u8 {
-        self.page.get_page_bytes()[20]
+        Self::get_prefix_length_page(&self.page)
+    }
+
+    pub fn get_page_to_left_page(page: &Page) -> u64 {
+        let bytes = &page.get_page_bytes()[27..35];
+        u64::from_le_bytes(bytes.try_into().unwrap())
     }
 
     pub fn get_page_to_left(&self) -> u64 {
-        let bytes = &self.page.get_page_bytes()[27..35];
-        u64::from_le_bytes(bytes.try_into().unwrap())
+        Self::get_page_to_left_page(&self.page)
     }
 
     fn set_page_to_left(&mut self, page_no: u64) {
@@ -184,8 +196,12 @@ impl DirPage {
         self.set_free_space(free_space as u16 - key.len() as u16);
     }
 
+    pub fn has_left_fence_page(page: &Page) -> bool {
+        page.get_page_bytes()[23] != 0
+    }
+
     pub fn has_left_fence(&self) -> bool {
-        self.page.get_page_bytes()[23] != 0
+        Self::has_left_fence_page(&self.page)
     }
 
     fn clear_left_fence_key(&mut self) {
@@ -193,19 +209,23 @@ impl DirPage {
         self.page.get_page_bytes_mut()[21..23].copy_from_slice(&[0, 0]);
     }
 
-    fn get_left_fence_key_size(&self) -> u8 {
-        self.page.get_page_bytes()[23]
+    fn get_left_fence_key_size_page(page: &Page) -> u8 {
+        page.get_page_bytes()[23]
     }
 
-    fn get_left_fence_key_offset(&self) -> u16 {
-        let bytes = &self.page.get_page_bytes()[21..23];
+    fn get_left_fence_key_offset_page(page: &Page) -> u16 {
+        let bytes = &page.get_page_bytes()[21..23];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
+    fn get_left_fence_key_page(page: &Page) -> &[u8] {
+        let offset = Self::get_left_fence_key_offset_page(page) as usize;
+        let size = Self::get_left_fence_key_size_page(page) as usize;
+        &page.get_page_bytes()[offset..offset + size]
+    }
+
     fn get_left_fence_key(&self) -> &[u8] {
-        let offset = self.get_left_fence_key_offset() as usize;
-        let size = self.get_left_fence_key_size() as usize;
-        &self.page.get_page_bytes()[offset..offset + size]
+        Self::get_left_fence_key_page(&self.page)
     }
 
     pub fn set_right_fence_key(&mut self, key: &[u8]) {
@@ -222,8 +242,12 @@ impl DirPage {
         self.set_free_space(free_space as u16 - key.len() as u16);
     }
 
+    pub fn has_right_fence_page(page: &Page) -> bool {
+        page.get_page_bytes()[26] != 0
+    }
+
     pub fn has_right_fence(&self) -> bool {
-        self.page.get_page_bytes()[26] != 0
+        Self::has_right_fence_page(&self.page)
     }
 
     fn clear_right_fence_key(&mut self) {
@@ -231,19 +255,27 @@ impl DirPage {
         self.page.get_page_bytes_mut()[24..26].copy_from_slice(&[0, 0]);
     }
 
-    fn get_right_fence_key_offset(&self) -> u16 {
-        let bytes = &self.page.get_page_bytes()[24..26];
+    fn get_right_fence_key_offset_page(page: &Page) -> u16 {
+        let bytes = &page.get_page_bytes()[24..26];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
 
+    fn get_right_fence_key_size_page(page: &Page) -> u8 {
+        page.get_page_bytes()[26]
+    }
+
     fn get_right_fence_key_size(&self) -> u8 {
-        self.page.get_page_bytes()[26]
+        Self::get_right_fence_key_size_page(&self.page)
+    }
+
+    fn get_right_fence_key_page(page: &Page) -> &[u8] {
+        let offset = Self::get_right_fence_key_offset_page(page) as usize;
+        let size = Self::get_right_fence_key_size_page(page) as usize;
+        &page.get_page_bytes()[offset..offset + size]
     }
 
     fn get_right_fence_key(&self) -> &[u8] {
-        let offset = self.get_right_fence_key_offset() as usize;
-        let size = self.get_right_fence_key_size() as usize;
-        &self.page.get_page_bytes()[offset..offset + size]
+        Self::get_right_fence_key_page(&self.page)
     }
 
     pub fn set_prefix_length(&mut self, prefix_length: u8) {
@@ -258,13 +290,17 @@ impl DirPage {
         self.page.get_page_bytes_mut()[20] = prefix_length;
     }
 
-    fn get_slot_at_index(&self, index: usize) -> DirSlot {
-        assert!(index < self.get_entries_size() as usize);
+    fn get_slot_at_index_page(page: &Page, index: usize) -> DirSlot {
+        assert!(index < Self::get_no_entries_in_page(page) as usize);
         let slot_offset = DirPage::HEADER_SIZE + index * DirPage::SLOT_SIZE;
-        let offset_bytes = &self.page.get_page_bytes()[slot_offset..slot_offset + 2];
+        let offset_bytes = &page.get_page_bytes()[slot_offset..slot_offset + 2];
         let offset = u16::from_le_bytes(offset_bytes.try_into().unwrap());
-        let key_len = self.page.get_page_bytes()[slot_offset + 2];
+        let key_len = page.get_page_bytes()[slot_offset + 2];
         DirSlot { offset, key_len }
+    }
+
+    fn get_slot_at_index(&self, index: usize) -> DirSlot {
+        Self::get_slot_at_index_page(&self.page, index)
     }
 
     fn set_slot_at_index(&mut self, index: usize, slot: DirSlot) {
@@ -274,26 +310,38 @@ impl DirPage {
         self.page.get_page_bytes_mut()[slot_offset + 2] = slot.key_len;
     }
 
-    fn get_value_at_slot(&self, slot: &DirSlot) -> &[u8] {
+    fn get_value_at_slot_page<'a>(page: &'a Page, slot: &DirSlot) -> &'a [u8] {
         let val_offset = (slot.offset + slot.key_len as u16) as usize;
-        &self.page.get_page_bytes()[val_offset..val_offset + DirPage::VALUE_SIZE]
+        &page.get_page_bytes()[val_offset..val_offset + DirPage::VALUE_SIZE]
+    }
+
+    fn get_value_at_slot(&self, slot: &DirSlot) -> &[u8] {
+        Self::get_value_at_slot_page(&self.page, slot)
+    }
+
+    fn get_key_at_slot_page<'a>(page: &'a Page, slot: &DirSlot) -> &'a [u8] {
+        let key_offset = slot.offset as usize;
+        &page.get_page_bytes()[key_offset..key_offset + slot.key_len as usize]
     }
 
     fn get_key_at_slot(&self, slot: &DirSlot) -> &[u8] {
-        let key_offset = slot.offset as usize;
-        &self.page.get_page_bytes()[key_offset..key_offset + slot.key_len as usize]
+        Self::get_key_at_slot_page(&self.page, slot)
     }
 
-    fn get_key_prefix(&self) -> &[u8] {
-        let prefix_length = self.get_prefix_length() as usize;
+    fn get_key_prefix_page(page: &Page) -> &[u8] {
+        let prefix_length = Self::get_prefix_length_page(page) as usize;
         if prefix_length == 0 {
             return &[];
         }
-        &self.get_left_fence_key()[0..prefix_length]
+        &Self::get_left_fence_key_page(page)[0..prefix_length]
     }
 
-    fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
-        let entries = self.get_entries_size() as usize;
+    fn get_key_prefix(&self) -> &[u8] {
+        Self::get_key_prefix_page(&self.page)
+    }
+
+    fn get_index_for_key_page(page: &Page, key_suffix: &[u8]) -> (bool, usize) {
+        let entries = Self::get_no_entries_in_page(page) as usize;
 
         // binary search for the key suffix in the slots
         let mut low = 0;
@@ -301,8 +349,8 @@ impl DirPage {
 
         while low < high {
             let mid = low + (high - low) / 2;
-            let slot = self.get_slot_at_index(mid);
-            let key_at_slot = self.get_key_at_slot(&slot);
+            let slot = Self::get_slot_at_index_page(page, mid);
+            let key_at_slot = Self::get_key_at_slot_page(page, &slot);
 
             match key_suffix.cmp(key_at_slot) {
                 Ordering::Less => high = mid, // Needle is smaller, look in the left half
@@ -312,6 +360,10 @@ impl DirPage {
         }
         // low is the insertion point if the key wasn't found
         (false, low)
+    }
+
+    fn get_index_for_key(&self, key_suffix: &[u8]) -> (bool, usize) {
+        Self::get_index_for_key_page(&self.page, key_suffix)
     }
 
     fn shift_slots_right_from(&mut self, from_index: usize) {
@@ -581,9 +633,17 @@ impl DirPage {
         self.set_free_space(free_space as u16 - new_entry_total_size as u16);
     }
 
+    fn get_page_no_at_index_page(page: &Page, index: usize) -> u64 {
+        let slot = Self::get_slot_at_index_page(page, index);
+        u64::from_le_bytes(
+            Self::get_value_at_slot_page(page, &slot)[0..8]
+                .try_into()
+                .unwrap(),
+        )
+    }
+
     fn get_page_no_at_index(&self, index: usize) -> u64 {
-        let slot = self.get_slot_at_index(index);
-        u64::from_le_bytes(self.get_value_at_slot(&slot)[0..8].try_into().unwrap())
+        Self::get_page_no_at_index_page(&self.page, index)
     }
 
     pub fn get_key_suffix_and_value_at_index(&self, index: usize) -> (&[u8], &[u8]) {
@@ -961,19 +1021,23 @@ impl DirPage {
         self.set_free_space((free_space + entry_size + DirPage::SLOT_SIZE) as u16);
     }
 
-    pub fn get_next_page(&self, key: &[u8]) -> u64 {
+    pub fn get_next(&self, key: &[u8]) -> u64 {
+        Self::get_next_page(&self.page, key)
+    }
+
+    pub fn get_next_page(page: &Page, key: &[u8]) -> u64 {
         // There is only the page to the left.
-        let entries = self.get_entries_size();
+        let entries = Self::get_no_entries_in_page(page);
         if entries == 0 {
-            return self.get_page_to_left();
+            return Self::get_page_to_left_page(page);
         }
 
-        if self.has_left_fence() && key < self.get_left_fence_key() {
-            return self.get_page_to_left();
+        if Self::has_left_fence_page(page) && key < Self::get_left_fence_key_page(page) {
+            return Self::get_page_to_left_page(page);
         }
 
-        if self.has_right_fence() && key > self.get_right_fence_key() {
-            return self.get_page_no_at_index(self.get_entries_size() as usize - 1);
+        if Self::has_right_fence_page(page) && key > Self::get_right_fence_key_page(page) {
+            return Self::get_page_no_at_index_page(page, entries as usize - 1);
         }
 
         // If we get here then if there is a left and right fence the key is between them
@@ -981,33 +1045,33 @@ impl DirPage {
         // If there is no left or right fence then there is no prefix and the prefix
         // length is zero.
         assert!(
-            key.len() >= self.get_prefix_length() as usize,
+            key.len() >= Self::get_prefix_length_page(page) as usize,
             "BUG: Key length is smaller than the prefix length of the page."
         );
         assert!(
-            key.starts_with(self.get_key_prefix()),
+            key.starts_with(Self::get_key_prefix_page(page)),
             "BUG: Key does not match the prefix of the page."
         );
 
-        let key_suffix = &key[self.get_prefix_length() as usize..];
+        let key_suffix = &key[Self::get_prefix_length_page(page) as usize..];
 
-        let slot = self.get_slot_at_index(0);
-        let first_key = self.get_key_at_slot(&slot);
+        let slot = Self::get_slot_at_index_page(page, 0);
+        let first_key = Self::get_key_at_slot_page(page, &slot);
         if key_suffix < first_key {
-            return self.get_page_to_left();
+            return Self::get_page_to_left_page(page);
         }
 
-        let last_entry = self.get_slot_at_index(entries as usize - 1);
-        let last_key = self.get_key_at_slot(&last_entry);
+        let last_entry = Self::get_slot_at_index_page(page, entries as usize - 1);
+        let last_key = Self::get_key_at_slot_page(page, &last_entry);
         if key_suffix > last_key {
-            return self.get_page_no_at_index(entries as usize - 1);
+            return Self::get_page_no_at_index_page(page, entries as usize - 1);
         }
 
-        let (found, index) = self.get_index_for_key(key_suffix);
+        let (found, index) = Self::get_index_for_key_page(page, key_suffix);
         if found {
-            self.get_page_no_at_index(index)
+            Self::get_page_no_at_index_page(page, index)
         } else {
-            self.get_page_no_at_index(index - 1)
+            Self::get_page_no_at_index_page(page, index - 1)
         }
     }
 
@@ -1033,10 +1097,10 @@ impl DirPage {
             self.remove_key_value_at_index(0);
             // get the key at 0
             if self.get_entries_size() > 0 {
-              let new_left_fence = self.get_key_at_index(0);
-              // TODO - BUG resetting the left fence may overflow the page
-              assert!(self.reset_with_new_left_fence(new_left_fence.as_ref())); 
-            }           
+                let new_left_fence = self.get_key_at_index(0);
+                // TODO - BUG resetting the left fence may overflow the page
+                assert!(self.reset_with_new_left_fence(new_left_fence.as_ref()));
+            }
             return;
         }
 
@@ -1048,16 +1112,30 @@ impl DirPage {
             assert_eq!(page_no, self.get_page_no_at_index(index));
             self.remove_key_value_at_index(index);
             if index == 0 && self.get_entries_size() > 0 {
-              let new_left_fence = self.get_key_at_index(0);
-              // TODO - BUG resetting the left fence may overflow the page
-              assert!(self.reset_with_new_left_fence(new_left_fence.as_ref())); 
+                let new_left_fence = self.get_key_at_index(0);
+                // TODO - BUG resetting the left fence may overflow the page
+                assert!(self.reset_with_new_left_fence(new_left_fence.as_ref()));
             }
         } else {
-            assert!(index > 0, "Not found. Index should be positive. key {:?}, page_no {}, entries in page {},
-            left_fence {:?}, right_fence {:?}", key, page_no, entries, self.get_left_fence_key(), self.get_right_fence_key());
-            assert_eq!(page_no, self.get_page_no_at_index(index - 1), 
-                "Removing key {:?}, page_no {} but expected page_no {} at index {}", 
-                key, page_no, self.get_page_no_at_index(index - 1), index - 1);
+            assert!(
+                index > 0,
+                "Not found. Index should be positive. key {:?}, page_no {}, entries in page {},
+            left_fence {:?}, right_fence {:?}",
+                key,
+                page_no,
+                entries,
+                self.get_left_fence_key(),
+                self.get_right_fence_key()
+            );
+            assert_eq!(
+                page_no,
+                self.get_page_no_at_index(index - 1),
+                "Removing key {:?}, page_no {} but expected page_no {} at index {}",
+                key,
+                page_no,
+                self.get_page_no_at_index(index - 1),
+                index - 1
+            );
             self.remove_key_value_at_index(index - 1);
         }
     }
@@ -1227,8 +1305,8 @@ mod tests {
         dir_page.add_child_page(key1, page_no1);
         dir_page.add_child_page(key2, page_no2);
         assert_eq!(dir_page.get_entries_size(), 2);
-        assert_eq!(dir_page.get_next_page(key1), page_no1);
-        assert_eq!(dir_page.get_next_page(key2), page_no2);
+        assert_eq!(dir_page.get_next(key1), page_no1);
+        assert_eq!(dir_page.get_next(key2), page_no2);
         assert_eq!(dir_page.get_left_fence_key(), key1);
         assert_eq!(dir_page.get_right_fence_key(), b"key3");
         assert_eq!(dir_page.get_prefix_length(), 3);
@@ -1253,8 +1331,8 @@ mod tests {
         dir_page.add_child_page(key1, page_no1);
         dir_page.add_child_page(key2, page_no2);
         assert_eq!(dir_page.get_entries_size(), 2);
-        assert_eq!(dir_page.get_next_page(key1), page_no1);
-        assert_eq!(dir_page.get_next_page(key2), page_no2);
+        assert_eq!(dir_page.get_next(key1), page_no1);
+        assert_eq!(dir_page.get_next(key2), page_no2);
         assert_eq!(dir_page.get_left_fence_key(), key1);
         assert_eq!(dir_page.get_right_fence_key(), b"key3");
         assert_eq!(dir_page.get_prefix_length(), 3);
@@ -1285,8 +1363,8 @@ mod tests {
         dir_page.add_child_page(key1, page_no1);
         dir_page.add_child_page(key2, page_no2);
         assert_eq!(dir_page.get_entries_size(), 2);
-        assert_eq!(dir_page.get_next_page(key1), page_no1);
-        assert_eq!(dir_page.get_next_page(key2), page_no2);
+        assert_eq!(dir_page.get_next(key1), page_no1);
+        assert_eq!(dir_page.get_next(key2), page_no2);
         assert_eq!(dir_page.get_left_fence_key(), key1);
         assert_eq!(dir_page.get_right_fence_key(), b"key4");
         assert_eq!(dir_page.get_prefix_length(), 3);
@@ -1425,25 +1503,25 @@ mod tests {
         let page_no8 = 8;
         dir_page.add_child_page(key4, page_no8);
 
-        assert_eq!(dir_page.get_next_page(b"key0"), 1);
-        assert_eq!(dir_page.get_next_page(b"key1"), 1);
-        assert_eq!(dir_page.get_next_page(b"key2"), 2);
-        assert_eq!(dir_page.get_next_page(b"key3"), 2);
-        assert_eq!(dir_page.get_next_page(b"key4"), 2);
-        assert_eq!(dir_page.get_next_page(b"key5"), 5);
-        assert_eq!(dir_page.get_next_page(b"key6"), 5);
-        assert_eq!(dir_page.get_next_page(b"key7"), 7);
-        assert_eq!(dir_page.get_next_page(b"key8"), 8);
-        assert_eq!(dir_page.get_next_page(b"key9"), 8);
+        assert_eq!(dir_page.get_next(b"key0"), 1);
+        assert_eq!(dir_page.get_next(b"key1"), 1);
+        assert_eq!(dir_page.get_next(b"key2"), 2);
+        assert_eq!(dir_page.get_next(b"key3"), 2);
+        assert_eq!(dir_page.get_next(b"key4"), 2);
+        assert_eq!(dir_page.get_next(b"key5"), 5);
+        assert_eq!(dir_page.get_next(b"key6"), 5);
+        assert_eq!(dir_page.get_next(b"key7"), 7);
+        assert_eq!(dir_page.get_next(b"key8"), 8);
+        assert_eq!(dir_page.get_next(b"key9"), 8);
 
         dir_page.remove_key_page(b"key0", 1);
         assert_eq!(dir_page.get_page_to_left(), 2);
 
         dir_page.remove_key_page(b"key6", 5);
-        assert_eq!(dir_page.get_next_page(b"key6"), 2);
+        assert_eq!(dir_page.get_next(b"key6"), 2);
 
         dir_page.remove_key_page(b"key9", 8);
-        assert_eq!(dir_page.get_next_page(b"key8"), 7);
+        assert_eq!(dir_page.get_next(b"key8"), 7);
     }
 
     #[test]
@@ -1462,11 +1540,11 @@ mod tests {
         assert_eq!(right_page.get_entries_size(), 9);
         for i in 1..10 {
             let key = (i as u64).to_le_bytes().to_vec();
-            assert_eq!(left_page.get_next_page(&key), i as u64);
+            assert_eq!(left_page.get_next(&key), i as u64);
         }
         for i in 11..20 {
             let key = (i as u64).to_le_bytes().to_vec();
-            assert_eq!(right_page.get_next_page(&key), i as u64);
+            assert_eq!(right_page.get_next(&key), i as u64);
         }
     }
 }

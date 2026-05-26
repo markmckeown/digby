@@ -52,7 +52,7 @@ impl TreeDeleteHandler {
         // loop down until we hit the leaf page keeping a track of the
         // the dir pages as we go.
         loop {
-            next_page = dir_page.get_next_page(key);
+            next_page = dir_page.get_next(key);
             dir_pages.push(dir_page);
             let page = page_cache.get_page(next_page);
             if page.get_type() == PageType::LeafPage {
