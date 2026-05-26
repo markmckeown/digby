@@ -148,8 +148,7 @@ impl LeafPage {
         self.set_prefix_length(0);
     }
 
-
-    pub fn get_no_page_entries(&self) -> u16{
+    pub fn get_no_page_entries(&self) -> u16 {
         Self::get_entries_size(&self.page)
     }
 
@@ -387,7 +386,7 @@ impl LeafPage {
         &Self::get_left_fence_key(page)[0..prefix_length]
     }
 
-    fn get_index_for_key(page:&Page, key_suffix: &[u8]) -> (bool, usize) {
+    fn get_index_for_key(page: &Page, key_suffix: &[u8]) -> (bool, usize) {
         let entries = Self::get_entries_size(page) as usize;
 
         // binary search for the key suffix in the slots
@@ -548,7 +547,6 @@ impl LeafPage {
         self.set_free_space(free_space as u16 - new_entry_total_size as u16);
     }
 
-
     pub fn get_tuple_from_page(page: &Page, key: &[u8]) -> Option<Tuple> {
         if Self::has_right_fence(page) && key > Self::get_right_fence_key(page) {
             return None;
@@ -564,7 +562,6 @@ impl LeafPage {
         }
         Some(Self::get_tuple_at_index(page, index))
     }
-
 
     pub fn get_tuple(&self, key: &[u8]) -> Option<Tuple> {
         Self::get_tuple_from_page(&self.page, key)
@@ -833,7 +830,8 @@ impl LeafPage {
             .take_while(|(a, b)| a == b)
             .count();
         right_page.set_prefix_length(right_prefix_length as u8);
-        let right_suffix_offset = right_prefix_length - Self::get_prefix_length(&self.page) as usize;
+        let right_suffix_offset =
+            right_prefix_length - Self::get_prefix_length(&self.page) as usize;
         for i in mid..entries {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
             right_page.add_key_value_at_index(i - mid, &key[right_suffix_offset..], value);
@@ -939,7 +937,7 @@ impl LeafPage {
         if !found {
             return None;
         }
-        let tuple = Self::get_tuple_at_index(&self.page,index);
+        let tuple = Self::get_tuple_at_index(&self.page, index);
         self.remove_key_value_at_index(index);
         Some(tuple)
     }
@@ -1091,7 +1089,7 @@ mod tests {
             );
         }
 
-        let (mut left_page1,mut left_page2, _) = left_page.split_page(0);
+        let (mut left_page1, mut left_page2, _) = left_page.split_page(0);
         assert_eq!(LeafPage::get_entries_size(left_page1.get_page()), 5);
         assert_eq!(LeafPage::get_entries_size(left_page2.get_page()), 5);
         for i in 0..5 {
