@@ -156,10 +156,9 @@ impl Db {
 
     fn get_from_tree(&mut self, key: &[u8], tree_page_no: u64) -> Option<Vec<u8>> {
         // TODO need to check versions.
-        let page = self.page_cache.get_page_ref(tree_page_no);
         // If not an oversized key...
         if !TupleProcessor::is_oversized_key(key) {
-            if let Some(tuple) = StoreTupleProcessor::get_tuple(key, &page, &mut self.page_cache) {
+            if let Some(tuple) = StoreTupleProcessor::get_tuple(key, tree_page_no, &mut self.page_cache) {
                 return Some(self.get_tuple_value(&tuple));
             } else {
                 return None;
@@ -170,7 +169,7 @@ impl Db {
         let short_key = TupleProcessor::generate_short_key(key);
         // This tuple will have a page number as the value, the page will be an overflow page
         // that forms a linked list of pages that will hold the tuple.
-        let tuple = StoreTupleProcessor::get_tuple(&short_key, &page, &mut self.page_cache);
+        let tuple = StoreTupleProcessor::get_tuple(&short_key, tree_page_no, &mut self.page_cache);
         // Do not have this key.
         tuple.as_ref()?;
         let overflow_page_no =
@@ -400,9 +399,8 @@ impl Db {
         let master_page = self.get_master_page();
         let table_dir_page_no = master_page.get_table_dir_page_no();
         // TODO need to check versions.
-        let page = self.page_cache.get_page(table_dir_page_no);
-
-        if let Some(tuple) = StoreTupleProcessor::get_tuple(name, &page, &mut self.page_cache) {
+        
+        if let Some(tuple) = StoreTupleProcessor::get_tuple(name, table_dir_page_no, &mut self.page_cache) {
             assert!(tuple.get_overflow() == Overflow::None);
             assert_eq!(tuple.get_value().len(), 8);
             let page_no = u64::from_le_bytes(tuple.get_value().try_into().unwrap());

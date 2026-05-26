@@ -12,11 +12,10 @@ use crate::tuple::{Tuple, TupleTrait};
 pub struct StoreTupleProcessor {}
 
 impl StoreTupleProcessor {
-    pub fn get_tuple(key: &[u8], first: &Page, page_cache: &mut PageCache) -> Option<Tuple> {
-        // Set the page to be the first page, the root page.
-        let mut page = first;
-
+    pub fn get_tuple(key: &[u8], page_no: u64, page_cache: &mut PageCache) -> Option<Tuple> {
+        let mut page_number = page_no;
         loop {
+            let page = page_cache.get_page_ref(page_number);
             // If the page is a tree leaf then if the key is stored
             // then it will be in this leaf page.
             if page.get_type() == PageType::LeafPage {
@@ -24,7 +23,7 @@ impl StoreTupleProcessor {
             }
             // If its a tree dir page then descend to the next
             // level.
-            page = page_cache.get_page_ref(DirPage::get_next_page(page, key))
+            page_number = DirPage::get_next_page(page, key);
         }
     }
 
@@ -471,7 +470,7 @@ mod tests {
         assert_eq!(root_dir_page.get_entries_size(), 1);
         let tuple = StoreTupleProcessor::get_tuple(
             13000u64.to_be_bytes().to_vec().as_ref(),
-            root_page,
+            root_tree_page_no,
             &mut page_cache,
         );
         assert!(tuple.is_some());
