@@ -1053,7 +1053,11 @@ impl DirPage {
               assert!(self.reset_with_new_left_fence(new_left_fence.as_ref())); 
             }
         } else {
-            assert_eq!(page_no, self.get_page_no_at_index(index - 1));
+            assert!(index > 0, "Not found. Index should be positive. key {:?}, page_no {}, entries in page {},
+            left_fence {:?}, right_fence {:?}", key, page_no, entries, self.get_left_fence_key(), self.get_right_fence_key());
+            assert_eq!(page_no, self.get_page_no_at_index(index - 1), 
+                "Removing key {:?}, page_no {} but expected page_no {} at index {}", 
+                key, page_no, self.get_page_no_at_index(index - 1), index - 1);
             self.remove_key_value_at_index(index - 1);
         }
     }
