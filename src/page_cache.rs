@@ -49,7 +49,36 @@ impl PageCache {
               page_copy.get_block_bytes_mut().copy_from_slice(page.get_block_bytes());
               page_copy
            },
-           None => self.block_layer.read_page(page_number),
+           None =>  {
+            let page = self.block_layer.read_page(page_number);
+            let mut page_for_cache = Page::create_new(self.get_page_config());
+            page_for_cache.get_block_bytes_mut().copy_from_slice(page.get_block_bytes());
+            self.add_page_to_cache(page_number, page_for_cache);
+            page
+           },
+        }
+    }
+
+    pub fn get_page_ref(&mut self, page_number: u64) -> &Page {
+        if self.page_map.contains_key(&page_number) {
+            return self.page_map.get(&page_number).unwrap();
+        }
+        
+        let new_page = self.block_layer.read_page(page_number);
+        self.add_page_to_cache(page_number, new_page);
+        self.page_map.get(&page_number).unwrap()
+    }
+
+
+    fn add_page_to_cache(&mut self, page_no: u64, page: Page) {
+        if self.page_map.insert(page_no, page).is_none() {
+             // Added new page. Add to the dequeue and if it overflows
+             // delete an entry.
+             self.deque.push_back(page_no);
+             if self.deque.len() > self.cache_size_limit {
+                 let page_to_delete = self.deque.pop_front().unwrap();
+                 self.page_map.remove(&page_to_delete);
+             }           
         }
     }
 
@@ -60,15 +89,7 @@ impl PageCache {
         let mut page_for_cache = Page::create_new(self.get_page_config());
         page_for_cache.get_block_bytes_mut().copy_from_slice(page.get_block_bytes());
         self.block_layer.write_page(page, page_no);
-        if self.page_map.insert(page_no, page_for_cache).is_none() {
-             // Added new page. Add to the dequeue and if it overflows
-             // delete an entry.
-             self.deque.push_back(page_no);
-             if self.deque.len() > self.cache_size_limit {
-                 let page_to_delete = self.deque.pop_front().unwrap();
-                 self.page_map.remove(&page_to_delete);
-             }           
-        }
+        self.add_page_to_cache(page_no, page_for_cache);
     }
 
     pub fn get_total_page_count(&self) -> u64 {

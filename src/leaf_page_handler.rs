@@ -154,9 +154,9 @@ mod tests {
 
         assert!(pages.tree_leaf_pages.len() == 2);
         let tree_leaf_page1 = pages.tree_leaf_pages.pop().unwrap().0;
-        assert_eq!(tree_leaf_page1.get_entries_size(), 98);
+        assert_eq!(tree_leaf_page1.get_no_page_entries(), 98);
         let tree_leaf_page2 = pages.tree_leaf_pages.pop().unwrap().0;
-        assert_eq!(tree_leaf_page2.get_entries_size(), 96);
+        assert_eq!(tree_leaf_page2.get_no_page_entries(), 96);
     }
 
     // In this test we overwrite the same key twice.
