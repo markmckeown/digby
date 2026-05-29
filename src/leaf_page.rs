@@ -923,6 +923,9 @@ impl LeafPage {
     /**
      * Remove key and value. Returns true of the key was found and removed,
      * false if the key was not found.
+     *
+     * This does not reset fences.
+     *
      */
     pub fn delete_key(&mut self, key: &[u8]) -> Option<Tuple> {
         if Self::has_right_fence(&self.page) && key > Self::get_right_fence_key(&self.page) {

@@ -11,7 +11,7 @@ impl FileLayer {
         let metadata = file.metadata().expect("Failed to get metadata for file.");
         let file_size = metadata.len();
         assert!(
-            file_size % block_size as u64 == 0,
+            file_size.is_multiple_of(block_size as u64),
             "File size is not a multiple of block size."
         );
         let block_count: u64 = file_size / block_size as u64;
