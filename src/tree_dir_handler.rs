@@ -11,7 +11,7 @@ pub struct DirPageRef {
 }
 
 impl TreeDirHandler {
-    pub fn handle_tree_leaf_store_1(
+    pub fn handle_tree_leaf_store(
         mut dir_page: DirPage,
         entries: Vec<TreeDirEntry>,
     ) -> Vec<DirPageRef> {
@@ -65,7 +65,7 @@ impl TreeDirHandler {
         }
     }
 
-    pub fn handle_tree_dir_store_1(
+    pub fn handle_tree_dir_store(
         mut parent_dir_page: DirPage,
         entries: Vec<TreeDirEntry>,
     ) -> Vec<DirPageRef> {
@@ -138,7 +138,7 @@ mod tests {
 
         let mut tree_dir_page = DirPage::create_new(&page_config, 0, 0);
 
-        let mut new_pages = TreeDirHandler::handle_tree_leaf_store_1(tree_dir_page, entries);
+        let mut new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, entries);
         assert_eq!(new_pages.len(), 1);
         tree_dir_page = new_pages.pop().unwrap().page;
         assert_eq!(tree_dir_page.get_page_to_left(), 21);
@@ -159,7 +159,7 @@ mod tests {
             entries.push(tree_dir_entry);
         }
 
-        new_pages = TreeDirHandler::handle_tree_leaf_store_1(tree_dir_page, entries);
+        new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, entries);
         assert_eq!(new_pages.len(), 1);
         tree_dir_page = new_pages.pop().unwrap().page;
         assert_eq!(tree_dir_page.get_page_to_left(), 79);
