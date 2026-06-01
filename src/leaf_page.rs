@@ -429,6 +429,12 @@ impl LeafPage {
         );
     }
 
+    // Add a tuple and return any tuple that gets overwritten.
+    // If cannot add the tuple to the page because it cannot fit then return false.
+    // However it will return the replaced tuple even if the new tuple cannot fit
+    // and the tuple will have been removed - the expectation is that the page
+    // will be split to fit the tuple.
+    //
     pub fn add_tuple(&mut self, tuple: &Tuple) -> (bool, Option<Tuple>) {
         let tuple_key = tuple.get_key();
         let prefix_length = Self::get_prefix_length(&self.page) as usize;

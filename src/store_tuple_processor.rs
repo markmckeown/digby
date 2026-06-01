@@ -173,43 +173,49 @@ impl StoreTupleProcessor {
         // We want to generate a set of tree dir entries
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut dir_page in dir_pages {
-            let tree_dir_entry: TreeDirEntry = if dir_page.left_key.is_none() {
-                // If key is none then this was the old page that was split.
-                TreeDirEntry::new(
-                    dir_page.page.get_dir_left_key().unwrap(),
-                    dir_page.page.get_page_number(),
-                )
-            } else {
-                // This is a new dir page that came from a split.
-                TreeDirEntry::new(dir_page.left_key.unwrap(), dir_page.page.get_page_number())
-            };
+            // if dir_page.left_key is None then this is the original page from
+            // a dir page split, we need to retrieve the left key for this page.
+            let left_key = dir_page
+                .left_key
+                .or_else(|| dir_page.page.get_dir_left_key())
+                .unwrap();
+
+            let tree_dir_entry = TreeDirEntry::new(left_key, dir_page.page.get_page_number());
             entries.push(tree_dir_entry);
+
             // Write the page to disk.
             page_cache.put_page(dir_page.page.get_page());
         }
         entries
     }
 
-    // Get new page numbers for the leaf pages and return the old page numbers
-    // to be reused in future commits.
+    // Write out a set of leaf pages.
+    // After adding a tuple to a leaf page then write out the leaf
+    // page. If the page split there may be more than one leaf page.
+    // Before writing out the pages we need to get new page numbers
+    // for the pages and set their versions.
     fn write_leaf_pages(
         mut leaf_pages: Vec<(LeafPage, Option<Vec<u8>>)>,
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
     ) -> Vec<TreeDirEntry> {
+        // Get new page numbers for the leaf pages and set the version. For the
+        // the original page its version number will be returned to the
+        // free page tracker.
         LeafPageHandler::map_pages(&mut leaf_pages, free_page_tracker, page_cache, new_version);
-        // We return a set do dir entries for the next phase.
+        // We return a set dir entries for the next phase, these are used to update
+        // the parent directory node for the pages.
         let mut entries: Vec<TreeDirEntry> = Vec::new();
-        for mut leaf_page in leaf_pages {
-            // Create a TreeDirEntry for the leaf page to add to the DirPage
-            let key = leaf_page
-                .1
-                .unwrap_or_else(|| leaf_page.0.get_left_key().unwrap().to_vec());
-            let tree_dir_entry = TreeDirEntry::new(key, leaf_page.0.get_page_number());
+        for (mut leaf_page, left_key_for_page) in leaf_pages {
+            // Create a TreeDirEntry for the leaf page to add to the DirPage.
+            // This is made up of the left most key in the page and the page number of the page.
+            let key =
+                left_key_for_page.unwrap_or_else(|| leaf_page.get_left_key().unwrap().to_vec());
+            let tree_dir_entry = TreeDirEntry::new(key, leaf_page.get_page_number());
             entries.push(tree_dir_entry);
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
-            page_cache.put_page(leaf_page.0.get_page());
+            page_cache.put_page(leaf_page.get_page());
         }
         entries
     }
@@ -244,14 +250,10 @@ impl StoreTupleProcessor {
         );
         if update_result.tree_leaf_pages.len() == 1 {
             // The root leaf page has not split - grab the new page number for the root leaf page.
-            let page_number = update_result
-                .tree_leaf_pages
-                .first()
-                .unwrap()
-                .0
-                .get_page_number();
+            let (mut root_leaf_page, _) = update_result.tree_leaf_pages.pop().unwrap();
+            let page_number = root_leaf_page.get_page_number();
             // Write the new root leaf page to disk
-            page_cache.put_page(update_result.tree_leaf_pages.pop().unwrap().0.get_page());
+            page_cache.put_page(root_leaf_page.get_page());
             // Return the new root page_number
             return page_number;
         }
@@ -259,15 +261,13 @@ impl StoreTupleProcessor {
         // The root leaf page has split. Need a new TreeDirPage that will act as the root and hold the
         // the new leaf pages. There could be up to three leaf pages if the entries are large.
         let mut entries: Vec<TreeDirEntry> = Vec::new();
-        for mut leaf_page in update_result.tree_leaf_pages {
+        for (mut leaf_page, page_left_key) in update_result.tree_leaf_pages {
             // Create a TreeDirEntry for the leaf page to add to the TreeDirPage
-            let key = leaf_page
-                .1
-                .unwrap_or_else(|| leaf_page.0.get_left_key().unwrap().to_vec());
-            let tree_dir_entry = TreeDirEntry::new(key, leaf_page.0.get_page_number());
+            let key = page_left_key.unwrap_or_else(|| leaf_page.get_left_key().unwrap().to_vec());
+            let tree_dir_entry = TreeDirEntry::new(key, leaf_page.get_page_number());
             entries.push(tree_dir_entry);
             // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
-            page_cache.put_page(leaf_page.0.get_page());
+            page_cache.put_page(leaf_page.get_page());
         }
         // Need a new DirPage.
         let new_tree_dir_page = DirPage::create_new(page_cache.get_page_config(), 0, 0);

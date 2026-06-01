@@ -1085,19 +1085,17 @@ impl DirPage {
             return;
         }
 
-        
         if self.has_right_fence() && key > self.get_right_fence_key() {
             let index = entries - 1;
             assert_eq!(page_no, self.get_page_no_at_index(index as usize));
             self.remove_key_value_at_index(index as usize);
             let new_entries_count = self.get_entries_size();
             if new_entries_count > 0 {
-               let new_right_fence = self.get_key_at_index(new_entries_count as usize - 1);
-               assert!(self.reset_with_new_right_fence(new_right_fence.as_ref()));
+                let new_right_fence = self.get_key_at_index(new_entries_count as usize - 1);
+                assert!(self.reset_with_new_right_fence(new_right_fence.as_ref()));
             }
             return;
         }
-
 
         let prefix_length = self.get_prefix_length() as usize;
         let key_suffix = &key[prefix_length..];
