@@ -12,6 +12,12 @@ use crate::tuple::{Tuple, TupleTrait};
 pub struct StoreTupleProcessor {}
 
 impl StoreTupleProcessor {
+    // Get a tuple.
+    // The root page of the tree is supplied, this could be a leaf page
+    // or a directory page.
+    // We use get_page_ref to access the page cache, this supplies shared
+    // references to the page rather than copies of the pages as when
+    // used with update and delete.
     pub fn get_tuple(key: &[u8], page_no: u64, page_cache: &mut PageCache) -> Option<Tuple> {
         let mut page_number = page_no;
         loop {
@@ -37,6 +43,7 @@ impl StoreTupleProcessor {
         page_cache: &mut PageCache,
         new_version: u64,
     ) -> u64 {
+        // Special case if the first page is a leaf page.
         if first.get_type() == PageType::LeafPage {
             // The root of the tree is actually a leaf page - requires special handling.
             let tree_root_single = LeafPage::from_page(first);
@@ -49,7 +56,9 @@ impl StoreTupleProcessor {
             );
         }
 
-        // The root page is a tree dir page.
+        // The root page is a tree dir page, convert to dir page
+        // and descend into the tree to find the correct leaf page
+        // to add the tuple too.
         let root_dir_page = DirPage::from_page(first);
         StoreTupleProcessor::store_tuple_tree(
             tuple,
@@ -61,9 +70,12 @@ impl StoreTupleProcessor {
     }
 
     // The root page of the tree is a tree dir then descend into the tree
-    // until find find the leaf page, then add the tuple.
+    // until we find the leaf page, then add the tuple.
     // As descend the tree keep track of the tree dir so they can be updated
-    // after the tuple is added.
+    // after the tuple is added. The directory pages are stored on a stack.
+    //
+    // Returns the page number of the root page of the tree after adding
+    // the tuple.
     fn store_tuple_tree(
         tuple: Tuple,
         root_dir_page: DirPage,
@@ -75,15 +87,21 @@ impl StoreTupleProcessor {
         // This is the stack for storing the tree dir as we descend into
         // the tree.
         let mut dir_pages: Vec<DirPage> = Vec::new();
-        let mut next_page: u64;
+        let mut next_page_no: u64;
         let leaf_page: LeafPage;
-        let key = tuple.get_key().to_vec();
+        let key = tuple.get_key();
+
         // loop down until we hit the leaf page keeping a track of the
         // the dir pages as we go.
         loop {
-            next_page = dir_page.get_next(&key);
+            // Get the next page number of the next page from the
+            // directory node
+            next_page_no = dir_page.get_next(key);
+            // Push the directory node onto the stack to update later.
             dir_pages.push(dir_page);
-            let page = page_cache.get_page(next_page);
+            // Get the page from the cache - this is copy of the page.
+            let page = page_cache.get_page(next_page_no);
+            // If the page is a leaf page we can start the add process
             if page.get_type() == PageType::LeafPage {
                 leaf_page = LeafPage::from_page(page);
                 break;
@@ -96,14 +114,19 @@ impl StoreTupleProcessor {
         // A leaf page can split into three depending on the size of tuples it holds.
         let update_result = LeafPageHandler::add_tuple(leaf_page, tuple);
 
-        // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
+        // Clean up any overflow pages that may bave now be dangling if a tuple
+        // was overwritten. The method add_tuple will return any tuple that
+        // was overwritten in the update_result, this tuple could point to an
+        // overflow tuple - in that case the overflow tuple needs to be deleted.
         OverflowPageHandler::delete_overflow_tuple_pages(
             update_result.deleted_tuple,
             page_cache,
             free_page_tracker,
         );
 
-        // Remap leaf page or pages if it split and write to disk - get a set of dir entries back for the leadf pages.
+        // Remap leaf page, or pages if it split and write to disk - get a set of
+        // dir entries back for the leaf pages. These dir entries are used to update
+        // the leaf pages parent node.
         let leaf_dir_entries = StoreTupleProcessor::write_leaf_pages(
             update_result.tree_leaf_pages,
             free_page_tracker,
@@ -111,12 +134,21 @@ impl StoreTupleProcessor {
             new_version,
         );
 
-        // Add the leaf pages to the tree_dir_page on the top of the stack.
+        // Get the parent dir page for the leaf pages, this is the page at the
+        // top of the stack. There will be at least one dir page.
         dir_page = dir_pages.pop().unwrap();
-        // Get a set of TreeDirEntryRefs back when updating the tree dir entry with the lead page details.
+
+        // Store the leaf page references into the dir page.
+        // The leaf page may have split, when adding the split leaf pages
+        // into the dir page it may need to split also - handle_tree_leaf_stor
+        // handles this and returns a set of TreeDirEntryRefs that are added
+        // to the parent node.
         // There could be more than one TreeDirEntryRef if the dir page had to split.
         let mut dir_refs = TreeDirHandler::handle_tree_leaf_store(dir_page, leaf_dir_entries);
-        // Write the dir entries out to disk and get back a set of directory entries back.
+        // Write the dir entries out to disk and get back a set of directory entries back
+        // - for the parent node of the lead node this will mean returning its old
+        // page number and getting a new one; for new split dir pages they will get
+        // new page numbers.
         let mut dir_entries = StoreTupleProcessor::write_tree_dir_pages(
             dir_refs,
             free_page_tracker,
@@ -125,6 +157,10 @@ impl StoreTupleProcessor {
         );
 
         // Need to walk back up the directory stack adding the pages.
+        // The steps in the loop are similar to the three steps above,
+        // the difference is that handle_tree_dir_store is used instead
+        // of handle_tree_leaf_store as we are dealing with dir
+        // pages now.
         while !dir_pages.is_empty() {
             dir_page = dir_pages.pop().unwrap();
             dir_refs = TreeDirHandler::handle_tree_dir_store(dir_page, dir_entries);
@@ -136,7 +172,8 @@ impl StoreTupleProcessor {
             );
         }
 
-        // If after walking the stack there is only one dir_entry then the root has not split - we can just return its page number.
+        // If after walking the stack there is only one dir_entry
+        // then the root has not split - we can just return its page number.
         if dir_entries.len() == 1 {
             return dir_entries.first().unwrap().get_page_no();
         }
@@ -214,7 +251,8 @@ impl StoreTupleProcessor {
                 left_key_for_page.unwrap_or_else(|| leaf_page.get_left_key().unwrap().to_vec());
             let tree_dir_entry = TreeDirEntry::new(key, leaf_page.get_page_number());
             entries.push(tree_dir_entry);
-            // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
+            // Write the leaf page to disk, after the map_pages call above this
+            // will write the page over a free page.
             page_cache.put_page(leaf_page.get_page());
         }
         entries
@@ -222,8 +260,7 @@ impl StoreTupleProcessor {
 
     // The root page of the tree is a leaf page - this means either:
     //  - the tuple can be added to the page.
-    //  - the page needs to be split and a new root page created that is
-    //    a dir page.
+    //  - the page needs to be split and a new root page created that is a dir page.
     fn store_tuple_tree_root_single(
         tuple: Tuple,
         tree_root_single: LeafPage,
@@ -234,20 +271,21 @@ impl StoreTupleProcessor {
         // Add the tuple to the leaf page.
         let mut update_result = LeafPageHandler::add_tuple(tree_root_single, tuple);
 
-        // Clean up any overflow pages that may bave now be dangling if a tuple was overwritten
+        // Clean up any overflow pages that may now be dangling if a tuple was overwritten
         OverflowPageHandler::delete_overflow_tuple_pages(
             update_result.deleted_tuple,
             page_cache,
             free_page_tracker,
         );
 
-        // Update the leaf page numbers so they are write over free pages and also set the version.
+        // Update the leaf page numbers so they  write over free pages and also set the version.
         LeafPageHandler::map_pages(
             &mut update_result.tree_leaf_pages,
             free_page_tracker,
             page_cache,
             new_version,
         );
+
         if update_result.tree_leaf_pages.len() == 1 {
             // The root leaf page has not split - grab the new page number for the root leaf page.
             let (mut root_leaf_page, _) = update_result.tree_leaf_pages.pop().unwrap();
@@ -258,7 +296,7 @@ impl StoreTupleProcessor {
             return page_number;
         }
 
-        // The root leaf page has split. Need a new TreeDirPage that will act as the root and hold the
+        // The root leaf page has split. Need a new DirPage that will act as the root and hold the
         // the new leaf pages. There could be up to three leaf pages if the entries are large.
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for (mut leaf_page, page_left_key) in update_result.tree_leaf_pages {
@@ -266,7 +304,8 @@ impl StoreTupleProcessor {
             let key = page_left_key.unwrap_or_else(|| leaf_page.get_left_key().unwrap().to_vec());
             let tree_dir_entry = TreeDirEntry::new(key, leaf_page.get_page_number());
             entries.push(tree_dir_entry);
-            // Write the leaf page to disk, after the map_pages call above this will write the page over a free page.
+            // Write the leaf page to disk, after the map_pages call above this
+            // will write the page over a free page.
             page_cache.put_page(leaf_page.get_page());
         }
         // Need a new DirPage.
