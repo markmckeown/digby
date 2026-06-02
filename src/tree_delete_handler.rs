@@ -6,6 +6,9 @@ use crate::{FreePageTracker, LeafPage, OverflowPageHandler, Page, PageCache, Tre
 pub struct TreeDeleteHandler {}
 
 impl TreeDeleteHandler {
+    // Delete a key from the tree. Returns the new page number of
+    // the root of the tree along with a bool to indicate if the
+    // tuple associated with the key existed and was deleted.
     pub fn delete_key(
         key: &[u8],
         root_page: Page,
@@ -13,6 +16,7 @@ impl TreeDeleteHandler {
         free_page_tracker: &mut FreePageTracker,
         new_version: u64,
     ) -> (u64, bool) {
+        // The root of the tree is a leaf node.
         if root_page.get_type() == PageType::LeafPage {
             // The root of the tree is actually a leaf page - requires special handling.
             let mut tree_root_single = LeafPage::from_page(root_page);
@@ -25,6 +29,8 @@ impl TreeDeleteHandler {
             );
         }
 
+        // The root page is a directory page - need to descend into the
+        // tree to delete.
         let root_dir_page = DirPage::from_page(root_page);
         TreeDeleteHandler::delete_key_from_tree(
             key,
@@ -237,6 +243,8 @@ impl TreeDeleteHandler {
         page_no_to_update
     }
 
+    // The root page of the tree is a leaf node, delete the key from the leaf
+    // page.
     fn delete_key_from_root(
         key: &[u8],
         root_page: &mut LeafPage,
@@ -246,29 +254,41 @@ impl TreeDeleteHandler {
     ) -> (u64, bool) {
         let root_page_no = root_page.get_page_number();
 
+        // A leaf tree cannot overflow on delete, this may seem
+        // obvious but if it is using compression and the first
+        // entry in the page is deleted it could trigger rebuilding
+        // the compression. However for leaf pages we keep fences
+        // on delete.
         let tuple = root_page.delete_key(key);
         if tuple.is_none() {
+            // Nothing deleted, no changes to the tree.
             return (root_page_no, false);
         }
 
+        // A tuple was deleted and we can unwrap it.
+        // The tuple in the tree could point to an oveflow
+        // tuple so need to delete it.
+        let tuple_unwrapped = tuple.unwrap();
+        if tuple_unwrapped.get_overflow() != Overflow::None {
+            // Overflow page - need to delete overflows.
+            OverflowPageHandler::delete_overflow_tuple_pages(
+                Some(tuple_unwrapped),
+                page_cache,
+                free_page_tracker,
+            );
+        }
+
         // Store the root page back into the page cache.
+        // Return the old page number for reuse.
         free_page_tracker.return_free_page_no(root_page_no);
+
+        // Get a new page number for root page.
         let new_root_page_no = free_page_tracker.get_free_page(page_cache);
+
+        // Set the page number and version and write to disk.
         root_page.set_page_number(new_root_page_no);
         root_page.set_version(new_version);
         page_cache.put_page(root_page.get_page());
-
-        let tuple_unwrapped = tuple.unwrap();
-        if tuple_unwrapped.get_overflow() == Overflow::None {
-            return (new_root_page_no, true);
-        }
-
-        // Overflow page - need to delete overflows.
-        OverflowPageHandler::delete_overflow_tuple_pages(
-            Some(tuple_unwrapped),
-            page_cache,
-            free_page_tracker,
-        );
 
         (new_root_page_no, true)
     }

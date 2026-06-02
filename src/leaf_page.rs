@@ -286,6 +286,9 @@ impl LeafPage {
         &page.get_page_bytes()[offset..offset + size]
     }
 
+    // Get the left most key in the page. Note we do not use the
+    // left fence, when tuples are deleted the fences are not
+    // reset so we need to reconstruct the the left most key.
     pub fn get_left_key(&self) -> Option<Vec<u8>> {
         if Self::get_entries_size(&self.page) == 0 {
             return None;

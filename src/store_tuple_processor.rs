@@ -278,7 +278,7 @@ impl StoreTupleProcessor {
             free_page_tracker,
         );
 
-        // Update the leaf page numbers so they  write over free pages and also set the version.
+        // Update the leaf page numbers so they write over free pages and also set the version.
         LeafPageHandler::map_pages(
             &mut update_result.tree_leaf_pages,
             free_page_tracker,
