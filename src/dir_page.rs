@@ -185,7 +185,6 @@ impl DirPage {
         self.page.get_page_bytes_mut()[27..35].copy_from_slice(&bytes);
     }
 
-    // Get the left sided key in the page.
     pub fn get_dir_left_key(&self) -> Option<Vec<u8>> {
         if self.get_entries_size() == 0 {
             return None;
@@ -678,10 +677,13 @@ impl DirPage {
         let slot = self.get_slot_at_index(index);
         let key_suffix = self.get_key_at_slot(&slot);
         let prefix_length = self.get_prefix_length() as usize;
-        let right_fence_key = self.get_right_fence_key();
+        if prefix_length == 0 {
+            return key_suffix.to_vec();
+        }
+        let left_fence_key = self.get_left_fence_key();
 
         let mut key = Vec::with_capacity(prefix_length + key_suffix.len());
-        key.extend_from_slice(&right_fence_key[..prefix_length]);
+        key.extend_from_slice(&left_fence_key[..prefix_length]);
         key.extend_from_slice(key_suffix);
         key
     }
@@ -1105,16 +1107,9 @@ impl DirPage {
             let index = entries - 1;
             assert_eq!(page_no, self.get_page_no_at_index(index as usize));
             self.remove_key_value_at_index(index as usize);
-            let new_entries_count = self.get_entries_size();
-            if new_entries_count > 0 {
-                let new_right_fence = self.get_key_at_index(new_entries_count as usize - 1);
-                assert!(self.reset_with_new_right_fence(new_right_fence.as_ref()));
-            }
             return;
         }
 
-        let prefix_length = self.get_prefix_length() as usize;
-        let key_suffix = &key[prefix_length..];
         // If removing the left most page need to move the next page into its place.
         // There is a next page as entries > 0 from above.
         if page_no == self.get_page_to_left() {
@@ -1123,27 +1118,25 @@ impl DirPage {
             // TODO should just copy bytes instead of uwrapping and rewrapping the page number.
             self.set_page_to_left(u64::from_le_bytes(new_left_most_page.try_into().unwrap()));
             self.remove_key_value_at_index(0);
-            // get the key at 0
-            if self.get_entries_size() > 0 {
-                let new_left_fence = self.get_key_at_index(0);
-                // TODO - BUG resetting the left fence may overflow the page
-                assert!(self.reset_with_new_left_fence(new_left_fence.as_ref()));
-            }
             return;
         }
 
-        // TODO Do we need to reset the right fence?
+        // Now check if its the first entry we need to remove
+        let prefix_length = self.get_prefix_length() as usize;
+        let key_suffix = &key[prefix_length..];
+        let slot = self.get_slot_at_index(0);
+        let first_key = self.get_key_at_slot(&slot);
+        if key_suffix < first_key {
+            assert_eq!(page_no, self.get_page_no_at_index(0));
+            self.remove_key_value_at_index(0);
+            return;
+        }
 
         // Now get the index for the key and remove the entry.
         let (found, index) = self.get_index_for_key(key_suffix);
         if found {
             assert_eq!(page_no, self.get_page_no_at_index(index));
             self.remove_key_value_at_index(index);
-            if index == 0 && self.get_entries_size() > 0 {
-                let new_left_fence = self.get_key_at_index(0);
-                // TODO - BUG resetting the left fence may overflow the page
-                assert!(self.reset_with_new_left_fence(new_left_fence.as_ref()));
-            }
         } else {
             assert!(
                 index > 0,
