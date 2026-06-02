@@ -42,6 +42,7 @@ pub struct DirSlot {
 }
 
 // Header
+//
 // | Page No (8 bytes) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) |
 // | prefix_length (u8) | left_fence_key_offset (u16) | left_fence_key_size (u8)
 // | right_fence_key_offset (u16) | right_fence_key_size (u8) |
@@ -52,7 +53,7 @@ pub struct DirSlot {
 //
 //
 // A dir_page is an internal node in the b-tree. It holds pointers to other pages,
-// either other dir_pages ot leaf_pages.
+// either other dir_pages or leaf_pages.
 //
 // The page layout is similar to leaf_page, there is a header, then an index into
 // for the keys stored in the dir_page which grows down, then free space, then
@@ -65,9 +66,13 @@ pub struct DirSlot {
 //
 // The keys stored in the page may be using head and tail compression. Head compression
 // is where all the keys have a common prefix and the prefix is only stored once. To support
-// head compression fence keys are stored. The left fence key is the smallest key in the page
-// while the right fence is the largest key page. If a larger or smaller key than the right or
-// left fence comes into the page then the page would need to be rebuilt.
+// head compression fence keys are stored.
+// Any key in the page is equal or greater than the left fence key and equal or smaller than
+// the right fence key. The fences are reset if a key is added to the page that is smaller
+// than the left fence or greater than the right fence, the fences are not changed when
+// keys are removed. Not changing the fences when removing keys means that the page
+// and compression does not need to be rebuilt on key removal and avoids the possiblity of
+// needing to split dir_pages on key removal.
 //
 // A dir_page may not have fence - the first dir_page in the tree will not have fences and
 // thus no compression. In the tree the left most dir page will not have a left fence, and
@@ -916,7 +921,8 @@ impl DirPage {
             .zip(left_page_right_fence_key.as_slice())
             .take_while(|(a, b)| a == b)
             .count();
-        let left_prefix_offset = left_prefix_length - self.get_prefix_length() as usize; // The offset of the suffix in the key is the prefix length of the page.
+        // The offset of the suffix in the key is the prefix length of the page.
+        let left_prefix_offset = left_prefix_length - self.get_prefix_length() as usize;
         left_page.set_prefix_length(left_prefix_length as u8);
         for i in 0..mid {
             let (key, value) = self.get_key_suffix_and_value_at_index(i);
@@ -1006,13 +1012,15 @@ impl DirPage {
         // | Head | Tail |
         if entry_offset == entries_offset {
             // No Head, just shift the tail to the left.
-            // If the entry to remove is the last entry, we can just update the free space and entries without shifting.
+            // If the entry to remove is the last entry, we can just update the free
+            // space and entries without shifting.
             self.set_free_space((free_space + entry_size + DirPage::SLOT_SIZE) as u16);
             self.set_entries_size((new_entry_count) as u16);
             return;
         }
 
-        // Need to move some bytes in the entries and update the slot offsets for the entries in the head that are being shifted.
+        // Need to move some bytes in the entries and update the slot offsets for the
+        // entries in the head that are being shifted.
         let head = entry_offset - entries_offset;
         self.page.get_page_bytes_mut().copy_within(
             entries_offset..entries_offset + head,
