@@ -43,7 +43,8 @@ pub struct DirSlot {
 
 // Header
 // | Page No (8 bytes) | VersionHolder(8 bytes) | Entries(u16) | Free_Space(u16) |
-// | prefix_length (u8) | left_fence_key_offset (u16) | left_fence_key_size (u8) | right_fence_key_offset (u16) | right_fence_key_size (u8) |
+// | prefix_length (u8) | left_fence_key_offset (u16) | left_fence_key_size (u8)
+// | right_fence_key_offset (u16) | right_fence_key_size (u8) |
 // | page_to_the_left (u64) |
 // | slot | slot | slot | ...
 // | free space
@@ -53,7 +54,7 @@ pub struct DirSlot {
 // A dir_page is an internal node in the b-tree. It holds pointers to other pages,
 // either other dir_pages ot leaf_pages.
 //
-// The page layout is similart to leaf_page, there is a header, then an index into
+// The page layout is similar to leaf_page, there is a header, then an index into
 // for the keys stored in the dir_page which grows down, then free space, then
 // the actual keys and their associated page numbers that grow up and finally
 // the fence keys for the dir_page if it has any.
@@ -69,19 +70,31 @@ pub struct DirSlot {
 // left fence comes into the page then the page would need to be rebuilt.
 //
 // A dir_page may not have fence - the first dir_page in the tree will not have fences and
-// thus no compression. The left most page will not have a left fence, and the right most
-// page will not have a right fence. After the root dir page splits the child pages
-// will get fences and thus compression.
+// thus no compression. In the tree the left most dir page will not have a left fence, and
+// the right most dir page will not have a right fence. After the root dir page splits the
+// child pages will get fences and thus compression.
 //
-// Tail compression the end of the child page key is not stored.
-// COnsider if a child node splits. If the largest key in the left page
+// Tail compression is where the tail of the child page key is not stored actually stored
+// in the directory node.
+// Consider if a child node splits. If the largest key in the left page
 // is "aeaf" and the smallest key in the page to the right is "aecd" then the directory entry
 // for the for the new page to the right can be "aec". Anything less than "aec" will go to
-// the page to the left.
+// the page to the left and we do not need to store the "d" in the diectory node.
 //
+// For the page cache we want to be able to return immutable shared references to pages to
+// clients who are read only, ie just using get. While for clients who want to add or delete
+// tuples we need to provide a mutable version of the page, we provide a copy.
 //
+// This has caused complexity in the interface as we attempt to cater for both use cases.
+// For the clients who want to mutate the page they key a copy of the page and use self,
+// for clients who are read only they provide a reference to the underlying page and
+// call the "static" methods here. This could be bad Rust and not idomatic.
+//
+// For an example of this see get_entries_size which takes a &self and
+// get_no_entries_in_page which takes &Page. get_no_entries_in_page should be used by
+// read only clients providing a reference is a base Page.
 impl DirPage {
-    const HEADER_SIZE: usize = 35; // 8 + 8 + 2 + 2 + 1 + 2 +1 + 2 + 1 + 8
+    const HEADER_SIZE: usize = 35; // 8 + 8 + 2 + 2 + 1 + 2 + 1 + 2 + 1 + 8
     const VALUE_SIZE: usize = 8; // u64 page number of child page
     const SLOT_SIZE: usize = 3; // 2 (offset) + 1 (key_len)
 
@@ -116,6 +129,7 @@ impl DirPage {
         DirPage { page }
     }
 
+    // Used when rebuilding page when resetting fences.
     pub fn reset(&mut self, page_size: usize) {
         self.set_free_space(page_size as u16 - DirPage::HEADER_SIZE as u16);
         self.set_entries_size(0);
@@ -129,6 +143,7 @@ impl DirPage {
     }
 
     pub fn get_no_entries_in_page(page: &Page) -> u16 {
+        // Could assert the page type here.
         let bytes = &page.get_page_bytes()[16..18];
         u16::from_le_bytes(bytes.try_into().unwrap())
     }
@@ -388,7 +403,8 @@ impl DirPage {
     }
 
     // There are two ways to in which a child page no can be added to the dir page,
-    // - if we are updating an existing entry, we need to find the correct entry (the key may not be an exact match)
+    // - if we are updating an existing entry, we need to find the correct entry (the key may
+    //   not be an exact match)
     // - if a child page has split then we need to update on entry and add a new entry.
     // This function is to update an existing key with a new page number.
     fn update_child_page_no(&mut self, key: &[u8], page_no: u64) {
@@ -400,8 +416,8 @@ impl DirPage {
         }
 
         // Sanity check - we are updating an entry in this dir page
-        // as we have just updated a child page - this means we have just
-        // found found the old child page reference in here.
+        // as we have just updated a child page. This means we have just
+        // found the old child page reference when looking for the leaf page
         if self.has_left_fence() && key < self.get_left_fence_key() {
             self.set_page_to_left(page_no);
             return;
