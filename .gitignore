@@ -27,3 +27,4 @@ target
 GEMINI.md
 .vscode
 .devcontainer
+tarpaulin-report.html

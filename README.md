@@ -70,7 +70,7 @@ for mdb there is a single writer only and it is designed for high read volume an
 low write volume for LDAP. 
 
 To support complex transactions will a variation of ARIES need to be used? Can
-we do the log in the same file?
+a log be done in the same file as the tree?
 
 ## Checksums and Merkle Trees
 Both ZFS and BcacheFS store the checksum for a page in the pointer to the page/object, 
@@ -101,6 +101,22 @@ then pay the price of double checksuming. The page pointer would then be 128 bit
 4096 << size) and leaving 56 bits for addressing. Could also encode the page type 
 in the page pointer in 8 bits leaving 48 bits for addressing (ie 1EiB).
 
+## Fast Paxos & Flexible Paxos
+
+An interesting challenge would be to integrate Paxos into the database. For example 
+Paxos outputs a queue of agreed work to execute, could this be the WAFL for the database?
+Fast Paxos can make agreements in a single round of communication, however it suffers
+when there is a lot of contention and requires more than a simple majority to proceeds.
+Flexible Paxos helps address some of limitations of Fast Paxos. Contention can be 
+be addressed by each node having an agreed approach to conflicts - given a set of conflicting
+work items the nodes independently resolve them the same way.
+
+Further to this the database could be replicated using thousands of Paxos state machines
+by sharding the key namespace. For example could there be 2K state machines, with 2K trees 
+rooted in the one file each using COW. Would this open up the parallel nature if NVMe drives? 
+Transactions across state machines could use Paxos Commit.
+
+See "Relaxing Quorum Intersection for Fast Paxos". 
 
 ## Future Things to Explore
 
