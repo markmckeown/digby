@@ -71,21 +71,23 @@ pub struct LeafSlot {
 // the index of a key, which allows for efficient lookups while still benefiting from the space savings of
 // delta compression.
 //
-// If the left most key  is set then it will be the smallest key in the page, similarly the right most
-// key will be the largest key in the page. Smaller and larger are defined by comparing byte vecs. If
-// the left most and right most key share a comman prefix then the keys can be compressed - the prefix
-// length is stored and only the remaining part of a key is stored in the page.
+// If there is a left fence then all keys will be greater than or equals to the left fence, if the right
+// fence is set then then all the keys are less than or equal to the it.
 //
 // If key is to be stored that is less than the left most page or greater than the right most key then
 // then the page will need to rebuilt as compression/prefix may have changed. This should not happen often
 // as the b-tree will generally only add keys to a page that lie within its range - deleting keys which triggers
 // deleting pages can cause keys out of range to be added.
 //
+// Fences are not reset when deleting keys, so the left or right fence may not actually be a key in the page. 
+// If fences were reset on deleting then the compression in the page can change and even though a key has been
+// deleted the page may need to split - this avoids unnecessary rebuilding of the page and splitting.
+//
 // If the page is on the very left of the tree, it will not have a left fence key and the left key size will be
 // zero and there will be no prefix. Its quite possible to add keys that are less than the existing value. As
 // there is no left fence there is no compression in this page.
 //
-// Similarly for the rightmost page no right fence key is stored and not compression.
+// Similarly for the rightmost page no right fence key is stored and no compression.
 //
 // TODO - not clear the value of the right most fence, the left most fence is used to get the prefix
 // for compression and we easily look up the largest key. The literature generally has both fences.

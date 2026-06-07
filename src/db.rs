@@ -14,17 +14,39 @@ use crate::{
     TreeDeleteHandler, TupleProcessor,
 };
 
+// Layers in the Db are:
+//   file layer - manipulate the file holding the db nodes.
+//   block layer - interacts with file layer, manages blocks which holds pages.
+//   page cache - provides DB pages and interacts with block layer. Client gets and puts
+//                pages.
+// 
+// Compressor to use when compressing large tuples.
 pub struct Db {
     page_cache: PageCache,
     compressor: Compressor,
 }
 
 impl Db {
+    // Default block size, the page size is a function of the block size
+    // depending on what block checksum is used or if encryption is being 
+    // used. For example if using a 4 byte checksum and no encryption then
+    // the page size will be BLOCK_SIZE - 4.
+    // TODO - should support multiple block sizes at once to allow very
+    // large pages for large tuples.
     pub const BLOCK_SIZE: usize = 4096;
+
+
+    // Create a DB object. 
+    //   path - the path to the file to use. If the file does not exist then create it for 
+    //          a new database. If the file exists sanity check it.
+    //   key - optional. If provided use the key to encrypt/decrypt the db blocks. Once used
+    //         for a database then should be consistently used.
+    //   compressor_type - the compressor to use for large tuples.
     pub fn new(path: &str, key: Option<Vec<u8>>, compressor_type: CompressorType) -> Self {
         Db::new_with_page_size(path, key, compressor_type, Db::BLOCK_SIZE)
     }
 
+    // As "new" but allows a different block_size to be used.
     pub fn new_with_page_size(
         path: &str,
         key: Option<Vec<u8>>,
@@ -36,6 +58,9 @@ impl Db {
 
         let mut is_new = false;
 
+        // Might make sense to lock the file.
+        // If file exists open to append, new database,
+        // else treat as an existing database
         let db_file: std::fs::File;
         if Path::new(path).exists() {
             db_file = OpenOptions::new()
@@ -44,6 +69,7 @@ impl Db {
                 .open(path)
                 .expect("Failed to open existing DB file");
             if std::fs::metadata(path).unwrap().len() == 0 {
+                // If file is empty treat as new database.
                 is_new = true;
             }
         } else {
@@ -58,7 +84,14 @@ impl Db {
             is_new = true;
         }
 
+        // Set up the file layer with the open file.
         let file_layer: FileLayer = FileLayer::new(db_file, block_size);
+        // Create block layer - this will depend on if encrytion is being
+        // used or just checksums. There is no encryption and checksum as
+        // the Aes128Gcm has built in checksum support.
+        // TODO -  checksum hardcoded to xxHash32 and encryption to
+        // AES-128-GCM.
+        // File layer is passed to block layer.
         let block_layer: BlockLayer;
         let sanity_type: BlockSanity;
         if let Some(k) = key {
@@ -68,6 +101,7 @@ impl Db {
             block_layer = BlockLayer::new(file_layer, block_size);
             sanity_type = BlockSanity::XxH32Checksum;
         }
+        // Create page cache with the block layer.
         let page_cache: PageCache = PageCache::new(block_layer);
 
         let mut db = Db {
@@ -76,15 +110,23 @@ impl Db {
         };
 
         if is_new {
+            // Need to populate the new database with some metadata pages
+            // including the sanity_type (encryption or checksum).
             db.init_db_file(sanity_type)
                 .expect("Failed to initialize DB file");
         } else {
+            // The DB already exists, check it is sane.
             db.check_db_integrity().expect("DB integrity check failed");
         }
         db
     }
 
+    // Delete a key from the DB, returns a bool to indicate if the key was deleted.
+    // If false the key did not exist.
     pub fn delete(&mut self, key: &[u8]) -> bool {
+        // If the key is very large then a short version with a SHA256
+        // hash will to stored as a reference in the DB tree. Need
+        // to create a key that will be used for the operations.
         let key_to_use: Vec<u8> = if TupleProcessor::is_oversized_key(key) {
             TupleProcessor::generate_short_key(key)
         } else {
@@ -99,6 +141,8 @@ impl Db {
         let new_version = old_version + 1;
 
         // Find the free page directory that has the free page numbers.
+        // The process will return old pages that are no longer valid 
+        // and will need new pages to write out.
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
         let mut free_page_tracker = FreePageTracker::new(
             self.page_cache.get_page(free_page_dir_page_no),
@@ -106,8 +150,11 @@ impl Db {
             *self.page_cache.get_page_config(),
         );
 
+        // Get the page number of the root of the tree.
         let tree_root_page_no = master_page.get_global_tree_root_page_no();
+        // Get the actual root page.
         let root_page = self.page_cache.get_page(tree_root_page_no);
+        // Now pass to the TreeDeleteHandler to do the delete.
         let (new_tree_free_page_no, deleted) = TreeDeleteHandler::delete_key(
             &key_to_use,
             root_page,
@@ -116,6 +163,7 @@ impl Db {
             new_version,
         );
         if !deleted {
+            // If nothing deleted then pages do not need to be rewritten.
             return false;
         }
 
@@ -138,7 +186,7 @@ impl Db {
         // page and make it the new current master.
         master_page.flip_page_number();
 
-        // Sync the first two pages before writing the new master page.
+        // Sync the new tree pages and free-page-directory pages.
         self.page_cache.sync_data();
         // Put the master page.
         self.page_cache.put_page(master_page.get_page());
@@ -148,19 +196,26 @@ impl Db {
         deleted
     }
 
+    // Get the value associated with key in the DB. If the key
+    // is not in the DB the None will be returned.
     pub fn get(&mut self, key: &[u8]) -> Option<Vec<u8>> {
         let master_page = self.get_master_page();
         let tree_page_no = master_page.get_global_tree_root_page_no();
         self.get_from_tree(key, tree_page_no)
     }
 
+    // Given the tree root page number get the value associated with
+    // the key in the DB if there is one.
     fn get_from_tree(&mut self, key: &[u8], tree_page_no: u64) -> Option<Vec<u8>> {
-        // TODO need to check versions.
-        // If not an oversized key...
+        // If the key is very large then a shorted version is stored in the tree
+        // using the SHA256 of the key.
         if !TupleProcessor::is_oversized_key(key) {
+            // Not oversized so look up key.
             if let Some(tuple) =
                 StoreTupleProcessor::get_tuple(key, tree_page_no, &mut self.page_cache)
             {
+                // Found tuple, the found tuple may be an oversized tuple that is compressed
+                // so need to determine if that is the case via self.get_tuple_value.
                 return Some(self.get_tuple_value(&tuple));
             } else {
                 return None;
@@ -174,6 +229,7 @@ impl Db {
         let tuple = StoreTupleProcessor::get_tuple(&short_key, tree_page_no, &mut self.page_cache);
         // Do not have this key.
         tuple.as_ref()?;
+        // Tuple exists, the value will be a page number for the overflow page.
         let overflow_page_no =
             u64::from_le_bytes(tuple.unwrap().get_value()[0..8].try_into().unwrap());
         let overflow_tuple: OverflowTuple =
@@ -182,7 +238,7 @@ impl Db {
         assert_eq!(
             key,
             self.get_tuple_key(&overflow_tuple),
-            "Supplied key does not match key in returned OverflowTuple"
+            "BUG: Supplied key does not match key in returned OverflowTuple"
         );
         Some(self.get_tuple_value(&overflow_tuple))
     }
@@ -195,8 +251,7 @@ impl Db {
         let old_version = master_page.get_version();
         let new_version = old_version + 1;
 
-        // Find the free page directory that has the free page numbers. Make sure
-        // it has free pages - cannot handle the case it does not yet.
+        // Find the free page directory that has the free page numbers.
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
         let mut free_page_tracker = FreePageTracker::new(
             self.page_cache.get_page(free_page_dir_page_no),
@@ -236,7 +291,7 @@ impl Db {
         }
 
         // Now need to update the master - tell it were the
-        // the globale tree root page is and where the free page
+        // the global tree root page is and where the free page
         // directory is now.
         master_page.set_free_page_dir_page_no(first_free_dir_page);
         master_page.set_global_tree_root_page_no(new_tree_free_page_no);
@@ -246,7 +301,8 @@ impl Db {
         // page and make it the new current master.
         master_page.flip_page_number();
 
-        // Sync the first two pages before writing the new master page.
+        // Sync the first tree pages and free page directory before writing 
+        // the new master page.
         self.page_cache.sync_data();
         // Put the master page.
         self.page_cache.put_page(master_page.get_page());
