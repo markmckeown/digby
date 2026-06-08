@@ -79,7 +79,7 @@ pub struct LeafSlot {
 // as the b-tree will generally only add keys to a page that lie within its range - deleting keys which triggers
 // deleting pages can cause keys out of range to be added.
 //
-// Fences are not reset when deleting keys, so the left or right fence may not actually be a key in the page. 
+// Fences are not reset when deleting keys, so the left or right fence may not actually be a key in the page.
 // If fences were reset on deleting then the compression in the page can change and even though a key has been
 // deleted the page may need to split - this avoids unnecessary rebuilding of the page and splitting.
 //

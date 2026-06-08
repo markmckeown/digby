@@ -8,7 +8,7 @@ use crate::free_page_tracker::FreePageTracker;
 use crate::overflow_tuple::OverflowTuple;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
-use crate::tuple::{Overflow, TupleTrait};
+use crate::tuple::{Overflow, Tuple, TupleTrait};
 use crate::{
     ClearHandler, Compressor, FreeDirPage, LeafPage, OverflowPageHandler, StoreTupleProcessor,
     TreeDeleteHandler, TupleProcessor,
@@ -19,7 +19,7 @@ use crate::{
 //   block layer - interacts with file layer, manages blocks which holds pages.
 //   page cache - provides DB pages and interacts with block layer. Client gets and puts
 //                pages.
-// 
+//
 // Compressor to use when compressing large tuples.
 pub struct Db {
     page_cache: PageCache,
@@ -28,16 +28,15 @@ pub struct Db {
 
 impl Db {
     // Default block size, the page size is a function of the block size
-    // depending on what block checksum is used or if encryption is being 
+    // depending on what block checksum is used or if encryption is being
     // used. For example if using a 4 byte checksum and no encryption then
     // the page size will be BLOCK_SIZE - 4.
     // TODO - should support multiple block sizes at once to allow very
     // large pages for large tuples.
     pub const BLOCK_SIZE: usize = 4096;
 
-
-    // Create a DB object. 
-    //   path - the path to the file to use. If the file does not exist then create it for 
+    // Create a DB object.
+    //   path - the path to the file to use. If the file does not exist then create it for
     //          a new database. If the file exists sanity check it.
     //   key - optional. If provided use the key to encrypt/decrypt the db blocks. Once used
     //         for a database then should be consistently used.
@@ -141,7 +140,7 @@ impl Db {
         let new_version = old_version + 1;
 
         // Find the free page directory that has the free page numbers.
-        // The process will return old pages that are no longer valid 
+        // The process will return old pages that are no longer valid
         // and will need new pages to write out.
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
         let mut free_page_tracker = FreePageTracker::new(
@@ -214,8 +213,12 @@ impl Db {
             if let Some(tuple) =
                 StoreTupleProcessor::get_tuple(key, tree_page_no, &mut self.page_cache)
             {
-                // Found tuple, the found tuple may be an oversized tuple that is compressed
-                // so need to determine if that is the case via self.get_tuple_value.
+                // Found tuple, but it may be an overflow tuple (ie it has
+                // a small key but a large value). Need to get overflow tuple
+                // from the overflow pages.
+                if tuple.get_overflow() != Overflow::None {
+                    return self.get_overflow_tuple_value(key, &tuple);
+                }
                 return Some(self.get_tuple_value(&tuple));
             } else {
                 return None;
@@ -229,9 +232,15 @@ impl Db {
         let tuple = StoreTupleProcessor::get_tuple(&short_key, tree_page_no, &mut self.page_cache);
         // Do not have this key.
         tuple.as_ref()?;
+        // The tuple exists, we have a reference to the overflow tuple in the overflow pages
+        // in the tuple so look it up with get_overflow_tuple_value
+        self.get_overflow_tuple_value(key, &tuple.unwrap())
+    }
+
+    fn get_overflow_tuple_value(&mut self, key: &[u8], tuple: &Tuple) -> Option<Vec<u8>> {
+        assert!(tuple.get_overflow() != Overflow::None);
         // Tuple exists, the value will be a page number for the overflow page.
-        let overflow_page_no =
-            u64::from_le_bytes(tuple.unwrap().get_value()[0..8].try_into().unwrap());
+        let overflow_page_no = u64::from_le_bytes(tuple.get_value()[0..8].try_into().unwrap());
         let overflow_tuple: OverflowTuple =
             OverflowPageHandler::get_overflow_tuple(overflow_page_no, &mut self.page_cache);
         // Confirm the key is the same - would require a SHA256 clash to fail
@@ -301,7 +310,7 @@ impl Db {
         // page and make it the new current master.
         master_page.flip_page_number();
 
-        // Sync the first tree pages and free page directory before writing 
+        // Sync the first tree pages and free page directory before writing
         // the new master page.
         self.page_cache.sync_data();
         // Put the master page.
