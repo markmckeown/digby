@@ -169,7 +169,8 @@ impl Db {
         self.finalise_db_changes(
             &mut master_page,
             new_version,
-            new_tree_root_page_no,
+            Some(new_tree_root_page_no),
+            None,
             &mut free_page_tracker,
         );
         deleted
@@ -278,7 +279,8 @@ impl Db {
         self.finalise_db_changes(
             &mut master_page,
             new_version,
-            new_tree_root_page_no,
+            Some(new_tree_root_page_no),
+            None,
             &mut free_page_tracker,
         );
     }
@@ -318,7 +320,8 @@ impl Db {
         self.finalise_db_changes(
             &mut master_page,
             new_version,
-            new_tree_root_page_no,
+            Some(new_tree_root_page_no),
+            None,
             &mut free_page_tracker,
         );
     }
@@ -378,39 +381,21 @@ impl Db {
             new_version,
         );
 
-        // Write out the free pages.
-        // Write the new free page directory back through the page cache.
-        let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(!free_dir_pages.is_empty());
-        let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
-        while let Some(mut free_dir_page) = free_dir_pages.pop() {
-            self.page_cache.put_page(free_dir_page.get_page());
-        }
-
-        // Now need to update the master - tell it were the
-        // the globale tree root page is and where the free page
-        // directory is now.
-        master_page.set_free_page_dir_page_no(first_free_dir_page);
-        master_page.set_table_dir_page_no(new_table_tree_root_no);
-        // update the version
-        master_page.set_version(new_version);
-        // flip the page number to overrwrite the non-current master
-        // page and make it the new current master.
-        master_page.flip_page_number();
-
-        // Sync the first two pages before writing the new master page.
-        self.page_cache.sync_data();
-        // Put the master page.
-        self.page_cache.put_page(master_page.get_page());
-        // Now sync the master
-        self.page_cache.sync_data();
+        self.finalise_db_changes(
+            &mut master_page,
+            new_version,
+            None,
+            Some(new_table_tree_root_no),
+            &mut free_page_tracker,
+        );
     }
 
     fn finalise_db_changes(
         &mut self,
         master_page: &mut DbMasterPage,
         new_version: u64,
-        new_root_page_no: u64,
+        new_root_page_no: Option<u64>,
+        new_table_tree_root_no: Option<u64>,
         free_page_tracker: &mut FreePageTracker,
     ) {
         // Write out the free pages.
@@ -426,7 +411,12 @@ impl Db {
         // the globale tree root page is and where the free page
         // directory is now.
         master_page.set_free_page_dir_page_no(first_free_dir_page);
-        master_page.set_global_tree_root_page_no(new_root_page_no);
+        if let Some(new_root) = new_root_page_no {
+            master_page.set_global_tree_root_page_no(new_root);
+        }
+        if let Some(new_table_dir_root) = new_table_tree_root_no {
+            master_page.set_table_dir_page_no(new_table_dir_root);
+        }
         // update the version
         master_page.set_version(new_version);
         // flip the page number to overrwrite the non-current master
@@ -529,32 +519,13 @@ impl Db {
             new_version,
         );
 
-        // Write out the free pages.
-        // Write the new free page directory back through the page cache.
-        let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(!free_dir_pages.is_empty());
-        let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
-        while let Some(mut free_dir_page) = free_dir_pages.pop() {
-            self.page_cache.put_page(free_dir_page.get_page());
-        }
-
-        // Now need to update the master - tell it were the
-        // the globale tree root page is and where the free page
-        // directory is now.
-        master_page.set_free_page_dir_page_no(first_free_dir_page);
-        master_page.set_table_dir_page_no(new_table_dir_root_page_no);
-        // update the version
-        master_page.set_version(new_version);
-        // flip the page number to overrwrite the non-current master
-        // page and make it the new current master.
-        master_page.flip_page_number();
-
-        // Sync the first two pages before writing the new master page.
-        self.page_cache.sync_data();
-        // Put the master page.
-        self.page_cache.put_page(master_page.get_page());
-        // Now sync the master
-        self.page_cache.sync_data();
+        self.finalise_db_changes(
+            &mut master_page,
+            new_version,
+            None,
+            Some(new_table_dir_root_page_no),
+            &mut free_page_tracker,
+        );
     }
 
     pub fn clear_table(&mut self, table_name: &[u8]) {
@@ -635,32 +606,13 @@ impl Db {
             )
         };
 
-        // Write out the free pages.
-        // Write the new free page directory back through the page cache.
-        let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(!free_dir_pages.is_empty());
-        let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
-        while let Some(mut free_dir_page) = free_dir_pages.pop() {
-            self.page_cache.put_page(free_dir_page.get_page());
-        }
-
-        // Now need to update the master - tell it were the
-        // the globale tree root page is and where the free page
-        // directory is now.
-        master_page.set_free_page_dir_page_no(first_free_dir_page);
-        master_page.set_table_dir_page_no(new_table_dir_root_page_no);
-        // update the version
-        master_page.set_version(new_version);
-        // flip the page number to overrwrite the non-current master
-        // page and make it the new current master.
-        master_page.flip_page_number();
-
-        // Sync the first two pages before writing the new master page.
-        self.page_cache.sync_data();
-        // Put the master page.
-        self.page_cache.put_page(master_page.get_page());
-        // Now sync the master
-        self.page_cache.sync_data();
+        self.finalise_db_changes(
+            &mut master_page,
+            new_version,
+            None,
+            Some(new_table_dir_root_page_no),
+            &mut free_page_tracker,
+        );
     }
 
     pub fn get_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> Option<Vec<u8>> {
@@ -733,31 +685,13 @@ impl Db {
             new_version,
         );
 
-        // Write the new free page directory back through the page cache.
-        let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(!free_dir_pages.is_empty());
-        let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
-        while let Some(mut free_dir_page) = free_dir_pages.pop() {
-            self.page_cache.put_page(free_dir_page.get_page());
-        }
-
-        // Now need to update the master - tell it were the
-        // the globale tree root page is and where the free page
-        // directory is now.
-        master_page.set_free_page_dir_page_no(first_free_dir_page);
-        master_page.set_table_dir_page_no(new_table_dir_root_page_no);
-        // update the version
-        master_page.set_version(new_version);
-        // flip the page number to overrwrite the non-current master
-        // page and make it the new current master.
-        master_page.flip_page_number();
-
-        // Sync the first two pages before writing the new master page.
-        self.page_cache.sync_data();
-        // Put the master page.
-        self.page_cache.put_page(master_page.get_page());
-        // Now sync the master
-        self.page_cache.sync_data();
+        self.finalise_db_changes(
+            &mut master_page,
+            new_version,
+            None,
+            Some(new_table_dir_root_page_no),
+            &mut free_page_tracker,
+        );
 
         deleted
     }
