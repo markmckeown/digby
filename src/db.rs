@@ -132,22 +132,7 @@ impl Db {
             key.to_owned()
         };
 
-        // Get the current master page. Note this is a copy of the page
-        let mut master_page = self.get_master_page();
-
-        // Increment the version number
-        let old_version = master_page.get_version();
-        let new_version = old_version + 1;
-
-        // Find the free page directory that has the free page numbers.
-        // The process will return old pages that are no longer valid
-        // and will need new pages to write out.
-        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
-        let mut free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no),
-            new_version,
-            *self.page_cache.get_page_config(),
-        );
+        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         // Get the page number of the root of the tree.
         let tree_root_page_no = master_page.get_global_tree_root_page_no();
@@ -235,21 +220,7 @@ impl Db {
 
     // Store a key and value in the db.
     pub fn put(&mut self, key: &[u8], value: &[u8]) {
-        // Get the current master page. Note this is a copy of the page
-        // as we are going to modify it.
-        let mut master_page = self.get_master_page();
-
-        // Increment the version number
-        let old_version = master_page.get_version();
-        let new_version = old_version + 1;
-
-        // Find the free page directory that has the free page numbers.
-        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
-        let mut free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no),
-            new_version,
-            *self.page_cache.get_page_config(),
-        );
+        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         // Create the tuple we want to add. This could be an overflow
         // tuple.
@@ -290,19 +261,7 @@ impl Db {
     // the same after the clear.
     pub fn clear(&mut self) {
         // Get the current master page. Note this is a copy of the page
-        let mut master_page = self.get_master_page();
-
-        // Increment the version number
-        let old_version = master_page.get_version();
-        let new_version = old_version + 1;
-
-        // Find the free page directory that has the free page numbers.
-        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
-        let mut free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no),
-            new_version,
-            *self.page_cache.get_page_config(),
-        );
+        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         // Now get the page number of the root of the global tree.
         let tree_root_page_no = master_page.get_global_tree_root_page_no();
@@ -326,6 +285,21 @@ impl Db {
         );
     }
 
+    fn get_update_vars(&mut self) -> (DbMasterPage, u64, FreePageTracker) {
+        let master_page = self.get_master_page();
+        let old_version = master_page.get_version();
+        let new_version = old_version + 1;
+        // Find the free page directory that has the free page numbers. Make sure
+        // it has free pages - cannot handle the case it does not yet.
+        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
+        let free_page_tracker = FreePageTracker::new(
+            self.page_cache.get_page(free_page_dir_page_no),
+            new_version,
+            *self.page_cache.get_page_config(),
+        );
+        (master_page, new_version, free_page_tracker)
+    }
+
     pub fn create_table(&mut self, name: &[u8]) {
         // Assert on the things that cannot be handled yet.
         assert!(
@@ -333,23 +307,7 @@ impl Db {
             "Cannot handle table name larger than u8::MAX."
         );
 
-        // Get the current master page. Note this is a copy of the page
-        let mut master_page = self.get_master_page();
-
-        // TODO check if table exists
-
-        // Increment the version number
-        let old_version = master_page.get_version();
-        let new_version = old_version + 1;
-
-        // Find the free page directory that has the free page numbers. Make sure
-        // it has free pages - cannot handle the case it does not yet.
-        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
-        let mut free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no),
-            new_version,
-            *self.page_cache.get_page_config(),
-        );
+        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         let new_table_root_page_no = free_page_tracker.get_free_page(&mut self.page_cache);
         let mut new_table_root_page = LeafPage::create_new(
@@ -465,21 +423,7 @@ impl Db {
         }
         let table_root_page = table_root_page_no_wrapped.unwrap();
 
-        // Get the current master page. Note this is a copy of the page
-        let mut master_page = self.get_master_page();
-
-        // Increment the version number
-        let old_version = master_page.get_version();
-        let new_version = old_version + 1;
-
-        // Find the free page directory that has the free page numbers. Make sure
-        // it has free pages - cannot handle the case it does not yet.
-        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
-        let mut free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no),
-            new_version,
-            *self.page_cache.get_page_config(),
-        );
+        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         // Create the tuple we want to add.
         let tuple = TupleProcessor::generate_tuple(
@@ -551,21 +495,7 @@ impl Db {
         }
         let table_root_page = table_root_page_no_wrapped.unwrap();
 
-        // Get the current master page. Note this is a copy of the page
-        let mut master_page = self.get_master_page();
-
-        // Increment the version number
-        let old_version = master_page.get_version();
-        let new_version = old_version + 1;
-
-        // Find the free page directory that has the free page numbers. Make sure
-        // it has free pages - cannot handle the case it does not yet.
-        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
-        let mut free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no),
-            new_version,
-            *self.page_cache.get_page_config(),
-        );
+        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         let table_root_page = self.page_cache.get_page(table_root_page);
         let new_table_root_page_no = ClearHandler::clear_tree(
@@ -639,20 +569,7 @@ impl Db {
             key.to_owned()
         };
 
-        // Get the current master page. Note this is a copy of the page
-        let mut master_page = self.get_master_page();
-
-        // Increment the version number
-        let old_version = master_page.get_version();
-        let new_version = old_version + 1;
-
-        // Find the free page directory that has the free page numbers.
-        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
-        let mut free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no),
-            new_version,
-            *self.page_cache.get_page_config(),
-        );
+        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         let root_page = self.page_cache.get_page(table_root_page_no);
         let (new_tree_free_page_no, deleted) = TreeDeleteHandler::delete_key(
