@@ -113,7 +113,7 @@ fn test_db_clear_table_name_that_does_not_exist_without_delete() {
             CompressorType::None,
         );
         db.clear_table_with_delete(name.as_ref(), false);
-        assert!(db.get_table_tree_root(name.as_ref()).is_some());
+        assert!(db.get_table_tree_root(name.as_ref()).is_none());
     }
     fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
 }

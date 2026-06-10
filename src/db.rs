@@ -132,6 +132,8 @@ impl Db {
             key.to_owned()
         };
 
+        // Prepare for tree change. Get the current master_page, the next version
+        // number and a free_page_tracker.
         let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         // Get the page number of the root of the tree.
@@ -171,6 +173,9 @@ impl Db {
 
     // Given the tree root page number get the value associated with
     // the key in the DB if there is one.
+    //
+    // The tree_page_no can be the root of the global tree or
+    // the root page of a table tree.
     fn get_from_tree(&mut self, key: &[u8], tree_page_no: u64) -> Option<Vec<u8>> {
         // If the key is very large then a shorted version is stored in the tree
         // using the SHA256 of the key.
@@ -203,6 +208,9 @@ impl Db {
         self.get_overflow_tuple_value(key, &tuple.unwrap())
     }
 
+    // A tuple has been found but its an overflow tuple and holds
+    // a reference to where the real tuple is, this function
+    // resolves the overflow tuple to get the real tuple.
     fn get_overflow_tuple_value(&mut self, key: &[u8], tuple: &Tuple) -> Option<Vec<u8>> {
         assert!(tuple.get_overflow() != Overflow::None);
         // Tuple exists, the value will be a page number for the overflow page.
@@ -223,7 +231,9 @@ impl Db {
         let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         // Create the tuple we want to add. This could be an overflow
-        // tuple.
+        // tuple - if it is an overflow tuple this method will
+        // store the key/value in the overflow pages and the tuple
+        // returned will have a reference to the overflow pages.
         let tuple = TupleProcessor::generate_tuple(
             key,
             value,
@@ -247,6 +257,7 @@ impl Db {
             new_version,
         );
 
+        // Update the metadata for the tree and sync all the pages.
         self.finalise_db_changes(
             &mut master_page,
             new_version,
@@ -285,12 +296,20 @@ impl Db {
         );
     }
 
+    // Utility function - this is called before updating the database
+    // and returns the items needed to update the db.
+    //
+    // Provides:
+    //   Current master page.
+    //   New version number.
+    //   FreePageTracker which manages free pages for the update.
+    //
+    // TODO Could return an encapsulated object.
     fn get_update_vars(&mut self) -> (DbMasterPage, u64, FreePageTracker) {
         let master_page = self.get_master_page();
         let old_version = master_page.get_version();
         let new_version = old_version + 1;
-        // Find the free page directory that has the free page numbers. Make sure
-        // it has free pages - cannot handle the case it does not yet.
+        // Find the free page directory that has the free page numbers.
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
         let free_page_tracker = FreePageTracker::new(
             self.page_cache.get_page(free_page_dir_page_no),
@@ -300,6 +319,9 @@ impl Db {
         (master_page, new_version, free_page_tracker)
     }
 
+    // Create a new table in the DB. A table is another b+ tree in the
+    // DB, the root page to the table tree can be found in another tree,
+    // the table directory tree.
     pub fn create_table(&mut self, name: &[u8]) {
         // Assert on the things that cannot be handled yet.
         assert!(
@@ -307,17 +329,26 @@ impl Db {
             "Cannot handle table name larger than u8::MAX."
         );
 
+        // TODO Test if the table exists before creating.
+
+        // Prepare to write to the DB.
         let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
+        // Need to create a root page for the new table tree, the first page
+        // in the tree will be a leaf page.
         let new_table_root_page_no = free_page_tracker.get_free_page(&mut self.page_cache);
         let mut new_table_root_page = LeafPage::create_new(
             self.page_cache.get_page_config(),
             new_table_root_page_no,
             new_version,
         );
+        // Store the new root page back into the file.
         self.page_cache.put_page(new_table_root_page.get_page());
 
-        // Create the tuple we want to add.
+        // Create the tuple that will be the reference to the new table
+        // that will be stored in the table directory tree.
+        // The tuple will have a key of the table name and value of the
+        // root page number for the table's tree.
         let tuple = TupleProcessor::generate_tuple(
             name,
             &new_table_root_page_no.to_le_bytes(),
@@ -327,10 +358,11 @@ impl Db {
             &self.compressor,
         );
 
-        // Now get the page number of the root of the global tree. Then get the page,
-        // this is a copy of the page.
+        // Get the root page of the table directory tree.
         let table_tree_root_page_no = master_page.get_table_dir_page_no();
         let page = self.page_cache.get_page(table_tree_root_page_no);
+        // Store the reference to the new table in the table
+        // directory tree.
         let new_table_tree_root_no = StoreTupleProcessor::store_tuple(
             tuple,
             page,
@@ -339,6 +371,7 @@ impl Db {
             new_version,
         );
 
+        // Update table metadata and sync pages.
         self.finalise_db_changes(
             &mut master_page,
             new_version,
@@ -348,6 +381,16 @@ impl Db {
         );
     }
 
+    // After completing updates to the tree need to finalise the changes
+    // to the database.
+    // This means:
+    //    Writing the free page directory back to out.
+    //    Updating the master page with the new tree roots and new
+    //    free page directory.
+    //    Sync the file.
+    //    Write the master page to file overwriting the flipping
+    //    the master pages.
+    //    Sync the master page.
     fn finalise_db_changes(
         &mut self,
         master_page: &mut DbMasterPage,
@@ -365,9 +408,11 @@ impl Db {
             self.page_cache.put_page(free_dir_page.get_page());
         }
 
-        // Now need to update the master - tell it were the
-        // the globale tree root page is and where the free page
-        // directory is now.
+        // Now need to update the master - update the following:
+        //   - The global tree root page if it has changed.
+        //   - The table directory tree if it has changed.
+        //   - The free page directory.
+        //   - The new version.
         master_page.set_free_page_dir_page_no(first_free_dir_page);
         if let Some(new_root) = new_root_page_no {
             master_page.set_global_tree_root_page_no(new_root);
@@ -377,11 +422,12 @@ impl Db {
         }
         // update the version
         master_page.set_version(new_version);
-        // flip the page number to overrwrite the non-current master
+
+        // Flip the page number to overrwrite the non-current master
         // page and make it the new current master.
         master_page.flip_page_number();
 
-        // Sync the first two pages before writing the new master page.
+        // Sync all pages except the master, which has not been written yet.
         self.page_cache.sync_data();
         // Put the master page.
         self.page_cache.put_page(master_page.get_page());
@@ -389,6 +435,7 @@ impl Db {
         self.page_cache.sync_data();
     }
 
+    // Get the root page number for a table tree if it exists.
     pub fn get_table_tree_root(&mut self, name: &[u8]) -> Option<u64> {
         assert!(
             name.len() < u8::MAX as usize,
@@ -396,7 +443,6 @@ impl Db {
         );
         let master_page = self.get_master_page();
         let table_dir_page_no = master_page.get_table_dir_page_no();
-        // TODO need to check versions.
 
         if let Some(tuple) =
             StoreTupleProcessor::get_tuple(name, table_dir_page_no, &mut self.page_cache)
@@ -410,6 +456,7 @@ impl Db {
         }
     }
 
+    // Put a key value into a table. If the table does not exist then create it.
     pub fn put_table_entry(&mut self, table_name: &[u8], key: &[u8], value: &[u8]) {
         assert!(
             table_name.len() < u8::MAX as usize,
@@ -418,14 +465,20 @@ impl Db {
 
         let mut table_root_page_no_wrapped = self.get_table_tree_root(table_name);
         if table_root_page_no_wrapped.is_none() {
+            // Note this is a transaction on its own, ie the master
+            // page is overrwritten. Could do all this in a single
+            // transaction.
             self.create_table(table_name);
             table_root_page_no_wrapped = self.get_table_tree_root(table_name);
         }
         let table_root_page = table_root_page_no_wrapped.unwrap();
 
+        // Prepare to write.
         let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         // Create the tuple we want to add.
+        // If key/value are large then this could be an overflow tuple
+        // with the ley/value stored in overflow pages by this method.
         let tuple = TupleProcessor::generate_tuple(
             key,
             value,
@@ -435,6 +488,8 @@ impl Db {
             &self.compressor,
         );
 
+        // Store the tuple in the table's tree, this will return
+        // the new root page number for the table tree.
         let table_root_page = self.page_cache.get_page(table_root_page);
         let new_table_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
@@ -444,6 +499,8 @@ impl Db {
             new_version,
         );
 
+        // Need to update the table directory tree with the new root
+        // for the table tree, create a tuple for the new tree reference.
         let table_tuple = TupleProcessor::generate_tuple(
             table_name,
             &new_table_root_page_no.to_le_bytes(),
@@ -453,6 +510,7 @@ impl Db {
             &self.compressor,
         );
 
+        // Now store the new table reference into the table directory tree.
         let table_dir_root_page_no = master_page.get_table_dir_page_no();
         let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
@@ -463,6 +521,7 @@ impl Db {
             new_version,
         );
 
+        // Now finalised all changes to the DB.
         self.finalise_db_changes(
             &mut master_page,
             new_version,
@@ -472,31 +531,37 @@ impl Db {
         );
     }
 
+    // Remove all the entries in a table.
     pub fn clear_table(&mut self, table_name: &[u8]) {
         self.clear_table_with_delete(table_name, false);
     }
 
+    // Clear a table then remove it from the table directory
+    // tree.
     pub fn delete_table(&mut self, table_name: &[u8]) {
         self.clear_table_with_delete(table_name, true);
     }
 
     // Clear the contents of a table. If delete is true then the table will be deleted, if false
     // then the table will be cleared but remain in place.
+    //
     pub fn clear_table_with_delete(&mut self, table_name: &[u8], delete: bool) {
         assert!(
             table_name.len() < u8::MAX as usize,
             "Cannot handle table name larger than u8::MAX."
         );
 
-        let mut table_root_page_no_wrapped = self.get_table_tree_root(table_name);
+        let table_root_page_no_wrapped = self.get_table_tree_root(table_name);
         if table_root_page_no_wrapped.is_none() {
-            self.create_table(table_name);
-            table_root_page_no_wrapped = self.get_table_tree_root(table_name);
+            // No table to clear or delete.
+            return;
         }
         let table_root_page = table_root_page_no_wrapped.unwrap();
 
+        // Prepare to update the DB.
         let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
+        // First clear the table tree.
         let table_root_page = self.page_cache.get_page(table_root_page);
         let new_table_root_page_no = ClearHandler::clear_tree(
             table_root_page,
@@ -505,9 +570,12 @@ impl Db {
             new_version,
         );
 
+        // Now need to update the table directory tree.
         let table_dir_root_page_no = master_page.get_table_dir_page_no();
         let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
 
+        // If the table is to be deleted, then delete the table key/name
+        // from the table directory tree.
         let new_table_dir_root_page_no: u64 = if delete {
             free_page_tracker.return_free_page_no(new_table_root_page_no);
             let (new_page, _is_deleted) = TreeDeleteHandler::delete_key(
@@ -517,8 +585,13 @@ impl Db {
                 &mut free_page_tracker,
                 new_version,
             );
+            // Page number of the new root of the table directory tree.
             new_page
         } else {
+            // Not deleting the table, need to update its
+            // reference to the new table tree root page.
+            //
+            // Create new table reference.
             let table_tuple = TupleProcessor::generate_tuple(
                 table_name,
                 &new_table_root_page_no.to_le_bytes(),
@@ -527,6 +600,8 @@ impl Db {
                 new_version,
                 &self.compressor,
             );
+            // Store table reference and provide the
+            // new table directory tree root page.
             StoreTupleProcessor::store_tuple(
                 table_tuple,
                 table_dir_root_page,
@@ -536,6 +611,7 @@ impl Db {
             )
         };
 
+        // Finalise all the DB changes.
         self.finalise_db_changes(
             &mut master_page,
             new_version,
@@ -545,6 +621,7 @@ impl Db {
         );
     }
 
+    // Get an value from a table.
     pub fn get_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> Option<Vec<u8>> {
         // Name size check handled in get_table_tree_root
         let table_root_page_no_wrapped = self.get_table_tree_root(table_name);
@@ -554,23 +631,29 @@ impl Db {
         self.get_from_tree(key, table_root_page_no)
     }
 
+    // Delete an entry from the tree.
     pub fn delete_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> bool {
+        // Get the root of the table's tree.
         // Name size check handled in get_table_tree_root
         let table_root_page_no_wrapped = self.get_table_tree_root(table_name);
         if table_root_page_no_wrapped.is_none() {
-            // should maybe throw error
+            // table does not exist - should maybe throw error
             return false;
         }
         let table_root_page_no = table_root_page_no_wrapped.unwrap();
 
+        // If its an oversized key then need to generate a short one.
         let key_to_use: Vec<u8> = if TupleProcessor::is_oversized_key(key) {
             TupleProcessor::generate_short_key(key)
         } else {
             key.to_owned()
         };
 
+        // Prepare to update DB.
         let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
+        // Delete the key from the table tree and get back the new root page
+        // number of the table tree.
         let root_page = self.page_cache.get_page(table_root_page_no);
         let (new_tree_free_page_no, deleted) = TreeDeleteHandler::delete_key(
             &key_to_use,
@@ -580,9 +663,13 @@ impl Db {
             new_version,
         );
         if !deleted {
+            // No changes to DB needed
             return false;
         }
 
+        // The table tree has been updated, need to update the
+        // table directory tree with the new root page for the
+        // table tree.
         let table_tuple = TupleProcessor::generate_tuple(
             table_name,
             &new_tree_free_page_no.to_le_bytes(),
@@ -592,8 +679,10 @@ impl Db {
             &self.compressor,
         );
 
+        // Get the table directory tree.
         let table_dir_root_page_no = master_page.get_table_dir_page_no();
         let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
+        // Update the reference for the table tree.
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
             table_dir_root_page,
@@ -602,6 +691,7 @@ impl Db {
             new_version,
         );
 
+        // Write out DB metadata and sync to disk.
         self.finalise_db_changes(
             &mut master_page,
             new_version,
