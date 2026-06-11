@@ -164,7 +164,7 @@ impl Db {
     }
 
     // Get the value associated with key in the DB. If the key
-    // is not in the DB the None will be returned.
+    // is not in the DB then None will be returned.
     pub fn get(&mut self, key: &[u8]) -> Option<Vec<u8>> {
         let master_page = self.get_master_page();
         let tree_page_no = master_page.get_global_tree_root_page_no();
@@ -621,17 +621,18 @@ impl Db {
         );
     }
 
-    // Get an value from a table.
+    // Get a value from a table tree.
     pub fn get_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> Option<Vec<u8>> {
         // Name size check handled in get_table_tree_root
         let table_root_page_no_wrapped = self.get_table_tree_root(table_name);
+        // If the table does not exist could throw an error.
         table_root_page_no_wrapped?;
 
         let table_root_page_no = table_root_page_no_wrapped.unwrap();
         self.get_from_tree(key, table_root_page_no)
     }
 
-    // Delete an entry from the tree.
+    // Delete an entry from a table tree.
     pub fn delete_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> bool {
         // Get the root of the table's tree.
         // Name size check handled in get_table_tree_root
@@ -642,7 +643,9 @@ impl Db {
         }
         let table_root_page_no = table_root_page_no_wrapped.unwrap();
 
-        // If its an oversized key then need to generate a short one.
+        // If its an oversized key then need to generate a short one key for it.
+        // The short key is the first 224 bytes of the key followed by the 
+        // SHA256 of the whole key.
         let key_to_use: Vec<u8> = if TupleProcessor::is_oversized_key(key) {
             TupleProcessor::generate_short_key(key)
         } else {
@@ -704,12 +707,14 @@ impl Db {
     }
 }
 
+// Functions to either create or to initialise the database.
 impl Db {
     fn check_db_integrity(&mut self) -> std::io::Result<()> {
         let root_page = DbRootPage::from_page(self.page_cache.get_page(0));
         // There is no sanity check for sanity type, if the db was created with
         // encryption and then opened without a key then we will not be able to open
         // the root_page as the checksum will not match.
+        // This could be avoided if the root page was not encrypted.
         let stored_compressor_type = CompressorType::try_from(root_page.get_compression_type())
             .expect("Unknown compressoion");
         if stored_compressor_type != self.compressor.compressor_type {
@@ -719,14 +724,17 @@ impl Db {
                 self.compressor.compressor_type
             );
         }
+        // Get the two master pages.
         let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1));
         let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2));
+        // Determine which is the current master.
         let current_master = if master_page1.get_version() > master_page2.get_version() {
             master_page1
         } else {
             master_page2
         };
         let current_version = current_master.get_version();
+        // Check the free_dir_page is sane.
         let free_dir_page_no = current_master.get_free_page_dir_page_no();
         let free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
         assert!(free_dir_page.get_version() <= current_version);
@@ -734,36 +742,49 @@ impl Db {
         Ok(())
     }
 
+    // There is no DB file, or the file is empty.
+    // Need to create pages and then write the 
+    // initial meta data pages.
     fn init_db_file(&mut self, sanity_type: BlockSanity) -> std::io::Result<()> {
         // Get some free pages and make space in the file.
         // Will trigger a file sync.
+        // Provides a list of free pages that can be modified or added 
+        // to the free page directory if not used in the init process - 
+        // the init process will generate some unused pages.
         let mut free_pages: Vec<u64> = self.page_cache.generate_free_pages(10);
         assert!(free_pages.len() == 10);
 
-        // Write the Global Tree Root Page.
+        // Write the global tree root page at page number 5.
+        // The first page in a tree is a leaf page.
         let mut global_tree_root_page =
             LeafPage::create_new(self.page_cache.get_page_config(), 5, 0);
         // remove it from the free list
         free_pages.retain(|&x| x != 5);
+        // Write the global_tree_root_page to disk.
         self.page_cache.put_page(global_tree_root_page.get_page());
 
-        // Write the table directory page.
+        // Write the table directory page at page number 4.
+        // The first page in a tree is a leaf page.
         let mut table_dir_page = LeafPage::create_new(self.page_cache.get_page_config(), 4, 0);
         // remove from the free page list
         free_pages.retain(|&x| x != 4);
         self.page_cache.put_page(table_dir_page.get_page());
 
-        // Write first master page
+        // Write first master page at page number 1.
         let mut master_page1: DbMasterPage =
             DbMasterPage::create_new(self.page_cache.get_page_config(), 1, 0);
         // remove from free page list
         free_pages.retain(|&x| x != 1);
+        // Tell the first master page where the free page directory page is,
+        // where the table directory root page is and where the global
+        // tree root is.
         master_page1.set_free_page_dir_page_no(3);
         master_page1.set_table_dir_page_no(4);
         master_page1.set_global_tree_root_page_no(5);
         self.page_cache.put_page(master_page1.get_page());
 
-        // Write second master page.
+        // Write second master page at page number 2, the version
+        // is 1 - this makes master_page2 the current master page.
         let mut master_page2: DbMasterPage =
             DbMasterPage::create_new(self.page_cache.get_page_config(), 2, 1);
         // remove from free page list
@@ -773,16 +794,19 @@ impl Db {
         master_page2.set_global_tree_root_page_no(5);
         self.page_cache.put_page(master_page2.get_page());
 
-        // Now write the free page directory
+        // Now write the free page directory at page 3.
         let mut free_dir_page = FreeDirPage::create_new(self.page_cache.get_page_config(), 3, 0);
-        // The free_dir_page is no longer free, and also the root db page won't be free.
+        // The free_dir_page is no longer free, and also the root db page won't be free after
+        // we write it in the next step.
         free_pages.retain(|&x| x != 0);
         free_pages.retain(|&x| x != 3);
         free_dir_page.add_free_pages(&free_pages);
         self.page_cache.put_page(free_dir_page.get_page());
 
-        // Flush all pages so far, don't sync the file metadata
+        // Flush all pages so far, don't sync the db metadata page yet.
         self.page_cache.sync_data();
+        // All pages except the metadata page are written, however the
+        // the DB is not sane until the next step.
 
         // Write the root page as last step to make the DB sane.
         let mut db_root_page: DbRootPage =
@@ -799,6 +823,13 @@ impl Db {
 }
 
 impl Db {
+    // Returns the current master depending on which has the highest 
+    // version. 
+    // An update will follow this pattern:
+    //   Get current master page based on version.
+    //   Generate a new version number.
+    //   Update the master page after making tree changes.
+    //   Overwrite the non-current master page with the new version. 
     fn get_master_page(&mut self) -> DbMasterPage {
         let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1));
         let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2));
@@ -810,14 +841,20 @@ impl Db {
         }
     }
 
+    // A tuple may be compressed, uncompress if necessary.
+    // Should this be with the tuple code?
     fn get_tuple_value<T: TupleTrait>(&self, tuple: &T) -> Vec<u8> {
         let overflow = tuple.get_overflow();
         if overflow == Overflow::ValueCompressed || overflow == Overflow::KeyValueCompressed {
             return self.compressor.decompress(tuple.get_value());
         }
+        // Return a copy of the tuple. This is now a copy of a copy!?
         tuple.get_value().to_vec()
     }
 
+    // Get the key - it could be compressed in which case it needs to be
+    // uncompressed.
+    // Should this be with the tuple code?
     fn get_tuple_key<T: TupleTrait>(&self, tuple: &T) -> Vec<u8> {
         let overflow = tuple.get_overflow();
         if overflow == Overflow::KeyValueCompressed {
@@ -828,6 +865,9 @@ impl Db {
 }
 
 impl Drop for Db {
+    // This is a bit weird - the file is not closed as 
+    // this is done via the file object drop. 
+    // Not sure this is necessary.
     fn drop(&mut self) {
         self.page_cache.sync_all();
     }
