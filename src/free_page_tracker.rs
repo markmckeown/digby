@@ -14,8 +14,8 @@ use crate::page_cache::PageCache;
 // with more free pages. This is a linked list that this object needs to manage.
 //
 // During a commit this object will be given page numbers that are no longer
-// needed. but they should NOT be reused within the commit or stuff will get
-// corrupted.
+// needed. but they should NOT be reused within the commit or there will be
+// corruption.
 //
 pub struct FreePageTracker {
     free_dir_page_list: Vec<FreeDirPage>,
@@ -30,15 +30,17 @@ impl FreePageTracker {
     // ready to complete this object has to provide any free_dir_pages
     // that need to be written back.
     //
-    // After we provide the free_dir_pages the list is empty - this object
-    // has completed its role and should not be used again. We test this
-    // in methods by asserting the list is not empty.
+    // page is the head of the free page directory. 
     pub fn new(page: Page, new_version: u64, page_config: PageConfig) -> Self {
         let free_dir_page = FreeDirPage::from_page(page);
         assert!(free_dir_page.get_version() < new_version);
+        // We store free_dir_page, the head of the free page directory
+        // list into a vec. If we need to create more FreeDirPage and
+        // add them to the free page directory list we track them in
+        // this vec - this vec will be written back to disk.
         FreePageTracker {
             free_dir_page_list: vec![free_dir_page],
-            returned_pages: Vec::new(),
+            returned_pages: Vec::new(),  // Page numbers that have been returned.
             new_version,
             page_config,
         }
@@ -47,7 +49,7 @@ impl FreePageTracker {
     // The commit wants a free page number it can assign to a page it wants
     // to write back. If there are no free pages in the system then this
     // object will have to ask the PageCache to create more free pages - this
-    // is why the PageCache is provide as a parameter.
+    // is why the PageCache is provided as a parameter.
     pub fn get_free_page(&mut self, page_cache: &mut PageCache) -> u64 {
         assert!(!self.free_dir_page_list.is_empty());
 

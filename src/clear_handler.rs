@@ -13,6 +13,16 @@ pub struct ClearHandler {
     // Currently empty - placeholder for future functionality
 }
 
+// Functionality for clearing a tree - basically return
+// all pages used in the tree as free pages and create 
+// a new root page for the tree.
+//
+// Need to be careful as the tree could contain references
+// to overflow tuples that are stored in overflow pages - 
+// so before returning a leaf page as a free page need
+// to make sure no entries are for overflow tuples. This
+// will make clear a more expensive operation than it
+// should be.
 impl ClearHandler {
     pub fn clear_tree(
         first: Page,
@@ -20,6 +30,8 @@ impl ClearHandler {
         page_cache: &mut PageCache,
         new_version: u64,
     ) -> u64 {
+        // If the root of the page is a leaf page, ie
+        // only page in the tree then special case it.
         if first.get_type() == PageType::LeafPage {
             let root_leaf_page = LeafPage::from_page(first);
             return ClearHandler::clear_root_leaf_page(
@@ -35,6 +47,9 @@ impl ClearHandler {
         ClearHandler::create_new_root_page(free_page_tracker, page_cache, new_version)
     }
 
+    // Walk the tree recursively until hit leaf pages, clear
+    // the leaf pages and return to free pages. Return
+    // dir pages when they are empty to free pages.
     pub fn clear_tree_dir_pages(
         dir_page: DirPage,
         free_page_tracker: &mut FreePageTracker,
@@ -84,6 +99,8 @@ impl ClearHandler {
         ClearHandler::create_new_root_page(free_page_tracker, page_cache, new_version)
     }
 
+    // Clear a leaf page - cannot simply return the leaf page as free page
+    // as it may hold references to tuples in the overflow pages.
     pub fn clear_leaf_page(
         page: LeafPage,
         free_page_tracker: &mut FreePageTracker,
