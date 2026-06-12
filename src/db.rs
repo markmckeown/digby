@@ -7,6 +7,7 @@ use crate::file_layer::FileLayer;
 use crate::free_page_tracker::FreePageTracker;
 use crate::overflow_tuple::OverflowTuple;
 use crate::page::PageTrait;
+use crate::db_writer::DbWriter;
 use crate::page_cache::PageCache;
 use crate::tuple::{Overflow, Tuple, TupleTrait};
 use crate::{
@@ -134,10 +135,11 @@ impl Db {
 
         // Prepare for tree change. Get the current master_page, the next version
         // number and a free_page_tracker.
-        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
+        // let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
+        let mut db_writer = self.get_db_writer();
 
         // Get the page number of the root of the tree.
-        let tree_root_page_no = master_page.get_global_tree_root_page_no();
+        let tree_root_page_no = db_writer.master_page.get_global_tree_root_page_no();
         // Get the actual root page.
         let root_page = self.page_cache.get_page(tree_root_page_no);
         // Now pass to the TreeDeleteHandler to do the delete.
@@ -145,23 +147,25 @@ impl Db {
             &key_to_use,
             root_page,
             &mut self.page_cache,
-            &mut free_page_tracker,
-            new_version,
+            &mut db_writer.free_page_tracker,
+            db_writer.new_version,
         );
         if !deleted {
             // If nothing deleted then pages do not need to be rewritten.
             return false;
         }
+        db_writer.global_root_page_no = Some(new_tree_root_page_no);
 
         self.finalise_db_changes(
-            &mut master_page,
-            new_version,
+            &mut db_writer.master_page,
+            db_writer.new_version,
             Some(new_tree_root_page_no),
             None,
-            &mut free_page_tracker,
+            &mut db_writer.free_page_tracker,
         );
         deleted
     }
+
 
     // Get the value associated with key in the DB. If the key
     // is not in the DB then None will be returned.
@@ -317,6 +321,20 @@ impl Db {
             *self.page_cache.get_page_config(),
         );
         (master_page, new_version, free_page_tracker)
+    }
+
+    fn get_db_writer(&mut self) -> DbWriter {
+        let master_page = self.get_master_page();
+        let old_version = master_page.get_version();
+        let new_version = old_version + 1;
+        // Find the free page directory that has the free page numbers.
+        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
+        let free_page_tracker = FreePageTracker::new(
+            self.page_cache.get_page(free_page_dir_page_no),
+            new_version,
+            *self.page_cache.get_page_config(),
+        );
+        DbWriter::new(master_page, new_version, free_page_tracker)
     }
 
     // Create a new table in the DB. A table is another b+ tree in the
