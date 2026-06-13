@@ -365,8 +365,8 @@ impl Db {
         self.finalise_db_changes(
             &mut db_writer.master_page,
             db_writer.new_version,
-            Some(db_writer.global_root_page_no),
-            Some(db_writer.tree_dir_root_page_no),
+            db_writer.global_root_page_no,
+            db_writer.tree_dir_root_page_no,
             &mut db_writer.free_page_tracker,
         );
     }
@@ -385,8 +385,8 @@ impl Db {
         &mut self,
         master_page: &mut DbMasterPage,
         new_version: u64,
-        new_root_page_no: Option<u64>,
-        new_table_tree_root_no: Option<u64>,
+        new_root_page_no: u64,
+        new_table_tree_root_no: u64,
         free_page_tracker: &mut FreePageTracker,
     ) {
         // Write out the free pages.
@@ -399,18 +399,13 @@ impl Db {
         }
 
         // Now need to update the master - update the following:
-        //   - The global tree root page if it has changed.
-        //   - The table directory tree if it has changed.
+        //   - The global tree root page.
+        //   - The table directory tree.
         //   - The free page directory.
         //   - The new version.
         master_page.set_free_page_dir_page_no(first_free_dir_page);
-        if let Some(new_root) = new_root_page_no {
-            master_page.set_global_tree_root_page_no(new_root);
-        }
-        if let Some(new_table_dir_root) = new_table_tree_root_no {
-            master_page.set_table_dir_page_no(new_table_dir_root);
-        }
-        // update the version
+        master_page.set_global_tree_root_page_no(new_root_page_no);
+        master_page.set_table_dir_page_no(new_table_tree_root_no);
         master_page.set_version(new_version);
 
         // Flip the page number to overrwrite the non-current master
