@@ -3,13 +3,13 @@ use crate::block_sanity::BlockSanity;
 use crate::compressor::CompressorType;
 use crate::db_master_page::DbMasterPage;
 use crate::db_root_page::DbRootPage;
-use crate::db_writer::DbWriter;
 use crate::file_layer::FileLayer;
 use crate::free_page_tracker::FreePageTracker;
 use crate::overflow_tuple::OverflowTuple;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
 use crate::tuple::{Overflow, Tuple, TupleTrait};
+use crate::tx_ctx::TxCtx;
 use crate::{
     ClearHandler, Compressor, FreeDirPage, LeafPage, OverflowPageHandler, StoreTupleProcessor,
     TreeDeleteHandler, TupleProcessor,
@@ -122,15 +122,15 @@ impl Db {
     }
 
     pub fn delete(&mut self, key: &[u8]) -> bool {
-        let mut db_writer = self.get_db_writer();
-        let deleted = self.delete_txn(key, &mut db_writer);
-        self.commit_changes(&mut db_writer);
+        let mut tx_ctx = self.new_transaction();
+        let deleted = self.delete_txn(key, &mut tx_ctx);
+        self.commit(&mut tx_ctx);
         deleted
     }
 
     // Delete a key from the DB, returns a bool to indicate if the key was deleted.
     // If false the key did not exist.
-    fn delete_txn(&mut self, key: &[u8], db_writer: &mut DbWriter) -> bool {
+    fn delete_txn(&mut self, key: &[u8], tx_ctx: &mut TxCtx) -> bool {
         // If the key is very large then a short version with a SHA256
         // hash will to stored as a reference in the DB tree. Need
         // to create a key that will be used for the operations.
@@ -141,7 +141,7 @@ impl Db {
         };
 
         // Get the page number of the root of the tree.
-        let tree_root_page_no = db_writer.global_root_page_no;
+        let tree_root_page_no = tx_ctx.global_root_page_no;
         // Get the actual root page.
         let root_page = self.page_cache.get_page(tree_root_page_no);
         // Now pass to the TreeDeleteHandler to do the delete.
@@ -149,20 +149,20 @@ impl Db {
             &key_to_use,
             root_page,
             &mut self.page_cache,
-            &mut db_writer.free_page_tracker,
-            db_writer.new_version,
+            &mut tx_ctx.free_page_tracker,
+            tx_ctx.new_version,
         );
         if !deleted {
             // If nothing deleted then pages do not need to be rewritten.
             return false;
         }
-        db_writer.global_root_page_no = new_tree_root_page_no;
+        tx_ctx.global_root_page_no = new_tree_root_page_no;
         deleted
     }
 
     // Dirty read - get a value in a transaction context.
-    pub fn get_txn(&mut self, key: &[u8], db_writer: &DbWriter) -> Option<Vec<u8>> {
-        self.get_from_tree(key, db_writer.global_root_page_no)
+    pub fn get_txn(&mut self, key: &[u8], tx_ctx: &TxCtx) -> Option<Vec<u8>> {
+        self.get_from_tree(key, tx_ctx.global_root_page_no)
     }
 
     // Get the value associated with key in the DB. If the key
@@ -229,13 +229,13 @@ impl Db {
     }
 
     pub fn put(&mut self, key: &[u8], value: &[u8]) {
-        let mut db_writer = self.get_db_writer();
-        self.put_txn(key, value, &mut db_writer);
-        self.commit_changes(&mut db_writer);
+        let mut tx_ctx = self.new_transaction();
+        self.put_txn(key, value, &mut tx_ctx);
+        self.commit(&mut tx_ctx);
     }
 
     // Store a key and value in the db.
-    pub fn put_txn(&mut self, key: &[u8], value: &[u8], db_writer: &mut DbWriter) {
+    pub fn put_txn(&mut self, key: &[u8], value: &[u8], tx_ctx: &mut TxCtx) {
         // Create the tuple we want to add. This could be an overflow
         // tuple - if it is an overflow tuple this method will
         // store the key/value in the overflow pages and the tuple
@@ -244,13 +244,13 @@ impl Db {
             key,
             value,
             &mut self.page_cache,
-            &mut db_writer.free_page_tracker,
-            db_writer.new_version,
+            &mut tx_ctx.free_page_tracker,
+            tx_ctx.new_version,
             &self.compressor,
         );
 
         // Now get the page number of the root of the global tree.
-        let tree_root_page_no = db_writer.global_root_page_no;
+        let tree_root_page_no = tx_ctx.global_root_page_no;
         // Now get the root page of the tree.
         let page = self.page_cache.get_page(tree_root_page_no);
         // Store the tuple, this will return the page number of the
@@ -258,38 +258,38 @@ impl Db {
         let new_tree_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             page,
-            &mut db_writer.free_page_tracker,
+            &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
-            db_writer.new_version,
+            tx_ctx.new_version,
         );
-        db_writer.global_root_page_no = new_tree_root_page_no;
+        tx_ctx.global_root_page_no = new_tree_root_page_no;
     }
 
     pub fn clear(&mut self) {
-        let mut db_writer = self.get_db_writer();
-        self.clear_txn(&mut db_writer);
-        self.commit_changes(&mut db_writer);
+        let mut tx_ctx = self.new_transaction();
+        self.clear_txn(&mut tx_ctx);
+        self.commit(&mut tx_ctx);
     }
 
     // Remove all entries in the root tree.
     // Note disk space is not freed up - the file stays
     // the same after the clear.
-    pub fn clear_txn(&mut self, db_writer: &mut DbWriter) {
+    pub fn clear_txn(&mut self, tx_ctx: &mut TxCtx) {
         // Now get the page number of the root of the global tree.
-        let tree_root_page_no = db_writer.global_root_page_no;
+        let tree_root_page_no = tx_ctx.global_root_page_no;
         // Get the root of the tree.
         let page = self.page_cache.get_page(tree_root_page_no);
         // Clear the tree, will return the new root of the tree which
         // will now be a leaf page.
-        db_writer.global_root_page_no = ClearHandler::clear_tree(
+        tx_ctx.global_root_page_no = ClearHandler::clear_tree(
             page,
-            &mut db_writer.free_page_tracker,
+            &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
-            db_writer.new_version,
+            tx_ctx.new_version,
         );
     }
 
-    fn get_db_writer(&mut self) -> DbWriter {
+    pub fn new_transaction(&mut self) -> TxCtx {
         let master_page = self.get_master_page();
         let old_version = master_page.get_version();
         let new_version = old_version + 1;
@@ -300,19 +300,19 @@ impl Db {
             new_version,
             *self.page_cache.get_page_config(),
         );
-        DbWriter::new(master_page, new_version, free_page_tracker)
+        TxCtx::new(master_page, new_version, free_page_tracker)
     }
 
     // Create a new table in the DB. A table is another b+ tree in the
     // DB, the root page to the table tree can be found in another tree,
     // the table directory tree.
     pub fn create_table(&mut self, name: &[u8]) {
-        let mut db_writer = self.get_db_writer();
-        self.create_table_txn(name, &mut db_writer);
-        self.commit_changes(&mut db_writer);
+        let mut tx_ctx = self.new_transaction();
+        self.create_table_txn(name, &mut tx_ctx);
+        self.commit(&mut tx_ctx);
     }
 
-    pub fn create_table_txn(&mut self, name: &[u8], db_writer: &mut DbWriter) {
+    pub fn create_table_txn(&mut self, name: &[u8], tx_ctx: &mut TxCtx) {
         // Assert on the things that cannot be handled yet.
         assert!(
             name.len() < u8::MAX as usize,
@@ -323,13 +323,11 @@ impl Db {
 
         // Need to create a root page for the new table tree, the first page
         // in the tree will be a leaf page.
-        let new_table_root_page_no = db_writer
-            .free_page_tracker
-            .get_free_page(&mut self.page_cache);
+        let new_table_root_page_no = tx_ctx.free_page_tracker.get_free_page(&mut self.page_cache);
         let mut new_table_root_page = LeafPage::create_new(
             self.page_cache.get_page_config(),
             new_table_root_page_no,
-            db_writer.new_version,
+            tx_ctx.new_version,
         );
         // Store the new root page back into the file.
         self.page_cache.put_page(new_table_root_page.get_page());
@@ -342,32 +340,32 @@ impl Db {
             name,
             &new_table_root_page_no.to_le_bytes(),
             &mut self.page_cache,
-            &mut db_writer.free_page_tracker,
-            db_writer.new_version,
+            &mut tx_ctx.free_page_tracker,
+            tx_ctx.new_version,
             &self.compressor,
         );
 
         // Get the root page of the table directory tree.
-        let table_tree_root_page_no = db_writer.tree_dir_root_page_no;
+        let table_tree_root_page_no = tx_ctx.tree_dir_root_page_no;
         let page = self.page_cache.get_page(table_tree_root_page_no);
         // Store the reference to the new table in the table
         // directory tree.
-        db_writer.tree_dir_root_page_no = StoreTupleProcessor::store_tuple(
+        tx_ctx.tree_dir_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             page,
-            &mut db_writer.free_page_tracker,
+            &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
-            db_writer.new_version,
+            tx_ctx.new_version,
         );
     }
 
-    fn commit_changes(&mut self, db_writer: &mut DbWriter) {
+    pub fn commit(&mut self, tx_ctx: &mut TxCtx) {
         self.finalise_db_changes(
-            &mut db_writer.master_page,
-            db_writer.new_version,
-            db_writer.global_root_page_no,
-            db_writer.tree_dir_root_page_no,
-            &mut db_writer.free_page_tracker,
+            &mut tx_ctx.master_page,
+            tx_ctx.new_version,
+            tx_ctx.global_root_page_no,
+            tx_ctx.tree_dir_root_page_no,
+            &mut tx_ctx.free_page_tracker,
         );
     }
 
@@ -421,17 +419,17 @@ impl Db {
     }
 
     pub fn get_table_tree_root(&mut self, name: &[u8]) -> Option<u64> {
-        let db_writer = self.get_db_writer();
-        self.get_table_tree_root_txn(name, &db_writer)
+        let tx_ctx = self.new_transaction();
+        self.get_table_tree_root_txn(name, &tx_ctx)
     }
 
     // Get the root page number for a table tree if it exists.
-    pub fn get_table_tree_root_txn(&mut self, name: &[u8], db_writer: &DbWriter) -> Option<u64> {
+    pub fn get_table_tree_root_txn(&mut self, name: &[u8], tx_ctx: &TxCtx) -> Option<u64> {
         assert!(
             name.len() < u8::MAX as usize,
             "Cannot handle keys larger than u8::MAX."
         );
-        let table_dir_page_no = db_writer.tree_dir_root_page_no;
+        let table_dir_page_no = tx_ctx.tree_dir_root_page_no;
 
         if let Some(tuple) =
             StoreTupleProcessor::get_tuple(name, table_dir_page_no, &mut self.page_cache)
@@ -446,9 +444,9 @@ impl Db {
     }
 
     pub fn put_table_entry(&mut self, table_name: &[u8], key: &[u8], value: &[u8]) {
-        let mut db_writer = self.get_db_writer();
-        self.put_table_entry_txn(table_name, key, value, &mut db_writer);
-        self.commit_changes(&mut db_writer);
+        let mut tx_ctx = self.new_transaction();
+        self.put_table_entry_txn(table_name, key, value, &mut tx_ctx);
+        self.commit(&mut tx_ctx);
     }
 
     // Put a key value into a table. If the table does not exist then create it.
@@ -457,20 +455,20 @@ impl Db {
         table_name: &[u8],
         key: &[u8],
         value: &[u8],
-        db_writer: &mut DbWriter,
+        tx_ctx: &mut TxCtx,
     ) {
         assert!(
             table_name.len() < u8::MAX as usize,
             "Cannot handle table name larger than u8::MAX."
         );
 
-        let mut table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, db_writer);
+        let mut table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, tx_ctx);
         if table_root_page_no_wrapped.is_none() {
             // Note this is a transaction on its own, ie the master
             // page is overrwritten. Could do all this in a single
             // transaction.
-            self.create_table_txn(table_name, db_writer);
-            table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, db_writer);
+            self.create_table_txn(table_name, tx_ctx);
+            table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, tx_ctx);
         }
         let table_root_page = table_root_page_no_wrapped.unwrap();
 
@@ -481,8 +479,8 @@ impl Db {
             key,
             value,
             &mut self.page_cache,
-            &mut db_writer.free_page_tracker,
-            db_writer.new_version,
+            &mut tx_ctx.free_page_tracker,
+            tx_ctx.new_version,
             &self.compressor,
         );
 
@@ -492,9 +490,9 @@ impl Db {
         let new_table_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             table_root_page,
-            &mut db_writer.free_page_tracker,
+            &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
-            db_writer.new_version,
+            tx_ctx.new_version,
         );
 
         // Need to update the table directory tree with the new root
@@ -503,22 +501,22 @@ impl Db {
             table_name,
             &new_table_root_page_no.to_le_bytes(),
             &mut self.page_cache,
-            &mut db_writer.free_page_tracker,
-            db_writer.new_version,
+            &mut tx_ctx.free_page_tracker,
+            tx_ctx.new_version,
             &self.compressor,
         );
 
         // Now store the new table reference into the table directory tree.
-        let table_dir_root_page_no = db_writer.tree_dir_root_page_no;
+        let table_dir_root_page_no = tx_ctx.tree_dir_root_page_no;
         let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
             table_dir_root_page,
-            &mut db_writer.free_page_tracker,
+            &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
-            db_writer.new_version,
+            tx_ctx.new_version,
         );
-        db_writer.tree_dir_root_page_no = new_table_dir_root_page_no;
+        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
     }
 
     // Remove all the entries in a table.
@@ -533,9 +531,9 @@ impl Db {
     }
 
     pub fn clear_table_with_delete(&mut self, table_name: &[u8], delete: bool) {
-        let mut db_writer = self.get_db_writer();
-        self.clear_table_with_delete_txn(table_name, delete, &mut db_writer);
-        self.commit_changes(&mut db_writer);
+        let mut tx_ctx = self.new_transaction();
+        self.clear_table_with_delete_txn(table_name, delete, &mut tx_ctx);
+        self.commit(&mut tx_ctx);
     }
 
     // Clear the contents of a table. If delete is true then the table will be deleted, if false
@@ -545,14 +543,14 @@ impl Db {
         &mut self,
         table_name: &[u8],
         delete: bool,
-        db_writer: &mut DbWriter,
+        tx_ctx: &mut TxCtx,
     ) {
         assert!(
             table_name.len() < u8::MAX as usize,
             "Cannot handle table name larger than u8::MAX."
         );
 
-        let table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, db_writer);
+        let table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, tx_ctx);
         if table_root_page_no_wrapped.is_none() {
             // No table to clear or delete.
             return;
@@ -563,27 +561,27 @@ impl Db {
         let table_root_page = self.page_cache.get_page(table_root_page);
         let new_table_root_page_no = ClearHandler::clear_tree(
             table_root_page,
-            &mut db_writer.free_page_tracker,
+            &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
-            db_writer.new_version,
+            tx_ctx.new_version,
         );
 
         // Now need to update the table directory tree.
-        let table_dir_root_page_no = db_writer.tree_dir_root_page_no;
+        let table_dir_root_page_no = tx_ctx.tree_dir_root_page_no;
         let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
 
         // If the table is to be deleted, then delete the table key/name
         // from the table directory tree.
         let new_table_dir_root_page_no: u64 = if delete {
-            db_writer
+            tx_ctx
                 .free_page_tracker
                 .return_free_page_no(new_table_root_page_no);
             let (new_page, _is_deleted) = TreeDeleteHandler::delete_key(
                 table_name,
                 table_dir_root_page,
                 &mut self.page_cache,
-                &mut db_writer.free_page_tracker,
-                db_writer.new_version,
+                &mut tx_ctx.free_page_tracker,
+                tx_ctx.new_version,
             );
             // Page number of the new root of the table directory tree.
             new_page
@@ -596,8 +594,8 @@ impl Db {
                 table_name,
                 &new_table_root_page_no.to_le_bytes(),
                 &mut self.page_cache,
-                &mut db_writer.free_page_tracker,
-                db_writer.new_version,
+                &mut tx_ctx.free_page_tracker,
+                tx_ctx.new_version,
                 &self.compressor,
             );
             // Store table reference and provide the
@@ -605,12 +603,12 @@ impl Db {
             StoreTupleProcessor::store_tuple(
                 table_tuple,
                 table_dir_root_page,
-                &mut db_writer.free_page_tracker,
+                &mut tx_ctx.free_page_tracker,
                 &mut self.page_cache,
-                db_writer.new_version,
+                tx_ctx.new_version,
             )
         };
-        db_writer.tree_dir_root_page_no = new_table_dir_root_page_no;
+        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
     }
 
     // Get a value from a table tree.
@@ -628,10 +626,10 @@ impl Db {
         &mut self,
         table_name: &[u8],
         key: &[u8],
-        db_writer: &DbWriter,
+        tx_ctx: &TxCtx,
     ) -> Option<Vec<u8>> {
         // Name size check handled in get_table_tree_root
-        let table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, db_writer);
+        let table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, tx_ctx);
         // If the table does not exist could throw an error.
         table_root_page_no_wrapped?;
 
@@ -640,9 +638,9 @@ impl Db {
     }
 
     pub fn delete_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> bool {
-        let mut db_writer = self.get_db_writer();
-        let deleted = self.delete_table_entry_txn(table_name, key, &mut db_writer);
-        self.commit_changes(&mut db_writer);
+        let mut tx_ctx = self.new_transaction();
+        let deleted = self.delete_table_entry_txn(table_name, key, &mut tx_ctx);
+        self.commit(&mut tx_ctx);
         deleted
     }
 
@@ -651,11 +649,11 @@ impl Db {
         &mut self,
         table_name: &[u8],
         key: &[u8],
-        db_writer: &mut DbWriter,
+        tx_ctx: &mut TxCtx,
     ) -> bool {
         // Get the root of the table's tree.
         // Name size check handled in get_table_tree_root
-        let table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, db_writer);
+        let table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, tx_ctx);
         if table_root_page_no_wrapped.is_none() {
             // table does not exist - should maybe throw error
             return false;
@@ -678,8 +676,8 @@ impl Db {
             &key_to_use,
             root_page,
             &mut self.page_cache,
-            &mut db_writer.free_page_tracker,
-            db_writer.new_version,
+            &mut tx_ctx.free_page_tracker,
+            tx_ctx.new_version,
         );
         if !deleted {
             // No changes to DB needed
@@ -693,23 +691,23 @@ impl Db {
             table_name,
             &new_tree_free_page_no.to_le_bytes(),
             &mut self.page_cache,
-            &mut db_writer.free_page_tracker,
-            db_writer.new_version,
+            &mut tx_ctx.free_page_tracker,
+            tx_ctx.new_version,
             &self.compressor,
         );
 
         // Get the table directory tree.
-        let table_dir_root_page_no = db_writer.tree_dir_root_page_no;
+        let table_dir_root_page_no = tx_ctx.tree_dir_root_page_no;
         let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
         // Update the reference for the table tree.
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
             table_dir_root_page,
-            &mut db_writer.free_page_tracker,
+            &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
-            db_writer.new_version,
+            tx_ctx.new_version,
         );
-        db_writer.tree_dir_root_page_no = new_table_dir_root_page_no;
+        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
         deleted
     }
 }

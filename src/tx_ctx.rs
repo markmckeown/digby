@@ -1,7 +1,7 @@
 use crate::db_master_page::DbMasterPage;
 use crate::free_page_tracker::FreePageTracker;
 
-pub struct DbWriter {
+pub struct TxCtx {
     pub master_page: DbMasterPage,
     pub new_version: u64,
     pub free_page_tracker: FreePageTracker,
@@ -9,7 +9,7 @@ pub struct DbWriter {
     pub tree_dir_root_page_no: u64,
 }
 
-impl DbWriter {
+impl TxCtx {
     pub fn new(
         master_page: DbMasterPage,
         new_version: u64,
