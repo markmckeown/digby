@@ -448,14 +448,18 @@ impl Db {
         self.page_cache.sync_data();
     }
 
-    // Get the root page number for a table tree if it exists.
     pub fn get_table_tree_root(&mut self, name: &[u8]) -> Option<u64> {
+        let db_writer = self.get_db_writer();
+        self.get_table_tree_root_txn(name, &db_writer)
+    }
+
+    // Get the root page number for a table tree if it exists.
+    pub fn get_table_tree_root_txn(&mut self, name: &[u8], db_writer: &DbWriter) -> Option<u64> {
         assert!(
             name.len() < u8::MAX as usize,
             "Cannot handle keys larger than u8::MAX."
         );
-        let master_page = self.get_master_page();
-        let table_dir_page_no = master_page.get_table_dir_page_no();
+        let table_dir_page_no = db_writer.tree_dir_root_page_no;
 
         if let Some(tuple) =
             StoreTupleProcessor::get_tuple(name, table_dir_page_no, &mut self.page_cache)
@@ -469,25 +473,34 @@ impl Db {
         }
     }
 
-    // Put a key value into a table. If the table does not exist then create it.
     pub fn put_table_entry(&mut self, table_name: &[u8], key: &[u8], value: &[u8]) {
+        let mut db_writer = self.get_db_writer();
+        self.put_table_entry_txn(table_name, key, value, &mut db_writer);
+        self.commit_changes(&mut db_writer);
+    }
+
+    // Put a key value into a table. If the table does not exist then create it.
+    pub fn put_table_entry_txn(
+        &mut self,
+        table_name: &[u8],
+        key: &[u8],
+        value: &[u8],
+        db_writer: &mut DbWriter,
+    ) {
         assert!(
             table_name.len() < u8::MAX as usize,
             "Cannot handle table name larger than u8::MAX."
         );
 
-        let mut table_root_page_no_wrapped = self.get_table_tree_root(table_name);
+        let mut table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, db_writer);
         if table_root_page_no_wrapped.is_none() {
             // Note this is a transaction on its own, ie the master
             // page is overrwritten. Could do all this in a single
             // transaction.
-            self.create_table(table_name);
-            table_root_page_no_wrapped = self.get_table_tree_root(table_name);
+            self.create_table_txn(table_name, db_writer);
+            table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, db_writer);
         }
         let table_root_page = table_root_page_no_wrapped.unwrap();
-
-        // Prepare to write.
-        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
 
         // Create the tuple we want to add.
         // If key/value are large then this could be an overflow tuple
@@ -496,8 +509,8 @@ impl Db {
             key,
             value,
             &mut self.page_cache,
-            &mut free_page_tracker,
-            new_version,
+            &mut db_writer.free_page_tracker,
+            db_writer.new_version,
             &self.compressor,
         );
 
@@ -507,9 +520,9 @@ impl Db {
         let new_table_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             table_root_page,
-            &mut free_page_tracker,
+            &mut db_writer.free_page_tracker,
             &mut self.page_cache,
-            new_version,
+            db_writer.new_version,
         );
 
         // Need to update the table directory tree with the new root
@@ -518,30 +531,22 @@ impl Db {
             table_name,
             &new_table_root_page_no.to_le_bytes(),
             &mut self.page_cache,
-            &mut free_page_tracker,
-            new_version,
+            &mut db_writer.free_page_tracker,
+            db_writer.new_version,
             &self.compressor,
         );
 
         // Now store the new table reference into the table directory tree.
-        let table_dir_root_page_no = master_page.get_table_dir_page_no();
+        let table_dir_root_page_no = db_writer.tree_dir_root_page_no;
         let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
             table_dir_root_page,
-            &mut free_page_tracker,
+            &mut db_writer.free_page_tracker,
             &mut self.page_cache,
-            new_version,
+            db_writer.new_version,
         );
-
-        // Now finalised all changes to the DB.
-        self.finalise_db_changes(
-            &mut master_page,
-            new_version,
-            None,
-            Some(new_table_dir_root_page_no),
-            &mut free_page_tracker,
-        );
+        db_writer.tree_dir_root_page_no = new_table_dir_root_page_no;
     }
 
     // Remove all the entries in a table.
