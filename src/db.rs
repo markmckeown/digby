@@ -223,10 +223,14 @@ impl Db {
         Some(self.get_tuple_value(&overflow_tuple))
     }
 
-    // Store a key and value in the db.
     pub fn put(&mut self, key: &[u8], value: &[u8]) {
-        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
+        let mut db_writer = self.get_db_writer();
+        self.put_txn(key, value, &mut db_writer);
+        self.commit_changes(&mut db_writer);
+    }
 
+    // Store a key and value in the db.
+    pub fn put_txn(&mut self, key: &[u8], value: &[u8], db_writer: &mut DbWriter) {
         // Create the tuple we want to add. This could be an overflow
         // tuple - if it is an overflow tuple this method will
         // store the key/value in the overflow pages and the tuple
@@ -235,13 +239,13 @@ impl Db {
             key,
             value,
             &mut self.page_cache,
-            &mut free_page_tracker,
-            new_version,
+            &mut db_writer.free_page_tracker,
+            db_writer.new_version,
             &self.compressor,
         );
 
         // Now get the page number of the root of the global tree.
-        let tree_root_page_no = master_page.get_global_tree_root_page_no();
+        let tree_root_page_no = db_writer.global_root_page_no;
         // Now get the root page of the tree.
         let page = self.page_cache.get_page(tree_root_page_no);
         // Store the tuple, this will return the page number of the
@@ -249,19 +253,11 @@ impl Db {
         let new_tree_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             page,
-            &mut free_page_tracker,
+            &mut db_writer.free_page_tracker,
             &mut self.page_cache,
-            new_version,
+            db_writer.new_version,
         );
-
-        // Update the metadata for the tree and sync all the pages.
-        self.finalise_db_changes(
-            &mut master_page,
-            new_version,
-            Some(new_tree_root_page_no),
-            None,
-            &mut free_page_tracker,
-        );
+        db_writer.global_root_page_no = new_tree_root_page_no;
     }
 
     // Remove all entries in the root tree.
