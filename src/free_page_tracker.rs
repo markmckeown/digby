@@ -30,7 +30,7 @@ impl FreePageTracker {
     // ready to complete this object has to provide any free_dir_pages
     // that need to be written back.
     //
-    // page is the head of the free page directory. 
+    // page is the head of the free page directory.
     pub fn new(page: Page, new_version: u64, page_config: PageConfig) -> Self {
         let free_dir_page = FreeDirPage::from_page(page);
         assert!(free_dir_page.get_version() < new_version);
@@ -40,7 +40,7 @@ impl FreePageTracker {
         // this vec - this vec will be written back to disk.
         FreePageTracker {
             free_dir_page_list: vec![free_dir_page],
-            returned_pages: Vec::new(),  // Page numbers that have been returned.
+            returned_pages: Vec::new(), // Page numbers that have been returned.
             new_version,
             page_config,
         }
