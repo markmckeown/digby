@@ -330,6 +330,12 @@ impl Db {
     // DB, the root page to the table tree can be found in another tree,
     // the table directory tree.
     pub fn create_table(&mut self, name: &[u8]) {
+        let mut db_writer = self.get_db_writer();
+        self.create_table_txn(name, &mut db_writer);
+        self.commit_changes(&mut db_writer);
+    }
+
+    pub fn create_table_txn(&mut self, name: &[u8], db_writer: &mut DbWriter) {
         // Assert on the things that cannot be handled yet.
         assert!(
             name.len() < u8::MAX as usize,
@@ -338,16 +344,15 @@ impl Db {
 
         // TODO Test if the table exists before creating.
 
-        // Prepare to write to the DB.
-        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
-
         // Need to create a root page for the new table tree, the first page
         // in the tree will be a leaf page.
-        let new_table_root_page_no = free_page_tracker.get_free_page(&mut self.page_cache);
+        let new_table_root_page_no = db_writer
+            .free_page_tracker
+            .get_free_page(&mut self.page_cache);
         let mut new_table_root_page = LeafPage::create_new(
             self.page_cache.get_page_config(),
             new_table_root_page_no,
-            new_version,
+            db_writer.new_version,
         );
         // Store the new root page back into the file.
         self.page_cache.put_page(new_table_root_page.get_page());
@@ -360,31 +365,22 @@ impl Db {
             name,
             &new_table_root_page_no.to_le_bytes(),
             &mut self.page_cache,
-            &mut free_page_tracker,
-            new_version,
+            &mut db_writer.free_page_tracker,
+            db_writer.new_version,
             &self.compressor,
         );
 
         // Get the root page of the table directory tree.
-        let table_tree_root_page_no = master_page.get_table_dir_page_no();
+        let table_tree_root_page_no = db_writer.tree_dir_root_page_no;
         let page = self.page_cache.get_page(table_tree_root_page_no);
         // Store the reference to the new table in the table
         // directory tree.
-        let new_table_tree_root_no = StoreTupleProcessor::store_tuple(
+        db_writer.tree_dir_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             page,
-            &mut free_page_tracker,
+            &mut db_writer.free_page_tracker,
             &mut self.page_cache,
-            new_version,
-        );
-
-        // Update table metadata and sync pages.
-        self.finalise_db_changes(
-            &mut master_page,
-            new_version,
-            None,
-            Some(new_table_tree_root_no),
-            &mut free_page_tracker,
+            db_writer.new_version,
         );
     }
 
