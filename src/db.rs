@@ -121,14 +121,16 @@ impl Db {
         db
     }
 
+    pub fn delete(&mut self, key: &[u8]) -> bool {
+        let mut db_writer = self.get_db_writer();
+        let deleted = self.delete_txn(key, &mut db_writer);
+        self.commit_changes(&mut db_writer);
+        deleted
+    }
+
     // Delete a key from the DB, returns a bool to indicate if the key was deleted.
     // If false the key did not exist.
-    pub fn delete(&mut self, key: &[u8]) -> bool {
-        // Prepare for tree change. Get the current master_page, the next version
-        // number and a free_page_tracker.
-        // let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
-        let mut db_writer = self.get_db_writer();
-
+    fn delete_txn(&mut self, key: &[u8], db_writer: &mut DbWriter) -> bool {
         // If the key is very large then a short version with a SHA256
         // hash will to stored as a reference in the DB tree. Need
         // to create a key that will be used for the operations.
@@ -155,8 +157,6 @@ impl Db {
             return false;
         }
         db_writer.global_root_page_no = new_tree_root_page_no;
-
-        self.commit_changes(&mut db_writer);
         deleted
     }
 
