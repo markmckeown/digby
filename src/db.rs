@@ -3,11 +3,11 @@ use crate::block_sanity::BlockSanity;
 use crate::compressor::CompressorType;
 use crate::db_master_page::DbMasterPage;
 use crate::db_root_page::DbRootPage;
+use crate::db_writer::DbWriter;
 use crate::file_layer::FileLayer;
 use crate::free_page_tracker::FreePageTracker;
 use crate::overflow_tuple::OverflowTuple;
 use crate::page::PageTrait;
-use crate::db_writer::DbWriter;
 use crate::page_cache::PageCache;
 use crate::tuple::{Overflow, Tuple, TupleTrait};
 use crate::{
@@ -124,6 +124,11 @@ impl Db {
     // Delete a key from the DB, returns a bool to indicate if the key was deleted.
     // If false the key did not exist.
     pub fn delete(&mut self, key: &[u8]) -> bool {
+        // Prepare for tree change. Get the current master_page, the next version
+        // number and a free_page_tracker.
+        // let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
+        let mut db_writer = self.get_db_writer();
+
         // If the key is very large then a short version with a SHA256
         // hash will to stored as a reference in the DB tree. Need
         // to create a key that will be used for the operations.
@@ -133,13 +138,8 @@ impl Db {
             key.to_owned()
         };
 
-        // Prepare for tree change. Get the current master_page, the next version
-        // number and a free_page_tracker.
-        // let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
-        let mut db_writer = self.get_db_writer();
-
         // Get the page number of the root of the tree.
-        let tree_root_page_no = db_writer.master_page.get_global_tree_root_page_no();
+        let tree_root_page_no = db_writer.global_root_page_no;
         // Get the actual root page.
         let root_page = self.page_cache.get_page(tree_root_page_no);
         // Now pass to the TreeDeleteHandler to do the delete.
@@ -154,18 +154,11 @@ impl Db {
             // If nothing deleted then pages do not need to be rewritten.
             return false;
         }
-        db_writer.global_root_page_no = Some(new_tree_root_page_no);
+        db_writer.global_root_page_no = new_tree_root_page_no;
 
-        self.finalise_db_changes(
-            &mut db_writer.master_page,
-            db_writer.new_version,
-            Some(new_tree_root_page_no),
-            None,
-            &mut db_writer.free_page_tracker,
-        );
+        self.commit_changes(&mut db_writer);
         deleted
     }
-
 
     // Get the value associated with key in the DB. If the key
     // is not in the DB then None will be returned.
@@ -396,6 +389,16 @@ impl Db {
             None,
             Some(new_table_tree_root_no),
             &mut free_page_tracker,
+        );
+    }
+
+    fn commit_changes(&mut self, db_writer: &mut DbWriter) {
+        self.finalise_db_changes(
+            &mut db_writer.master_page,
+            db_writer.new_version,
+            Some(db_writer.global_root_page_no),
+            Some(db_writer.tree_dir_root_page_no),
+            &mut db_writer.free_page_tracker,
         );
     }
 
@@ -662,7 +665,7 @@ impl Db {
         let table_root_page_no = table_root_page_no_wrapped.unwrap();
 
         // If its an oversized key then need to generate a short one key for it.
-        // The short key is the first 224 bytes of the key followed by the 
+        // The short key is the first 224 bytes of the key followed by the
         // SHA256 of the whole key.
         let key_to_use: Vec<u8> = if TupleProcessor::is_oversized_key(key) {
             TupleProcessor::generate_short_key(key)
@@ -761,13 +764,13 @@ impl Db {
     }
 
     // There is no DB file, or the file is empty.
-    // Need to create pages and then write the 
+    // Need to create pages and then write the
     // initial meta data pages.
     fn init_db_file(&mut self, sanity_type: BlockSanity) -> std::io::Result<()> {
         // Get some free pages and make space in the file.
         // Will trigger a file sync.
-        // Provides a list of free pages that can be modified or added 
-        // to the free page directory if not used in the init process - 
+        // Provides a list of free pages that can be modified or added
+        // to the free page directory if not used in the init process -
         // the init process will generate some unused pages.
         let mut free_pages: Vec<u64> = self.page_cache.generate_free_pages(10);
         assert!(free_pages.len() == 10);
@@ -841,13 +844,13 @@ impl Db {
 }
 
 impl Db {
-    // Returns the current master depending on which has the highest 
-    // version. 
+    // Returns the current master depending on which has the highest
+    // version.
     // An update will follow this pattern:
     //   Get current master page based on version.
     //   Generate a new version number.
     //   Update the master page after making tree changes.
-    //   Overwrite the non-current master page with the new version. 
+    //   Overwrite the non-current master page with the new version.
     fn get_master_page(&mut self) -> DbMasterPage {
         let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1));
         let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2));
@@ -883,8 +886,8 @@ impl Db {
 }
 
 impl Drop for Db {
-    // This is a bit weird - the file is not closed as 
-    // this is done via the file object drop. 
+    // This is a bit weird - the file is not closed as
+    // this is done via the file object drop.
     // Not sure this is necessary.
     fn drop(&mut self) {
         self.page_cache.sync_all();

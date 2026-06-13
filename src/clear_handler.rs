@@ -14,11 +14,11 @@ pub struct ClearHandler {
 }
 
 // Functionality for clearing a tree - basically return
-// all pages used in the tree as free pages and create 
+// all pages used in the tree as free pages and create
 // a new root page for the tree.
 //
 // Need to be careful as the tree could contain references
-// to overflow tuples that are stored in overflow pages - 
+// to overflow tuples that are stored in overflow pages -
 // so before returning a leaf page as a free page need
 // to make sure no entries are for overflow tuples. This
 // will make clear a more expensive operation than it

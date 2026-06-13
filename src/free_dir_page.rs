@@ -4,26 +4,25 @@ use crate::page::PageTrait;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 
-
 // There needs to be some mechanism to manage free pages in the
-// DB. This can be free pages that have been created for 
+// DB. This can be free pages that have been created for
 // future writes or pages that were being used in the trees
 // that are no longer needed.
 //
 // A FreeDirPage is page with a list of page numbers. Each
 // page number references a free page in the system that can
 // be used in the future for the tree.
-// 
+//
 // A single page can only store a limited number of free pages
 // which might not be enough. To address this the
-// FreeDirPage are arranged as a doubly linked list - if there are 
+// FreeDirPage are arranged as a doubly linked list - if there are
 // two FreeDirPage then one is the head and it points to the tail
 // page.
 //
 // To keep track of this linked list the master page stores
 // the page number of the head of linked list.
 //
-// During a change to the DB pages are removed from the free 
+// During a change to the DB pages are removed from the free
 // page directory and returned to the directory - when
 // finalising the update the free page directory (the head
 // of the linked list) is updated in the master page.
@@ -38,7 +37,7 @@ use std::io::Cursor;
 // Management of free pages is done via the FreePageTracker.
 //
 // Header size 34 bytes
-// | Page No (u64) | VersionHolder (8 bytes) | NextPage(u64) | PreviousPage (u64) 
+// | Page No (u64) | VersionHolder (8 bytes) | NextPage(u64) | PreviousPage (u64)
 // | Entries u16 |
 // | Free Page Id (u64) | Free Page Id (u64) |....|
 pub struct FreeDirPage {
