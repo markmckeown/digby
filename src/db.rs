@@ -560,48 +560,58 @@ impl Db {
         self.clear_table_with_delete(table_name, true);
     }
 
+    pub fn clear_table_with_delete(&mut self, table_name: &[u8], delete: bool) {
+        let mut db_writer = self.get_db_writer();
+        self.clear_table_with_delete_txn(table_name, delete, &mut db_writer);
+        self.commit_changes(&mut db_writer);
+    }
+
     // Clear the contents of a table. If delete is true then the table will be deleted, if false
     // then the table will be cleared but remain in place.
     //
-    pub fn clear_table_with_delete(&mut self, table_name: &[u8], delete: bool) {
+    pub fn clear_table_with_delete_txn(
+        &mut self,
+        table_name: &[u8],
+        delete: bool,
+        db_writer: &mut DbWriter,
+    ) {
         assert!(
             table_name.len() < u8::MAX as usize,
             "Cannot handle table name larger than u8::MAX."
         );
 
-        let table_root_page_no_wrapped = self.get_table_tree_root(table_name);
+        let table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, db_writer);
         if table_root_page_no_wrapped.is_none() {
             // No table to clear or delete.
             return;
         }
         let table_root_page = table_root_page_no_wrapped.unwrap();
 
-        // Prepare to update the DB.
-        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
-
         // First clear the table tree.
         let table_root_page = self.page_cache.get_page(table_root_page);
         let new_table_root_page_no = ClearHandler::clear_tree(
             table_root_page,
-            &mut free_page_tracker,
+            &mut db_writer.free_page_tracker,
             &mut self.page_cache,
-            new_version,
+            db_writer.new_version,
         );
 
         // Now need to update the table directory tree.
-        let table_dir_root_page_no = master_page.get_table_dir_page_no();
+        let table_dir_root_page_no = db_writer.tree_dir_root_page_no;
         let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
 
         // If the table is to be deleted, then delete the table key/name
         // from the table directory tree.
         let new_table_dir_root_page_no: u64 = if delete {
-            free_page_tracker.return_free_page_no(new_table_root_page_no);
+            db_writer
+                .free_page_tracker
+                .return_free_page_no(new_table_root_page_no);
             let (new_page, _is_deleted) = TreeDeleteHandler::delete_key(
                 table_name,
                 table_dir_root_page,
                 &mut self.page_cache,
-                &mut free_page_tracker,
-                new_version,
+                &mut db_writer.free_page_tracker,
+                db_writer.new_version,
             );
             // Page number of the new root of the table directory tree.
             new_page
@@ -614,8 +624,8 @@ impl Db {
                 table_name,
                 &new_table_root_page_no.to_le_bytes(),
                 &mut self.page_cache,
-                &mut free_page_tracker,
-                new_version,
+                &mut db_writer.free_page_tracker,
+                db_writer.new_version,
                 &self.compressor,
             );
             // Store table reference and provide the
@@ -623,20 +633,12 @@ impl Db {
             StoreTupleProcessor::store_tuple(
                 table_tuple,
                 table_dir_root_page,
-                &mut free_page_tracker,
+                &mut db_writer.free_page_tracker,
                 &mut self.page_cache,
-                new_version,
+                db_writer.new_version,
             )
         };
-
-        // Finalise all the DB changes.
-        self.finalise_db_changes(
-            &mut master_page,
-            new_version,
-            None,
-            Some(new_table_dir_root_page_no),
-            &mut free_page_tracker,
-        );
+        db_writer.tree_dir_root_page_no = new_table_dir_root_page_no;
     }
 
     // Get a value from a table tree.
