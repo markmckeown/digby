@@ -265,32 +265,27 @@ impl Db {
         db_writer.global_root_page_no = new_tree_root_page_no;
     }
 
+    pub fn clear(&mut self) {
+        let mut db_writer = self.get_db_writer();
+        self.clear_txn(&mut db_writer);
+        self.commit_changes(&mut db_writer);
+    }
+
     // Remove all entries in the root tree.
     // Note disk space is not freed up - the file stays
     // the same after the clear.
-    pub fn clear(&mut self) {
-        // Get the current master page. Note this is a copy of the page
-        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
-
+    pub fn clear_txn(&mut self, db_writer: &mut DbWriter) {
         // Now get the page number of the root of the global tree.
-        let tree_root_page_no = master_page.get_global_tree_root_page_no();
+        let tree_root_page_no = db_writer.global_root_page_no;
         // Get the root of the tree.
         let page = self.page_cache.get_page(tree_root_page_no);
         // Clear the tree, will return the new root of the tree which
         // will now be a leaf page.
-        let new_tree_root_page_no = ClearHandler::clear_tree(
+        db_writer.global_root_page_no = ClearHandler::clear_tree(
             page,
-            &mut free_page_tracker,
+            &mut db_writer.free_page_tracker,
             &mut self.page_cache,
-            new_version,
-        );
-
-        self.finalise_db_changes(
-            &mut master_page,
-            new_version,
-            Some(new_tree_root_page_no),
-            None,
-            &mut free_page_tracker,
+            db_writer.new_version,
         );
     }
 
