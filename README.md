@@ -6,7 +6,7 @@ Digby is an embedded key-value store written in Rust, built as a learning projec
 
 *   **B+ Tree Based**: Use a B+ tree for storing  key-value pairs.
 *   **Global & Table-based Stores**: Supports a root global B+ Tree as well as independent B+ trees (tables), all stored in a single file.
-*   **Large Item Support**: Large keys and values can be stored with 64 bit sizes. They are stored using overflow pages and they can be compressed with LZ4. Large keys are indexed using a combination of their prefix and a SHA256 hash. The first 224 bytes of the key is used as a prefix plus 32 bytes for SHA256, this allows lexical sorting up to 224 bytes of key.
+*   **Large Item Support**: Large keys and values can be stored with 64 bit sizes. They are stored using overflow pages and they can be compressed with LZ4, similar to Postgres TOAST except the large key/values are stored in the same file as everything else. Large keys are indexed using a combination of their prefix and a SHA256 hash. The first 224 bytes of the key is used as a prefix plus 32 bytes for SHA256, this allows lexical sorting up to 224 bytes of key.
 *   **Copy-On-Write (COW)**: Based on "B-trees, Shadowing, and Clones" paper, similar to ZFS and BcacheFS.
 *   **Deletion**: Implements deletion without requiring complex tree rebalancing, based on "Deletion Without Rebalancing in Multiway Search Trees" paper.
 *   **Data Integrity and Security**:
@@ -16,6 +16,7 @@ Digby is an embedded key-value store written in Rust, built as a learning projec
 *   **Compression**: Optional lz4 compression for large keys and values.
 *   **Large Store Support**: Page numbers are 64 bits to support very large databases.
 *   **Head and Tail Compression**: Head and tail compression in B+ tree nodes based on https://www.cs.purdue.edu/homes/csjgwang/pubs/SIGMOD24_BtreeCompression.pdf
+*   **Transactions**: Support for transactions to make multiple changes to the DB in an atomic operation which is isolated from readers. 
 
 ## Usage
 
