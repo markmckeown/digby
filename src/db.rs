@@ -289,29 +289,6 @@ impl Db {
         );
     }
 
-    // Utility function - this is called before updating the database
-    // and returns the items needed to update the db.
-    //
-    // Provides:
-    //   Current master page.
-    //   New version number.
-    //   FreePageTracker which manages free pages for the update.
-    //
-    // TODO Could return an encapsulated object.
-    fn get_update_vars(&mut self) -> (DbMasterPage, u64, FreePageTracker) {
-        let master_page = self.get_master_page();
-        let old_version = master_page.get_version();
-        let new_version = old_version + 1;
-        // Find the free page directory that has the free page numbers.
-        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
-        let free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no),
-            new_version,
-            *self.page_cache.get_page_config(),
-        );
-        (master_page, new_version, free_page_tracker)
-    }
-
     fn get_db_writer(&mut self) -> DbWriter {
         let master_page = self.get_master_page();
         let old_version = master_page.get_version();
@@ -652,11 +629,38 @@ impl Db {
         self.get_from_tree(key, table_root_page_no)
     }
 
-    // Delete an entry from a table tree.
+    pub fn get_table_entry_txn(
+        &mut self,
+        table_name: &[u8],
+        key: &[u8],
+        db_writer: &DbWriter,
+    ) -> Option<Vec<u8>> {
+        // Name size check handled in get_table_tree_root
+        let table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, db_writer);
+        // If the table does not exist could throw an error.
+        table_root_page_no_wrapped?;
+
+        let table_root_page_no = table_root_page_no_wrapped.unwrap();
+        self.get_from_tree(key, table_root_page_no)
+    }
+
     pub fn delete_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> bool {
+        let mut db_writer = self.get_db_writer();
+        let deleted = self.delete_table_entry_txn(table_name, key, &mut db_writer);
+        self.commit_changes(&mut db_writer);
+        deleted
+    }
+
+    // Delete an entry from a table tree.
+    pub fn delete_table_entry_txn(
+        &mut self,
+        table_name: &[u8],
+        key: &[u8],
+        db_writer: &mut DbWriter,
+    ) -> bool {
         // Get the root of the table's tree.
         // Name size check handled in get_table_tree_root
-        let table_root_page_no_wrapped = self.get_table_tree_root(table_name);
+        let table_root_page_no_wrapped = self.get_table_tree_root_txn(table_name, db_writer);
         if table_root_page_no_wrapped.is_none() {
             // table does not exist - should maybe throw error
             return false;
@@ -672,9 +676,6 @@ impl Db {
             key.to_owned()
         };
 
-        // Prepare to update DB.
-        let (mut master_page, new_version, mut free_page_tracker) = self.get_update_vars();
-
         // Delete the key from the table tree and get back the new root page
         // number of the table tree.
         let root_page = self.page_cache.get_page(table_root_page_no);
@@ -682,8 +683,8 @@ impl Db {
             &key_to_use,
             root_page,
             &mut self.page_cache,
-            &mut free_page_tracker,
-            new_version,
+            &mut db_writer.free_page_tracker,
+            db_writer.new_version,
         );
         if !deleted {
             // No changes to DB needed
@@ -697,32 +698,23 @@ impl Db {
             table_name,
             &new_tree_free_page_no.to_le_bytes(),
             &mut self.page_cache,
-            &mut free_page_tracker,
-            new_version,
+            &mut db_writer.free_page_tracker,
+            db_writer.new_version,
             &self.compressor,
         );
 
         // Get the table directory tree.
-        let table_dir_root_page_no = master_page.get_table_dir_page_no();
+        let table_dir_root_page_no = db_writer.tree_dir_root_page_no;
         let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
         // Update the reference for the table tree.
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
             table_dir_root_page,
-            &mut free_page_tracker,
+            &mut db_writer.free_page_tracker,
             &mut self.page_cache,
-            new_version,
+            db_writer.new_version,
         );
-
-        // Write out DB metadata and sync to disk.
-        self.finalise_db_changes(
-            &mut master_page,
-            new_version,
-            None,
-            Some(new_table_dir_root_page_no),
-            &mut free_page_tracker,
-        );
-
+        db_writer.tree_dir_root_page_no = new_table_dir_root_page_no;
         deleted
     }
 }
