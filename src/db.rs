@@ -661,7 +661,7 @@ impl Db {
         let table_root_page_no = table_root_page_no_wrapped.unwrap();
 
         // If its an oversized key then need to generate a short one key for it.
-        // The short key is the first 223 bytes of the key followed by the 
+        // The short key is the first 223 bytes of the key followed by the
         // SHA256 of the whole key.
         let key_to_use: Vec<u8> = if TupleProcessor::is_oversized_key(key) {
             TupleProcessor::generate_short_key(key)

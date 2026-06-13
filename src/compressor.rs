@@ -1,4 +1,4 @@
-// Used to compress data overflow tuples. 
+// Used to compress data overflow tuples.
 // The type of compression
 // used is determined when the DB is created.
 // Currently None and lz4 are supported.

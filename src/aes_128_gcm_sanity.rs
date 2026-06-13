@@ -6,14 +6,14 @@ use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
 };
 
-// Support for encrypting blocks. 
+// Support for encrypting blocks.
 // Each block is encrypted with a randomly generated 96 bit nonce
 // and the key provided which is 16 bytes.
-// A nonce is generated each time a block is encrypted. 
+// A nonce is generated each time a block is encrypted.
 // The nonce is stored in the last 12 bytes of the block. An additional
-// 16 bytes are used for the AES-128-GCM authentication tag, so the 
+// 16 bytes are used for the AES-128-GCM authentication tag, so the
 // page size is block size - 28.
-// There is no checksum stored, AES128-GCM has a built in 
+// There is no checksum stored, AES128-GCM has a built in
 // cryptographic checksum functionality.
 pub struct Aes128GcmSanity {}
 
