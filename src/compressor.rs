@@ -1,6 +1,7 @@
-// Used to compress data. They type of compression
+// Used to compress data overflow tuples. 
+// The type of compression
 // used is determined when the DB is created.
-// Currently none and lz4 are supported.
+// Currently None and lz4 are supported.
 
 pub struct Compressor {
     pub compressor_type: CompressorType,

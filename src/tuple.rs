@@ -24,9 +24,9 @@ use crate::version_holder::VersionHolder;
 // 4. Key and value overflow - store SHA256 of key and page number
 //    of overflow page as value.
 //
-// If the key overflows we store the first 224 bytes of tkey followed
-// by the 32 bytes of the SHA256 of the key. This mean lexical sorting
-// works up to 224 bytes.
+// If the key overflows we store the first 223 bytes of the key followed
+// by the 32 bytes of the SHA256 of the key to allow key length
+// to be stored in u8. This mean lexical sorting works up to 223 bytes.
 //
 // When we come to store a tuple we know which Overflow type it is.
 // When we want to look up a tuple given the key we know whether

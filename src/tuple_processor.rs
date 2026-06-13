@@ -8,9 +8,10 @@ use sha2::{Digest, Sha256};
 
 pub struct TupleProcessor {}
 
-// If key is over 256 bytes then it is stored as [ first 224 bytes of key | SHA256 of Key].
+// If key is over 255 bytes then it is stored as [ first 223 bytes of key | SHA256 of Key],
+// to allow the key length to be stored as u8,
 // The tuple will be stored in an Overflow page with the full key.
-// If keys are larger 256 bytes then lexical sorting will break down - another option
+// If keys are larger 255 bytes then lexical sorting will break down - another option
 // would be just to store the SHA256 as the comppressed key.
 impl TupleProcessor {
     const MAX_VALUE_SIZE: usize = 1024;

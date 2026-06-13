@@ -3,8 +3,8 @@ use crate::tuple::TupleTrait;
 use crate::version_holder::VersionHolder;
 
 // There must be some clever way to do this rather than copying code.
-// The only difference is that the tuple is serialised with u32 for
-// the key and value length rather than the u32 used in Tuple.
+// The only difference is that the overflow tuple is serialised with u64 (8 bytes)
+// for the key and value length rather than the u8/u16 used in Tuple.
 #[derive(Clone)]
 pub struct OverflowTuple {
     // key_len - 8 bytes
