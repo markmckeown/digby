@@ -160,6 +160,11 @@ impl Db {
         deleted
     }
 
+    // Dirty read - get a value in a transaction context.
+    pub fn get_txn(&mut self, key: &[u8], db_writer: &DbWriter) -> Option<Vec<u8>> {
+        self.get_from_tree(key, db_writer.global_root_page_no)
+    }
+
     // Get the value associated with key in the DB. If the key
     // is not in the DB then None will be returned.
     pub fn get(&mut self, key: &[u8]) -> Option<Vec<u8>> {
