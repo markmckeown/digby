@@ -1,11 +1,11 @@
-use crate::block_layer::{BlockLayer, PageConfig};
+use crate::block_layer::{PageContainerLayer, PageConfig};
 use crate::page::Page;
 use crate::page::PageTrait;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
 pub struct PageCache {
-    block_layer: BlockLayer,
+    block_layer: PageContainerLayer,
     page_map: HashMap<u64, Page>,
     deque: VecDeque<u64>,
     cache_size_limit: usize,
@@ -18,7 +18,7 @@ pub struct PageCache {
 // reference to a page, any client looking to make changes can get a
 // copy of the page.
 impl PageCache {
-    pub fn new(block_layer: BlockLayer) -> Self {
+    pub fn new(block_layer: PageContainerLayer) -> Self {
         PageCache {
             block_layer,
             page_map: HashMap::new(),
@@ -124,7 +124,7 @@ mod tests {
     fn test_page_cache_read_write() {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, PAGE_SIZE);
-        let block_layer = BlockLayer::new(file_layer, PAGE_SIZE);
+        let block_layer = PageContainerLayer::new(file_layer, PAGE_SIZE);
         let mut page_cache = PageCache::new(block_layer);
         let page_number = 0;
 

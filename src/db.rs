@@ -1,4 +1,4 @@
-use crate::block_layer::BlockLayer;
+use crate::block_layer::PageContainerLayer;
 use crate::block_sanity::BlockSanity;
 use crate::compressor::CompressorType;
 use crate::db_master_page::DbMasterPage;
@@ -92,13 +92,13 @@ impl Db {
         // TODO -  checksum hardcoded to xxHash32 and encryption to
         // AES-128-GCM.
         // File layer is passed to block layer.
-        let block_layer: BlockLayer;
+        let block_layer: PageContainerLayer;
         let sanity_type: BlockSanity;
         if let Some(k) = key {
-            block_layer = BlockLayer::new_with_key(file_layer, block_size, k);
+            block_layer = PageContainerLayer::new_with_key(file_layer, block_size, k);
             sanity_type = BlockSanity::Aes128Gcm;
         } else {
-            block_layer = BlockLayer::new(file_layer, block_size);
+            block_layer = PageContainerLayer::new(file_layer, block_size);
             sanity_type = BlockSanity::XxH32Checksum;
         }
         // Create page cache with the block layer.

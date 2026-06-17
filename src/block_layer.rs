@@ -44,16 +44,16 @@ pub struct PageConfig {
     pub page_size: usize,
 }
 
-pub struct BlockLayer {
+pub struct PageContainerLayer {
     file_layer: FileLayer,
     page_config: PageConfig,
     block_sanity: BlockSanity,
     key: Vec<u8>, // The encryption key if encryption is being used.
 }
 
-impl BlockLayer {
+impl PageContainerLayer {
     pub fn new(file_layer: FileLayer, block_size: usize) -> Self {
-        BlockLayer {
+        PageContainerLayer {
             file_layer,
             block_sanity: BlockSanity::XxH32Checksum,
             page_config: PageConfig {
@@ -73,7 +73,7 @@ impl BlockLayer {
             // If the key is less than 16 bytes, pad with zeros
             enc_key[0..key.len()].copy_from_slice(&key[..]);
         }
-        BlockLayer {
+        PageContainerLayer {
             file_layer,
             block_sanity: BlockSanity::Aes128Gcm,
             page_config: PageConfig {
@@ -163,7 +163,7 @@ mod tests {
         let block_size: usize = 4096;
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, block_size);
-        let mut block_layer = BlockLayer::new(file_layer, block_size);
+        let mut block_layer = PageContainerLayer::new(file_layer, block_size);
         let page_number = 0;
         block_layer.generate_free_pages(10);
         let mut page = Page::create_new(block_layer.get_page_config());
@@ -182,7 +182,7 @@ mod tests {
         let file_layer = FileLayer::new(temp_file, block_size);
         // Use oversized key to test that only the first 16 bytes are used for AES-128-GCM
         let key = [0u8; 32].to_vec(); // Key for AES-128-GCM
-        let mut block_layer = BlockLayer::new_with_key(file_layer, block_size, key);
+        let mut block_layer = PageContainerLayer::new_with_key(file_layer, block_size, key);
         let page_number = 0;
         block_layer.generate_free_pages(10);
         let mut page = Page::create_new(block_layer.get_page_config());
@@ -201,7 +201,7 @@ mod tests {
         let file_layer = FileLayer::new(temp_file, block_size);
         // Use undersized key to test that only the first 16 bytes are used for AES-128-GCM
         let key = [0u8; 8].to_vec(); // Key for AES-128-GCM
-        let mut block_layer = BlockLayer::new_with_key(file_layer, block_size, key);
+        let mut block_layer = PageContainerLayer::new_with_key(file_layer, block_size, key);
         let page_number = 0;
         block_layer.generate_free_pages(10);
         let mut page = Page::create_new(block_layer.get_page_config());
@@ -219,7 +219,7 @@ mod tests {
         let block_size: usize = 4096;
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, block_size);
-        let mut block_layer = BlockLayer::new(file_layer, block_size);
+        let mut block_layer = PageContainerLayer::new(file_layer, block_size);
         let mut page = Page::create_new(block_layer.get_page_config());
         page.set_page_number(4);
         page.set_type(PageType::Free);
@@ -232,7 +232,7 @@ mod tests {
         let block_size: usize = 4096;
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, block_size);
-        let mut block_layer = BlockLayer::new(file_layer, block_size);
+        let mut block_layer = PageContainerLayer::new(file_layer, block_size);
         let mut free_pages = block_layer.generate_free_pages(1);
         assert!(free_pages.len() == 1);
         free_pages = block_layer.generate_free_pages(2);
@@ -246,7 +246,7 @@ mod tests {
         let block_size: usize = 4096;
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, block_size);
-        let mut block_layer = BlockLayer::new(file_layer, block_size);
+        let mut block_layer = PageContainerLayer::new(file_layer, block_size);
         let mut page = DbRootPage::create_new(block_layer.get_page_config());
         block_layer.generate_free_pages(1);
         block_layer.write_page(page.get_page(), 0);

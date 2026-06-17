@@ -342,8 +342,8 @@ mod tests {
             .expect("Failed to open or create DB file");
 
         let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
-        let block_layer: crate::BlockLayer =
-            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE);
+        let block_layer: crate::PageContainerLayer =
+            crate::PageContainerLayer::new(file_layer, crate::Db::BLOCK_SIZE);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let free_dir_page_no = *page_cache.generate_free_pages(1).first().unwrap();
@@ -394,8 +394,8 @@ mod tests {
             .expect("Failed to open or create DB file");
 
         let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
-        let block_layer: crate::BlockLayer =
-            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE);
+        let block_layer: crate::PageContainerLayer =
+            crate::PageContainerLayer::new(file_layer, crate::Db::BLOCK_SIZE);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1).first().unwrap();
@@ -460,8 +460,8 @@ mod tests {
             .expect("Failed to open or create DB file");
 
         let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
-        let block_layer: crate::BlockLayer =
-            crate::BlockLayer::new(file_layer, crate::Db::BLOCK_SIZE);
+        let block_layer: crate::PageContainerLayer =
+            crate::PageContainerLayer::new(file_layer, crate::Db::BLOCK_SIZE);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1).first().unwrap();

@@ -121,7 +121,7 @@ impl TupleProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_layer::BlockLayer;
+    use crate::block_layer::PageContainerLayer;
     use crate::compressor::{Compressor, CompressorType};
     use crate::file_layer::FileLayer;
     use crate::page::PageTrait;
@@ -157,7 +157,7 @@ mod tests {
             .open(temp_file.path())
             .unwrap();
         let file_layer = FileLayer::new(file, 4096);
-        let block_layer = BlockLayer::new(file_layer, 4096);
+        let block_layer = PageContainerLayer::new(file_layer, 4096);
         let mut page_cache = PageCache::new(block_layer);
         let version = 0;
         let new_version = 1;
