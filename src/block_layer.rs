@@ -3,36 +3,35 @@ use crate::file_layer::FileLayer;
 use crate::page::Page;
 use crate::page::PageTrait;
 
-// The block layer sits above the file layer.
+// The page container layer sits above the file layer.
 // Data is stored to the file as blocks, the blocks
 // contain pages.
-// Everything above the block layer works in pages,
-// the file_layer works in blocks and the block_layer
-// maps between blocks and pages.
-// The difference between a page and a block is the
-// page is contained in the block as the start of the
-// block - there are some bytes at the end of the
-// the block not contained in the page that hold either
-// checksum information for the page or encryption
-// information for the page.
 //
+// A page container contains a page and is made up of
+// one or more file blocks, along with the page it
+// contains either a checksum for the page or the
+// encryption information for the page. 
+//
+// Everything above the page container layer works in pages,
+// the file_layer works in blocks and the page_container_layer
+// maps between blocks and pages.
+//
+// The page is stored at the start of the page container, the 
+// checksum/encryption information is stored at the end of the page container.
 //
 // | Page | Checksum/Encryption Bytes |
 //
 // The amount of bytes used for checkum/encryption
 // depends on the BlockSanity used. 4 bytes for a
 // xxhash_32 hash of the page bytes, 28 bytes for
-// AES-128-GCM encryption of the page. If encryption
-// is used then there is no explicit checksum - checksum
-// will be part of the encryption algorithm
+// AES-128-GCM encryption of the page. 
 //
-// The block size is determined at DB creation time,
+// The file block size is determined at DB creation time,
 // on Linux 4096 bytes can be sent to disk atomically -
 // there is recent support for untorn writes that could
-// support 16K writes atomically. The page size depoends
-// on the block size and the block sanity used.
+// support 16K writes atomically. 
 //
-// The block layer is also respnsible for generating
+// The page container layer is also respnsible for generating
 // free pages.
 //
 
