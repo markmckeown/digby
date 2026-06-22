@@ -56,3 +56,5 @@ pub mod dir_page;
 pub use dir_page::DirPage;
 pub mod tx_ctx;
 pub use tx_ctx::TxCtx;
+pub mod page_no;
+pub use page_no::PageNo;
