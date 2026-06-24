@@ -1,4 +1,5 @@
 use crate::page::Page;
+use crate::page_no::PageNo;
 
 pub struct FileLayer {
     file: std::fs::File,
@@ -28,24 +29,30 @@ impl FileLayer {
 
     pub fn append_new_page(&mut self, page: &Page, page_number: u64) {
         use std::io::{Seek, SeekFrom, Write};
+        
+        let page_no = PageNo::from_u64(page_number);
+        let block_count = page_no.get_pg_ctr_block_cnt();
+        let block_offset = page_no.get_file_blk_offset();
         assert!(
-            page_number == self.block_count,
+            block_offset == self.block_count,
             "page_number should match page_count"
         );
-        let offset = page_number * self.block_size as u64;
+        let offset = block_offset * self.block_size as u64;
         self.file
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for append_new_page");
         self.file
             .write_all(page.get_block_bytes())
             .expect("Failed to write for append_new_page");
-        self.block_count += 1;
+        self.block_count += block_count;
     }
 
     pub fn write_page_to_disk(&mut self, page: &Page, page_number: u64) -> std::io::Result<()> {
         use std::io::{Seek, SeekFrom, Write};
 
-        let offset = page_number * self.block_size as u64;
+        let page_no = PageNo::from_u64(page_number);
+        let block_offset = page_no.get_file_blk_offset();
+        let offset = block_offset * self.block_size as u64;
         self.file
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for write_page_to_disk");
@@ -63,7 +70,9 @@ impl FileLayer {
         assert!(page_number < self.block_count);
         use std::io::{Read, Seek, SeekFrom};
 
-        let offset = page_number * self.block_size as u64;
+        let page_no = PageNo::from_u64(page_number);
+        let block_offset = page_no.get_file_blk_offset();
+        let offset = block_offset * self.block_size as u64;
         self.file
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for read");

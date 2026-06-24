@@ -42,12 +42,12 @@ impl PageNo {
         self.0.to_le_bytes()
     }
 
-    pub fn get_pg_ctr_block_cnt(&self) -> usize {
+    pub fn get_pg_ctr_block_cnt(&self) -> u64 {
         1 << (self.0 >> 56)
     }
 
     pub fn get_pg_ctr_size(&self, block_size: usize) -> usize {
-        block_size * self.get_pg_ctr_block_cnt()
+        block_size * self.get_pg_ctr_block_cnt() as usize
     }
 
     pub fn set_file_blk_offset(&mut self, file_blk_offset: u64) {
