@@ -2,6 +2,7 @@ use crate::block_sanity::BlockSanity;
 use crate::file_layer::FileLayer;
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page_no::PageNo;
 
 // The page container layer sits above the file layer.
 // Data is stored to the file as blocks, the blocks
@@ -88,27 +89,29 @@ impl PageContainerLayer {
     }
 
     pub fn read_page(&mut self, page_number: u64) -> Page {
+        let page_no = PageNo::from_u64(page_number);
         let mut page = Page::create_new(&self.page_config);
         self.file_layer
-            .read_page_from_disk(&mut page, page_number)
+            .read_page_from_disk(&mut page, &page_no)
             .expect("Failed to read page");
         self.check_sanity(&mut page);
         page
     }
 
     pub fn get_total_page_count(&self) -> u64 {
-        self.file_layer.get_page_count()
+        self.file_layer.get_block_count()
     }
 
     pub fn write_page(&mut self, page: &mut Page, page_number: u64) {
+        let page_no = PageNo::from_u64(page_number);
         assert!(
-            page_number < self.file_layer.get_page_count(),
+            page_no.get_file_blk_offset() < self.file_layer.get_block_count(),
             "Writing page outside the file."
         );
 
         self.set_sanity(page);
         self.file_layer
-            .write_page_to_disk(page, page_number)
+            .write_page_to_disk(page, &page_no)
             .expect("Failed to write page");
     }
 
@@ -117,7 +120,7 @@ impl PageContainerLayer {
     // needed and a waste of time) and extend the file with a sync - note, that
     // if the commit does not complete then these pages will be leaked.
     pub fn generate_free_pages(&mut self, no_new_pages: u64) -> Vec<u64> {
-        let existing_page_count = self.file_layer.get_page_count();
+        let existing_page_count = self.file_layer.get_block_count();
         let mut created_page_nos: Vec<u64> = Vec::new();
         for new_page_no in existing_page_count..existing_page_count + no_new_pages {
             let mut page = Page::create_new(&self.page_config);

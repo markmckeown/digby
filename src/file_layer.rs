@@ -23,7 +23,7 @@ impl FileLayer {
         }
     }
 
-    pub fn get_page_count(&self) -> u64 {
+    pub fn get_block_count(&self) -> u64 {
         self.block_count
     }
 
@@ -47,10 +47,9 @@ impl FileLayer {
         self.block_count += block_count;
     }
 
-    pub fn write_page_to_disk(&mut self, page: &Page, page_number: u64) -> std::io::Result<()> {
+    pub fn write_page_to_disk(&mut self, page: &Page, page_no: &PageNo) -> std::io::Result<()> {
         use std::io::{Seek, SeekFrom, Write};
 
-        let page_no = PageNo::from_u64(page_number);
         let block_offset = page_no.get_file_blk_offset();
         let offset = block_offset * self.block_size as u64;
         self.file
@@ -65,13 +64,13 @@ impl FileLayer {
     pub fn read_page_from_disk(
         &mut self,
         page: &mut Page,
-        page_number: u64,
+        page_no: &PageNo,
     ) -> std::io::Result<()> {
-        assert!(page_number < self.block_count);
         use std::io::{Read, Seek, SeekFrom};
 
-        let page_no = PageNo::from_u64(page_number);
         let block_offset = page_no.get_file_blk_offset();
+        assert!(block_offset < self.block_count);
+
         let offset = block_offset * self.block_size as u64;
         self.file
             .seek(SeekFrom::Start(offset))
@@ -117,13 +116,13 @@ mod tests {
 
         // Write the page to disk
         file_layer
-            .write_page_to_disk(&page, 0)
+            .write_page_to_disk(&page, &PageNo::from_u64(0))
             .expect("Failed to write page");
 
         // Read the page back from disk
         let mut read_page = Page::new(BLOCK_SIZE, BLOCK_SIZE);
         file_layer
-            .read_page_from_disk(&mut read_page, 0)
+            .read_page_from_disk(&mut read_page, &PageNo::from_u64(0))
             .expect("Failed to read page");
 
         // Verify that the read data matches the written data
