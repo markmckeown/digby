@@ -756,7 +756,7 @@ impl Db {
         // Provides a list of free pages that can be modified or added
         // to the free page directory if not used in the init process -
         // the init process will generate some unused pages.
-        let mut free_pages: Vec<u64> = self.page_cache.generate_free_pages(10);
+        let mut free_pages: Vec<u64> = self.page_cache.generate_free_pages(10, 0);
         assert!(free_pages.len() == 10);
 
         // Write the global tree root page at page number 5.

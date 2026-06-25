@@ -80,7 +80,7 @@ impl FreePageTracker {
         // The current free_dir_page has no free pages, it has no links
         // to other free_dir_pages - so have the page_cache generate
         // new free pages.
-        let mut new_free_pages: Vec<u64> = page_cache.generate_free_pages(8);
+        let mut new_free_pages: Vec<u64> = page_cache.generate_free_pages(8, 0);
         // Reverse the free pages or we add at end of file first.
         new_free_pages.reverse();
         // Grab a free page number to return to the commit before adding to free_dir_page
@@ -129,7 +129,7 @@ impl FreePageTracker {
         while !self.returned_pages.is_empty() {
             // We create a new free page for the new free_page_dir page we need - we do not want to use a returned page no
             // as that could cause corruption. Returned pages are still in use until the commit is complete.
-            let next_free_page_no = *page_cache.generate_free_pages(1).first().unwrap();
+            let next_free_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
             let mut next_free_dir_page =
                 FreeDirPage::create_new(&self.page_config, next_free_page_no, self.new_version);
             next_free_dir_page.set_next(last.get_page_number());
@@ -173,7 +173,7 @@ mod tests {
             crate::PageContainerLayer::new(file_layer, crate::Db::BLOCK_SIZE);
         let mut page_cache: PageCache = PageCache::new(block_layer);
 
-        let free_dir_page_no = *page_cache.generate_free_pages(1).first().unwrap();
+        let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
             FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());

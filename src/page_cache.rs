@@ -33,8 +33,8 @@ impl PageCache {
 
     // Generate free pages on disk that can be written back to. Returns
     // a list of page numbers.
-    pub fn generate_free_pages(&mut self, no_new_pages: u64) -> Vec<u64> {
-        self.block_layer.generate_free_pages(no_new_pages)
+    pub fn generate_free_pages(&mut self, no_new_pages: u64, block_cnt_exp: u8) -> Vec<u64> {
+        self.block_layer.generate_free_pages(no_new_pages, block_cnt_exp)
     }
 
     // This returns a newly created page at the block layer. So each
@@ -130,7 +130,7 @@ mod tests {
 
         // Write a page to the cache
         let mut page = Page::create_new(page_cache.get_page_config());
-        page_cache.generate_free_pages(10);
+        page_cache.generate_free_pages(10, 0);
         page.set_page_number(page_number);
         page.set_type(page::PageType::Free);
         page_cache.put_page(&mut page);

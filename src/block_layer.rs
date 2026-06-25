@@ -119,7 +119,13 @@ impl PageContainerLayer {
     // no free pages in the system. This will initialise the pages (possibly not
     // needed and a waste of time) and extend the file with a sync - note, that
     // if the commit does not complete then these pages will be leaked.
-    pub fn generate_free_pages(&mut self, no_new_pages: u64) -> Vec<u64> {
+    pub fn generate_free_pages(&mut self, no_new_pages: u64, _block_cnt_exp: u8) -> Vec<u64> {
+        // Get the file block offset.
+        // Create new page_container with required number of blocks.
+        // Set page number - block offset & block count.
+        // Set page sanity.
+        // Append new page.
+        // Get new file block offset - repeat
         let existing_page_count = self.file_layer.get_block_count();
         let mut created_page_nos: Vec<u64> = Vec::new();
         for new_page_no in existing_page_count..existing_page_count + no_new_pages {
@@ -128,7 +134,7 @@ impl PageContainerLayer {
             page.set_type(crate::page::PageType::Free);
             self.set_sanity(&mut page);
             created_page_nos.push(new_page_no);
-            self.file_layer.append_new_page(&page, new_page_no);
+            self.file_layer.append_new_page(&page, &PageNo::from_u64(new_page_no));
         }
         // Sync the file and file metadata.
         self.file_layer.sync_all();
@@ -167,7 +173,7 @@ mod tests {
         let file_layer = FileLayer::new(temp_file, block_size);
         let mut block_layer = PageContainerLayer::new(file_layer, block_size);
         let page_number = 0;
-        block_layer.generate_free_pages(10);
+        block_layer.generate_free_pages(10, 0);
         let mut page = Page::create_new(block_layer.get_page_config());
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
@@ -186,7 +192,7 @@ mod tests {
         let key = [0u8; 32].to_vec(); // Key for AES-128-GCM
         let mut block_layer = PageContainerLayer::new_with_key(file_layer, block_size, key);
         let page_number = 0;
-        block_layer.generate_free_pages(10);
+        block_layer.generate_free_pages(10, 0);
         let mut page = Page::create_new(block_layer.get_page_config());
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
@@ -205,7 +211,7 @@ mod tests {
         let key = [0u8; 8].to_vec(); // Key for AES-128-GCM
         let mut block_layer = PageContainerLayer::new_with_key(file_layer, block_size, key);
         let page_number = 0;
-        block_layer.generate_free_pages(10);
+        block_layer.generate_free_pages(10, 0);
         let mut page = Page::create_new(block_layer.get_page_config());
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
@@ -235,11 +241,11 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, block_size);
         let mut block_layer = PageContainerLayer::new(file_layer, block_size);
-        let mut free_pages = block_layer.generate_free_pages(1);
+        let mut free_pages = block_layer.generate_free_pages(1, 0);
         assert!(free_pages.len() == 1);
-        free_pages = block_layer.generate_free_pages(2);
+        free_pages = block_layer.generate_free_pages(2, 0);
         assert!(free_pages.len() == 2);
-        free_pages = block_layer.generate_free_pages(5);
+        free_pages = block_layer.generate_free_pages(5, 0);
         assert!(free_pages.len() == 5);
     }
 
@@ -250,7 +256,7 @@ mod tests {
         let file_layer = FileLayer::new(temp_file, block_size);
         let mut block_layer = PageContainerLayer::new(file_layer, block_size);
         let mut page = DbRootPage::create_new(block_layer.get_page_config());
-        block_layer.generate_free_pages(1);
+        block_layer.generate_free_pages(1, 0);
         block_layer.write_page(page.get_page(), 0);
     }
 }

@@ -27,10 +27,9 @@ impl FileLayer {
         self.block_count
     }
 
-    pub fn append_new_page(&mut self, page: &Page, page_number: u64) {
+    pub fn append_new_page(&mut self, page: &Page, page_no: &PageNo) {
         use std::io::{Seek, SeekFrom, Write};
         
-        let page_no = PageNo::from_u64(page_number);
         let block_count = page_no.get_pg_ctr_block_cnt();
         let block_offset = page_no.get_file_blk_offset();
         assert!(
@@ -105,7 +104,7 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let mut file_layer = FileLayer::new(temp_file, BLOCK_SIZE);
         let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4); // Create a new page
-        file_layer.append_new_page(&page, 0);
+        file_layer.append_new_page(&page, &PageNo::from_u64(0));
         let test_data: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(BLOCK_SIZE)
@@ -135,7 +134,7 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let mut file_layer = FileLayer::new(temp_file, BLOCK_SIZE);
         let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4); // Create a new page
-        file_layer.append_new_page(&page, 24);
+        file_layer.append_new_page(&page, &PageNo::from_u64(24));
         let test_data: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(BLOCK_SIZE)
@@ -145,7 +144,7 @@ mod tests {
             .copy_from_slice(test_data.as_bytes()); // Fill the page with test data
 
         // Write the page to disk
-        file_layer.append_new_page(&page, 0);
+        file_layer.append_new_page(&page, &PageNo::from_u64(0));
     }
 
     #[test]
