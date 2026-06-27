@@ -23,8 +23,8 @@ impl PageTrait for DbRootPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) {
-        assert_eq!(page_no, 0, "DbRootPage must have page number 0");
+    fn set_page_number(&mut self, page_no: PageNo) {
+        assert_eq!(page_no.get_blk_offset(), 0, "DbRootPage must have page number 0");
         self.page.set_page_number(page_no)
     }
 
@@ -55,7 +55,7 @@ impl DbRootPage {
             page: Page::new(block_size, page_size),
         };
         db_root_page.page.set_type(PageType::DbRoot);
-        db_root_page.page.set_page_number(0);
+        db_root_page.page.set_page_number(PageNo::from_u64(0));
         db_root_page.set_magic_number();
         db_root_page.set_db_major_version();
         db_root_page.set_db_minor_version();
@@ -181,7 +181,7 @@ mod tests {
         assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
         assert_eq!(root_page.page.get_type(), PageType::DbRoot);
         assert_eq!(root_page.get_page_bytes().len(), 4092);
-        root_page.set_page_number(0);
+        root_page.set_page_number(PageNo::from_u64(0));
         assert_eq!(root_page.get_page_number().get_blk_offset(), 0);
     }
 
@@ -199,14 +199,14 @@ mod tests {
         assert_eq!(root_page.get_db_major_version(), DbRootPage::VERSION_MAJOR);
         assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
         assert_eq!(root_page.page.get_type(), PageType::DbRoot);
-        root_page.set_page_number(23);
+        root_page.set_page_number(PageNo::from_u64(23));
     }
 
     #[test]
     fn test_from_page_valid() {
         let mut page = Page::new(4096, 4092);
         page.set_type(PageType::DbRoot);
-        page.set_page_number(0);
+        page.set_page_number(PageNo::from_u64(0));
 
         // Manually write the magic number to the page buffer so validation passes
         let mut cursor = Cursor::new(page.get_page_bytes_mut());
@@ -232,7 +232,7 @@ mod tests {
     fn test_from_page_invalid_page_number() {
         let mut page = Page::new(4096, 4092);
         page.set_type(PageType::DbRoot);
-        page.set_page_number(1);
+        page.set_page_number(PageNo::from_u64(1));
         let _ = DbRootPage::from_page(page);
     }
 
@@ -241,7 +241,7 @@ mod tests {
     fn test_from_page_invalid_magic_number() {
         let mut page = Page::new(4096, 4092);
         page.set_type(PageType::DbRoot);
-        page.set_page_number(0);
+        page.set_page_number(PageNo::from_u64(0));
         // Magic number is 0 by default, so validation will panic
         let _ = DbRootPage::from_page(page);
     }

@@ -114,7 +114,7 @@ impl FreePageTracker {
         let mut last = self.free_dir_page_list.last_mut().unwrap();
         // Get a free_page_no for last to be written to.
         self.returned_pages.push(last.get_page_number());
-        last.set_page_number(next_free_page_no);
+        last.set_page_number(PageNo::from_u64(next_free_page_no));
         last.set_version(self.new_version);
 
         // Add all the returned page numbers to the free_dir_page last.

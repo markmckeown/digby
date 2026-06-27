@@ -22,9 +22,9 @@ impl PageTrait for DbMasterPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) {
+    fn set_page_number(&mut self, page_no: PageNo) {
         assert!(
-            page_no == 1 || page_no == 2,
+            page_no.get_blk_offset() == 1 || page_no.get_blk_offset() == 2,
             "DbMasterPage must have page number 1 or 2"
         );
         self.page.set_page_number(page_no)
@@ -62,7 +62,7 @@ impl DbMasterPage {
             page: Page::new(block_size, page_size),
         };
         head_page.page.set_type(PageType::DbMaster);
-        head_page.page.set_page_number(page_number);
+        head_page.page.set_page_number(PageNo::from_u64(page_number));
         head_page.set_version(version);
         head_page
     }
@@ -119,7 +119,7 @@ impl DbMasterPage {
     pub fn flip_page_number(&mut self) {
         let page_number = self.get_page_number();
         let new_page_number: u64 = if page_number.get_blk_offset() == 1 { 2 } else { 1 };
-        self.page.set_page_number(new_page_number);
+        self.page.set_page_number(PageNo::from_u64(new_page_number));
     }
 }
 
@@ -155,9 +155,9 @@ mod tests {
         assert_eq!(master_page.get_version(), 5);
         assert_eq!(master_page.page.get_type(), PageType::DbMaster);
         assert_eq!(master_page.get_page_bytes().len(), 4092);
-        master_page.set_page_number(1);
+        master_page.set_page_number(PageNo::from_u64(1));
         assert_eq!(master_page.get_page_number().get_blk_offset(), 1);
-        master_page.set_page_number(2);
+        master_page.set_page_number(PageNo::from_u64(2));
         assert_eq!(master_page.get_page_number().get_blk_offset(), 2);
     }
 
@@ -175,7 +175,7 @@ mod tests {
     fn test_from_page_valid() {
         let mut page = Page::new(4096, 4092);
         page.set_type(PageType::DbMaster);
-        page.set_page_number(2);
+        page.set_page_number(PageNo::from_u64(2));
 
         let master_page = DbMasterPage::from_page(page);
         assert_eq!(master_page.get_page_number().get_blk_offset(), 2);
@@ -186,10 +186,10 @@ mod tests {
     fn test_set_invalid_page_no() {
         let mut page = Page::new(4096, 4092);
         page.set_type(PageType::DbMaster);
-        page.set_page_number(2);
+        page.set_page_number(PageNo::from_u64(2));
 
         let mut master_page = DbMasterPage::from_page(page);
-        master_page.set_page_number(3);
+        master_page.set_page_number(PageNo::from_u64(3));
     }
 
     #[test]

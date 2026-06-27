@@ -1,6 +1,7 @@
 use crate::dir_page::DirPage;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
+use crate::page_no::PageNo;
 use crate::{FreePageTracker, TreeDirEntry};
 
 pub struct TreeDirHandler {}
@@ -60,7 +61,7 @@ impl TreeDirHandler {
                 free_page_tracker.return_free_page_no(old_page_no);
             }
             let new_page_no = free_page_tracker.get_free_page(page_cache);
-            page_ref.page.set_page_number(new_page_no);
+            page_ref.page.set_page_number(PageNo::from_u64(new_page_no));
             page_ref.page.set_version(version);
         }
     }
@@ -116,12 +117,12 @@ mod tests {
             page_size: 4092,
         };
         let mut tree_leaf_page = LeafPage::create_new(&page_config, 0, 0);
-        tree_leaf_page.set_page_number(21);
+        tree_leaf_page.set_page_number(PageNo::from_u64(21));
         let tuple: Tuple = Tuple::new(b"f".to_vec().as_ref(), b"f_value".to_vec().as_ref(), 345);
         tree_leaf_page.add_tuple(&tuple);
 
         let mut tree_leaf_page1 = LeafPage::create_new(&page_config, 0, 0);
-        tree_leaf_page1.set_page_number(27);
+        tree_leaf_page1.set_page_number(PageNo::from_u64(27));
         let tuple1: Tuple = Tuple::new(b"h".to_vec().as_ref(), b"h_value".to_vec().as_ref(), 345);
         tree_leaf_page1.add_tuple(&tuple1);
 
@@ -147,7 +148,7 @@ mod tests {
         let tuple3: Tuple = Tuple::new(b"a".to_vec().as_ref(), b"a_value".to_vec().as_ref(), 345);
         tree_leaf_page = LeafPage::create_new(&page_config, 0, 0);
         tree_leaf_page.add_tuple(&tuple3);
-        tree_leaf_page.set_page_number(79);
+        tree_leaf_page.set_page_number(PageNo::from_u64(79));
         leaf_pages = vec![tree_leaf_page];
 
         entries = Vec::new();

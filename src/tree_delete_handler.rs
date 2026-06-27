@@ -92,7 +92,7 @@ impl TreeDeleteHandler {
         free_page_tracker.return_free_page_no(old_leaf_page_no);
         if !leaf_page.is_empty() {
             new_leaf_page_no = free_page_tracker.get_free_page(page_cache);
-            leaf_page.set_page_number(new_leaf_page_no);
+            leaf_page.set_page_number(PageNo::from_u64(new_leaf_page_no));
             leaf_page.set_version(new_version);
             page_cache.put_page(leaf_page.get_page());
         }
@@ -208,7 +208,7 @@ impl TreeDeleteHandler {
                 dir_page.store_child_pages(vec![tree_dir_entry].as_ref());
             }
             new_page_no = free_page_tracker.get_free_page(page_cache);
-            dir_page.set_page_number(new_page_no);
+            dir_page.set_page_number(PageNo::from_u64(new_page_no));
             dir_page.set_version(new_version);
             page_cache.put_page(dir_page.get_page());
         }
@@ -237,7 +237,7 @@ impl TreeDeleteHandler {
             let dir_old_page_no = dir_page.get_page_number();
             free_page_tracker.return_free_page_no(dir_old_page_no);
             page_no_to_update = free_page_tracker.get_free_page(page_cache);
-            dir_page.set_page_number(page_no_to_update);
+            dir_page.set_page_number(PageNo::from_u64(page_no_to_update));
             dir_page.set_version(new_version);
             page_cache.put_page(dir_page.get_page());
         }
@@ -287,7 +287,7 @@ impl TreeDeleteHandler {
         let new_root_page_no = free_page_tracker.get_free_page(page_cache);
 
         // Set the page number and version and write to disk.
-        root_page.set_page_number(new_root_page_no);
+        root_page.set_page_number(PageNo::from_u64(new_root_page_no));
         root_page.set_version(new_version);
         page_cache.put_page(root_page.get_page());
 

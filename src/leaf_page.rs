@@ -22,7 +22,7 @@ impl PageTrait for LeafPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) {
+    fn set_page_number(&mut self, page_no: PageNo) {
         self.page.set_page_number(page_no)
     }
 
@@ -125,7 +125,7 @@ impl LeafPage {
     fn new(block_size: usize, page_size: usize, page_number: u64, version: u64) -> Self {
         let mut page = Page::new(block_size, page_size);
         page.set_type(PageType::LeafPage);
-        page.set_page_number(page_number);
+        page.set_page_number(PageNo::from_u64(page_number));
         page.set_version(version);
         let mut leaf_page = LeafPage { page };
         leaf_page.set_free_space(page_size as u16 - LeafPage::HEADER_SIZE as u16);

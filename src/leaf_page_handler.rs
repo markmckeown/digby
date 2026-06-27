@@ -2,6 +2,7 @@ use crate::free_page_tracker::FreePageTracker;
 use crate::leaf_page::LeafPage;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
+use crate::page_no::PageNo;
 use crate::tuple::{Tuple, TupleTrait};
 
 pub struct LeafPageHandler {}
@@ -183,7 +184,7 @@ impl LeafPageHandler {
                 free_page_tracker.return_free_page_no(old_page_no);
             }
             let new_page_no = free_page_tracker.get_free_page(page_cache);
-            page.set_page_number(new_page_no);
+            page.set_page_number(PageNo::from_u64(new_page_no));
             page.set_version(version);
         }
     }

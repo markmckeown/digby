@@ -19,7 +19,7 @@ impl PageTrait for DirPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) {
+    fn set_page_number(&mut self, page_no: PageNo) {
         self.page.set_page_number(page_no)
     }
 
@@ -116,7 +116,7 @@ impl DirPage {
     fn new(block_size: usize, page_size: usize, page_number: u64, version: u64) -> Self {
         let mut page = Page::new(block_size, page_size);
         page.set_type(PageType::DirPage);
-        page.set_page_number(page_number);
+        page.set_page_number(PageNo::from_u64(page_number));
         let mut dir_page = DirPage { page };
         dir_page.set_free_space(page_size as u16 - DirPage::HEADER_SIZE as u16);
         dir_page.set_version(version);

@@ -41,7 +41,7 @@ impl TryFrom<u8> for PageType {
 pub trait PageTrait {
     fn get_page_bytes(&self) -> &[u8];
     fn get_page_number(&self) -> PageNo;
-    fn set_page_number(&mut self, page_no: u64) -> ();
+    fn set_page_number(&mut self, page_no: PageNo) -> ();
     fn get_page(&mut self) -> &mut Page;
     fn get_version(&self) -> u64;
     fn set_version(&mut self, version: u64) -> ();
@@ -63,8 +63,8 @@ impl PageTrait for Page {
         PageNo::from_bytes(&self.bytes[0..8])
     }
 
-    fn set_page_number(&mut self, page_no: u64) {
-        self.bytes[0..8].copy_from_slice(&page_no.to_le_bytes());
+    fn set_page_number(&mut self, page_no: PageNo) {
+        self.bytes[0..8].copy_from_slice(page_no.get_bytes().as_slice());
     }
 
     fn get_page(&mut self) -> &mut Page {
@@ -143,7 +143,7 @@ mod tests {
         assert_eq!(page.get_page_number().to_u64(), 0);
         assert_eq!(0, page.get_version());
         assert_eq!(0, page.get_page().get_page_number().to_u64());
-        page.set_page_number(42);
+        page.set_page_number(PageNo::from_u64(42));
         page.set_type(PageType::LeafPage);
         assert_eq!(page.get_page_number().to_u64(), 42);
         assert_eq!(page.get_type() as u8, PageType::LeafPage as u8);

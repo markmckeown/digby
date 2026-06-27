@@ -54,7 +54,7 @@ impl PageTrait for FreeDirPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) {
+    fn set_page_number(&mut self, page_no: PageNo) {
         self.page.set_page_number(page_no)
     }
 
@@ -87,7 +87,7 @@ impl FreeDirPage {
             page: Page::new(block_size, page_size),
         };
         free_page_dir.page.set_type(crate::page::PageType::FreeDir);
-        free_page_dir.page.set_page_number(page_number);
+        free_page_dir.page.set_page_number(PageNo::from_u64(page_number));
         free_page_dir.page.set_version(version);
         free_page_dir
     }

@@ -127,7 +127,7 @@ mod tests {
         // Write a page to the cache
         let mut page = Page::create_new(page_cache.get_page_config());
         page_cache.generate_free_pages(10, 0);
-        page.set_page_number(page_number);
+        page.set_page_number(PageNo::from_u64(page_number));
         page.set_type(page::PageType::Free);
         page_cache.put_page(&mut page);
         page_cache.sync_all();

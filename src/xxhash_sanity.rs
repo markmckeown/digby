@@ -5,6 +5,7 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 use xxhash_rust::xxh32::xxh32;
 
+
 pub struct XxHashSanity {}
 
 impl XxHashSanity {
@@ -35,12 +36,13 @@ impl XxHashSanity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::page_no::PageNo;
 
     #[test]
     #[should_panic(expected = "Calculated checksum does not match stored checksum")]
     fn test_checksum() {
         let mut page = Page::new(4096, 4092);
-        page.set_page_number(42);
+        page.set_page_number(PageNo::from_u64(42));
         XxHashSanity::set_checksum(&mut page);
         XxHashSanity::verify_checksum(&page);
         // Modify the page and verify that checksum verification fails

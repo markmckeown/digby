@@ -16,7 +16,7 @@ impl PageTrait for FreePage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) {
+    fn set_page_number(&mut self, page_no: PageNo) {
         self.page.set_page_number(page_no)
     }
 
@@ -43,7 +43,7 @@ impl FreePage {
             page: Page::new(block_size, page_size),
         };
         free_page.page.set_type(crate::page::PageType::Free);
-        free_page.page.set_page_number(page_number);
+        free_page.page.set_page_number(PageNo::from_u64(page_number));
         free_page
     }
 
@@ -78,7 +78,7 @@ mod tests {
     fn test_from_page_valid() {
         let mut page = Page::new(4096, 4092);
         page.set_type(PageType::Free);
-        page.set_page_number(100);
+        page.set_page_number(PageNo::from_u64(100));
 
         let free_page = FreePage::from_page(page);
         assert_eq!(free_page.get_page_number().to_u64(), 100);
@@ -105,7 +105,7 @@ mod tests {
         assert_eq!(free_page.get_version(), 5);
 
         assert_eq!(free_page.get_page_number().to_u64(), 1);
-        free_page.set_page_number(42);
+        free_page.set_page_number(PageNo::from_u64(42));
         assert_eq!(free_page.get_page_number().to_u64(), 42);
 
         let bytes = free_page.get_page_bytes();

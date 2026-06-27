@@ -23,7 +23,7 @@ impl PageTrait for OverflowPage {
         self.page.get_page_number()
     }
 
-    fn set_page_number(&mut self, page_no: u64) {
+    fn set_page_number(&mut self, page_no: PageNo) {
         self.page.set_page_number(page_no)
     }
 
@@ -57,7 +57,7 @@ impl OverflowPage {
             page: Page::new(block_size, page_size),
         };
         overflow_page.page.set_type(crate::page::PageType::Overflow);
-        overflow_page.page.set_page_number(page_number);
+        overflow_page.page.set_page_number(PageNo::from_u64(page_number));
         overflow_page.set_version(version);
         overflow_page
     }
@@ -135,7 +135,7 @@ mod tests {
         assert_eq!(page.get_next_page(), 0);
         assert_eq!(page.get_used_size(), 4);
         assert_eq!(page.get_page_number().to_u64(), 334);
-        page.set_page_number(457);
+        page.set_page_number(PageNo::from_u64(457));
         assert_eq!(page.get_page_number().to_u64(), 457);
     }
 
