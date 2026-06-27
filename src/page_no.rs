@@ -1,4 +1,5 @@
-pub struct PageNo(u64);
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+pub struct PageNo(pub u64);
 
 
 // PageNo:
@@ -23,9 +24,9 @@ impl PageNo {
     const TOP_BYTE_MASK: u64 = 0xFF00_0000_0000_0000;
     const BOTTOM_56_MASK: u64 = 0x00FF_FFFF_FFFF_FFFF;
 
-    pub fn new(pg_ctr_blk_cnt_exp: u8, file_blk_offset: u64) -> Self {
-        assert!(pg_ctr_blk_cnt_exp <= 8);
-        Self((u64::from(pg_ctr_blk_cnt_exp) << 56)| (file_blk_offset & Self::BOTTOM_56_MASK))
+    pub fn new(pg_blk_cnt_exp: u8, pg_blk_offset: u64) -> Self {
+        assert!(pg_blk_cnt_exp <= 8);
+        Self((u64::from(pg_blk_cnt_exp) << 56)| (pg_blk_offset & Self::BOTTOM_56_MASK))
     }
 
     pub fn from_u64(page_no: u64) -> Self {
@@ -38,23 +39,28 @@ impl PageNo {
         ))
     }
 
+
+    pub fn to_u64(&self) -> u64 {
+       self.0
+    }
+
     pub fn get_bytes(&self) -> [u8; 8] {
         self.0.to_le_bytes()
     }
 
-    pub fn get_pg_ctr_block_cnt(&self) -> u64 {
+    pub fn get_blk_cnt(&self) -> u64 {
         1 << (self.0 >> 56)
     }
 
-    pub fn get_pg_ctr_size(&self, block_size: usize) -> usize {
-        block_size * self.get_pg_ctr_block_cnt() as usize
+    pub fn get_pg_blk_size(&self, block_size: usize) -> usize {
+        block_size * self.get_blk_cnt() as usize
     }
 
-    pub fn set_file_blk_offset(&mut self, file_blk_offset: u64) {
+    pub fn set_blk_offset(&mut self, file_blk_offset: u64) {
         self.0 = (self.0 & Self::TOP_BYTE_MASK) | (file_blk_offset & Self::BOTTOM_56_MASK);
     }
 
-    pub fn get_file_blk_offset(&self) -> u64 {
+    pub fn get_blk_offset(&self) -> u64 {
         self.0 & Self::BOTTOM_56_MASK
     }
 }
@@ -66,18 +72,18 @@ mod tests {
     #[test]
     fn test_page_no() { 
         let mut page_no = PageNo::from_u64(0);
-        assert_eq!(page_no.get_pg_ctr_block_cnt(), 1);
-        assert_eq!(page_no.get_pg_ctr_size(4096), 4096);
-        assert_eq!(page_no.get_file_blk_offset(), 0);
+        assert_eq!(page_no.get_blk_cnt(), 1);
+        assert_eq!(page_no.get_pg_blk_size(4096), 4096);
+        assert_eq!(page_no.get_blk_offset(), 0);
 
-        page_no.set_file_blk_offset(34);
-        assert_eq!(page_no.get_pg_ctr_block_cnt(), 1);
-        assert_eq!(page_no.get_file_blk_offset(), 34);
+        page_no.set_blk_offset(34);
+        assert_eq!(page_no.get_blk_cnt(), 1);
+        assert_eq!(page_no.get_blk_offset(), 34);
         assert_eq!(page_no.get_bytes(), [34, 0, 0, 0, 0, 0, 0, 0]);
 
         let page_no_2 = PageNo::new(1, 57);
-        assert_eq!(page_no_2.get_pg_ctr_block_cnt(), 2);
-        assert_eq!(page_no_2.get_pg_ctr_size(4096), 4096 * 2);
-        assert_eq!(page_no_2.get_file_blk_offset(), 57);
+        assert_eq!(page_no_2.get_blk_cnt(), 2);
+        assert_eq!(page_no_2.get_pg_blk_size(4096), 4096 * 2);
+        assert_eq!(page_no_2.get_blk_offset(), 57);
     }
 }

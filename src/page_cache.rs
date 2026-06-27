@@ -1,22 +1,17 @@
 use crate::block_layer::{PageContainerLayer, PageConfig};
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page_no::PageNo;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
 pub struct PageCache {
     block_layer: PageContainerLayer,
-    page_map: HashMap<u64, Page>,
-    deque: VecDeque<u64>,
+    page_map: HashMap<PageNo, Page>,
+    deque: VecDeque<PageNo>,
     cache_size_limit: usize,
 }
 
-// PageCache does not cache any pages - any gets are retrieved from
-// disk and any puts go to disk.
-// In the future when it does hold a cache of pages then need to think
-// about mutability. Any client doing a look up can get a  immutable
-// reference to a page, any client looking to make changes can get a
-// copy of the page.
 impl PageCache {
     pub fn new(block_layer: PageContainerLayer) -> Self {
         PageCache {
@@ -33,7 +28,7 @@ impl PageCache {
 
     // Generate free pages on disk that can be written back to. Returns
     // a list of page numbers.
-    pub fn generate_free_pages(&mut self, no_new_pages: u64, block_cnt_exp: u8) -> Vec<u64> {
+    pub fn generate_free_pages(&mut self, no_new_pages: u64, block_cnt_exp: u8) -> Vec<PageNo> {
         self.block_layer.generate_free_pages(no_new_pages, block_cnt_exp)
     }
 
@@ -42,7 +37,7 @@ impl PageCache {
     // maybe two versions of this method, one that returns an
     // immutable refernce to a page that is shared, and a version
     // that returns a copy of the page.
-    pub fn get_page(&mut self, page_number: u64) -> Page {
+    pub fn get_page(&mut self, page_number: PageNo) -> Page {
         match self.page_map.get(&page_number) {
             Some(page) => {
                 let mut page_copy = Page::create_new(self.get_page_config());
@@ -63,7 +58,7 @@ impl PageCache {
         }
     }
 
-    pub fn get_page_ref(&mut self, page_number: u64) -> &Page {
+    pub fn get_page_ref(&mut self, page_number: PageNo) -> &Page {
         if self.page_map.contains_key(&page_number) {
             return self.page_map.get(&page_number).unwrap();
         }
@@ -73,7 +68,7 @@ impl PageCache {
         self.page_map.get(&page_number).unwrap()
     }
 
-    fn add_page_to_cache(&mut self, page_no: u64, page: Page) {
+    fn add_page_to_cache(&mut self, page_no: PageNo, page: Page) {
         if self.page_map.insert(page_no, page).is_none() {
             // Added new page. Add to the dequeue and if it overflows
             // delete an entry.
@@ -86,9 +81,10 @@ impl PageCache {
     }
 
     pub fn put_page(&mut self, page: &mut Page) {
-        let page_no = page.get_page_number();
+        let page_no = PageNo::from_u64(page.get_page_number());
         // Take a copy of the page before the block_layer processes it,
         // the block layer might encrypt it.
+        // TODO - block_layer.write_page should return the page to us to avoid need to copy.
         let mut page_for_cache = Page::create_new(self.get_page_config());
         page_for_cache
             .get_block_bytes_mut()
@@ -136,7 +132,7 @@ mod tests {
         page_cache.put_page(&mut page);
         page_cache.sync_all();
         // Read the page back from the cache
-        let read_page = page_cache.get_page(page_number);
+        let read_page = page_cache.get_page(PageNo::from_u64(page_number));
         assert_eq!(read_page.get_page_number(), page_number);
         assert_eq!(read_page.get_page_bytes(), page.get_page_bytes());
     }

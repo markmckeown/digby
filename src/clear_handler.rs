@@ -5,6 +5,7 @@ use crate::overflow_page_handler::OverflowPageHandler;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
+use crate::PageNo;
 use crate::page_cache::PageCache;
 use crate::tuple::Overflow;
 use crate::tuple::TupleTrait;
@@ -59,7 +60,7 @@ impl ClearHandler {
 
         let dir_entries = dir_page.get_all_child_pages();
         for dir_entry in dir_entries {
-            let page = page_cache.get_page(dir_entry);
+            let page = page_cache.get_page(PageNo::from_u64(dir_entry));
             if page.get_type() == PageType::LeafPage {
                 ClearHandler::clear_leaf_page(
                     LeafPage::from_page(page),

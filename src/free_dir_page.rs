@@ -1,6 +1,7 @@
 use crate::block_layer::PageConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page_no::PageNo;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 
@@ -171,7 +172,7 @@ impl FreeDirPage {
         self.set_entries(entries + 1);
     }
 
-    pub fn add_free_pages(&mut self, free_pages: &[u64]) {
+    pub fn add_free_pages(&mut self, free_pages: &Vec<PageNo>) {
         assert!(!self.is_full_for(free_pages.len()));
         assert!(free_pages.len() < u16::MAX as usize);
         let entries = self.get_entries();
@@ -180,7 +181,7 @@ impl FreeDirPage {
         cursor.set_position(offset);
         for free_page in free_pages {
             cursor
-                .write_u64::<LittleEndian>(*free_page)
+                .write_u64::<LittleEndian>(free_page.to_u64())
                 .expect("Failed to write free page");
             offset += 8;
             cursor.set_position(offset);

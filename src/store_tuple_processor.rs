@@ -4,6 +4,7 @@ use crate::free_page_tracker::FreePageTracker;
 use crate::leaf_page::LeafPage;
 use crate::leaf_page_handler::LeafPageHandler;
 use crate::page::{Page, PageTrait, PageType};
+use crate::PageNo;
 use crate::page_cache::PageCache;
 use crate::tree_dir_entry::TreeDirEntry;
 use crate::tree_dir_handler::{DirPageRef, TreeDirHandler};
@@ -21,7 +22,7 @@ impl StoreTupleProcessor {
     pub fn get_tuple(key: &[u8], page_no: u64, page_cache: &mut PageCache) -> Option<Tuple> {
         let mut page_number = page_no;
         loop {
-            let page = page_cache.get_page_ref(page_number);
+            let page = page_cache.get_page_ref(PageNo::from_u64(page_number));
             // If the page is a tree leaf then if the key is stored
             // then it will be in this leaf page.
             if page.get_type() == PageType::LeafPage {
@@ -100,7 +101,7 @@ impl StoreTupleProcessor {
             // Push the directory node onto the stack to update later.
             dir_pages.push(dir_page);
             // Get the page from the cache - this is copy of the page.
-            let page = page_cache.get_page(next_page_no);
+            let page = page_cache.get_page(PageNo::from_u64(next_page_no));
             // If the page is a leaf page we can start the add process
             if page.get_type() == PageType::LeafPage {
                 leaf_page = LeafPage::from_page(page);
@@ -328,6 +329,7 @@ impl StoreTupleProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::page_no;
 
     #[test]
     fn test_root_is_leaf_add_1() {
@@ -348,12 +350,12 @@ mod tests {
 
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
-            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
+            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no.to_u64(), version);
         page_cache.put_page(free_dir_page.get_page());
 
         let root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut leaf_page =
-            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
+            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no.to_u64(), version);
         page_cache.put_page(leaf_page.get_page());
 
         let mut free_page_tracker = FreePageTracker::new(
@@ -400,12 +402,12 @@ mod tests {
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
-            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
+            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no.to_u64(), version);
         page_cache.put_page(free_dir_page.get_page());
 
         let mut root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut leaf_page =
-            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
+            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no.to_u64(), version);
         page_cache.put_page(leaf_page.get_page());
 
         let mut j: u32 = 0;
@@ -423,15 +425,15 @@ mod tests {
                 i.to_be_bytes().to_vec().as_ref(),
                 version,
             );
-            root_tree_page_no = StoreTupleProcessor::store_tuple(
+            root_tree_page_no = page_no::PageNo(StoreTupleProcessor::store_tuple(
                 tuple,
                 reloaded_page,
                 &mut free_page_tracker,
                 &mut page_cache,
                 version + 1,
-            );
+            ));
             let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
-            free_dir_page_no = free_pages.last().unwrap().get_page_number();
+            free_dir_page_no = page_no::PageNo(free_pages.last().unwrap().get_page_number());
             for mut free_page in free_pages {
                 page_cache.put_page(free_page.get_page());
             }
@@ -466,12 +468,12 @@ mod tests {
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
-            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
+            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no.to_u64(), version);
         page_cache.put_page(free_dir_page.get_page());
 
         let mut root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut leaf_page =
-            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
+            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no.to_u64(), version);
         page_cache.put_page(leaf_page.get_page());
 
         for i in 0u64..20000 {
@@ -487,15 +489,15 @@ mod tests {
                 i.to_be_bytes().to_vec().as_ref(),
                 version,
             );
-            root_tree_page_no = StoreTupleProcessor::store_tuple(
+            root_tree_page_no = page_no::PageNo(StoreTupleProcessor::store_tuple(
                 tuple,
                 reloaded_page,
                 &mut free_page_tracker,
                 &mut page_cache,
                 version + 1,
-            );
+            ));
             let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
-            free_dir_page_no = free_pages.last().unwrap().get_page_number();
+            free_dir_page_no = page_no::PageNo(free_pages.last().unwrap().get_page_number());
             for mut free_page in free_pages {
                 page_cache.put_page(free_page.get_page());
             }
@@ -509,7 +511,7 @@ mod tests {
         assert_eq!(root_dir_page.get_entries_size(), 1);
         let tuple = StoreTupleProcessor::get_tuple(
             13000u64.to_be_bytes().to_vec().as_ref(),
-            root_tree_page_no,
+            root_tree_page_no.to_u64(),
             &mut page_cache,
         );
         assert!(tuple.is_some());

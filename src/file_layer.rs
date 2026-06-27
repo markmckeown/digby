@@ -30,8 +30,8 @@ impl FileLayer {
     pub fn append_new_page(&mut self, page: &Page, page_no: &PageNo) {
         use std::io::{Seek, SeekFrom, Write};
         
-        let block_count = page_no.get_pg_ctr_block_cnt();
-        let block_offset = page_no.get_file_blk_offset();
+        let block_count = page_no.get_blk_cnt();
+        let block_offset = page_no.get_blk_offset();
         assert!(
             block_offset == self.block_count,
             "page_number should match page_count"
@@ -49,7 +49,7 @@ impl FileLayer {
     pub fn write_page_to_disk(&mut self, page: &Page, page_no: &PageNo) -> std::io::Result<()> {
         use std::io::{Seek, SeekFrom, Write};
 
-        let block_offset = page_no.get_file_blk_offset();
+        let block_offset = page_no.get_blk_offset();
         let offset = block_offset * self.block_size as u64;
         self.file
             .seek(SeekFrom::Start(offset))
@@ -67,7 +67,7 @@ impl FileLayer {
     ) -> std::io::Result<()> {
         use std::io::{Read, Seek, SeekFrom};
 
-        let block_offset = page_no.get_file_blk_offset();
+        let block_offset = page_no.get_blk_offset();
         assert!(block_offset < self.block_count);
 
         let offset = block_offset * self.block_size as u64;

@@ -1,5 +1,6 @@
 use crate::dir_page::DirPage;
 use crate::page::{PageTrait, PageType};
+use crate::PageNo;
 use crate::tuple::{Overflow, TupleTrait};
 use crate::{FreePageTracker, LeafPage, OverflowPageHandler, Page, PageCache, TreeDirEntry};
 
@@ -60,7 +61,7 @@ impl TreeDeleteHandler {
         loop {
             next_page = dir_page.get_next(key);
             dir_pages.push(dir_page);
-            let page = page_cache.get_page(next_page);
+            let page = page_cache.get_page(PageNo::from_u64(next_page));
             if page.get_type() == PageType::LeafPage {
                 leaf_page = LeafPage::from_page(page);
                 break;

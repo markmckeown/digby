@@ -2,6 +2,7 @@ use crate::FreePageTracker;
 use crate::OverflowPage;
 use crate::OverflowTuple;
 use crate::PageCache;
+use crate::PageNo;
 use crate::page::PageTrait;
 use crate::tuple::Overflow;
 use crate::tuple::Tuple;
@@ -49,7 +50,7 @@ impl OverflowPageHandler {
 
         let mut page_no = overflow_page_no;
         loop {
-            let page = OverflowPage::from_page(page_cache.get_page(page_no));
+            let page = OverflowPage::from_page(page_cache.get_page(PageNo::from_u64(page_no)));
             buffer.append(&mut page.get_tuple_bytes());
             page_no = page.get_next_page();
             if page_no == 0 {
@@ -85,7 +86,7 @@ impl OverflowPageHandler {
         let mut page_no = first_page;
         let mut count: u32 = 1;
         loop {
-            let page = OverflowPage::from_page(page_cache.get_page(page_no));
+            let page = OverflowPage::from_page(page_cache.get_page(PageNo::from_u64(page_no)));
             page_no = page.get_next_page();
             if page_no == 0 {
                 break;
@@ -126,7 +127,7 @@ mod tests {
         // Setup the free page infrastructure
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
-            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
+            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no.to_u64(), version);
         page_cache.put_page(free_dir_page.get_page());
         let mut free_page_tracker = FreePageTracker::new(
             page_cache.get_page(free_dir_page_no),

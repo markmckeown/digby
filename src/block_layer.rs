@@ -49,6 +49,7 @@ pub struct PageContainerLayer {
     page_config: PageConfig,
     block_sanity: BlockSanity,
     key: Vec<u8>, // The encryption key if encryption is being used.
+    block_sanity_size: usize,
 }
 
 impl PageContainerLayer {
@@ -61,6 +62,7 @@ impl PageContainerLayer {
                 page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
             },
             key: Vec::new(),
+            block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
         }
     }
 
@@ -81,6 +83,7 @@ impl PageContainerLayer {
                 page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
             },
             key: enc_key,
+            block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
         }
     }
 
@@ -88,8 +91,7 @@ impl PageContainerLayer {
         &self.page_config
     }
 
-    pub fn read_page(&mut self, page_number: u64) -> Page {
-        let page_no = PageNo::from_u64(page_number);
+    pub fn read_page(&mut self, page_no: PageNo) -> Page {
         let mut page = Page::create_new(&self.page_config);
         self.file_layer
             .read_page_from_disk(&mut page, &page_no)
@@ -102,10 +104,9 @@ impl PageContainerLayer {
         self.file_layer.get_block_count()
     }
 
-    pub fn write_page(&mut self, page: &mut Page, page_number: u64) {
-        let page_no = PageNo::from_u64(page_number);
+    pub fn write_page(&mut self, page: &mut Page, page_no: PageNo) {
         assert!(
-            page_no.get_file_blk_offset() < self.file_layer.get_block_count(),
+            page_no.get_blk_offset() < self.file_layer.get_block_count(),
             "Writing page outside the file."
         );
 
@@ -119,22 +120,24 @@ impl PageContainerLayer {
     // no free pages in the system. This will initialise the pages (possibly not
     // needed and a waste of time) and extend the file with a sync - note, that
     // if the commit does not complete then these pages will be leaked.
-    pub fn generate_free_pages(&mut self, no_new_pages: u64, _block_cnt_exp: u8) -> Vec<u64> {
+    pub fn generate_free_pages(&mut self, no_new_pages: u64, block_cnt_exp: u8) -> Vec<PageNo> {
         // Get the file block offset.
         // Create new page_container with required number of blocks.
         // Set page number - block offset & block count.
         // Set page sanity.
         // Append new page.
         // Get new file block offset - repeat
-        let existing_page_count = self.file_layer.get_block_count();
-        let mut created_page_nos: Vec<u64> = Vec::new();
-        for new_page_no in existing_page_count..existing_page_count + no_new_pages {
-            let mut page = Page::create_new(&self.page_config);
-            page.set_page_number(new_page_no);
+        let mut created_page_nos: Vec<PageNo> = Vec::new();
+        for _ in 0..no_new_pages {
+            let block_offset = self.file_layer.get_block_count();
+            let page_ctr_size = self.page_config.block_size * (1 << block_cnt_exp);
+            let mut page = Page::new(page_ctr_size, page_ctr_size - self.block_sanity_size);
+            let new_page_no = PageNo::new(block_cnt_exp, block_offset);
+            page.set_page_number(new_page_no.to_u64());
             page.set_type(crate::page::PageType::Free);
             self.set_sanity(&mut page);
             created_page_nos.push(new_page_no);
-            self.file_layer.append_new_page(&page, &PageNo::from_u64(new_page_no));
+            self.file_layer.append_new_page(&page, &new_page_no);
         }
         // Sync the file and file metadata.
         self.file_layer.sync_all();
@@ -178,8 +181,8 @@ mod tests {
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
-        block_layer.write_page(&mut page, page_number);
-        let retrieved_page = block_layer.read_page(page_number);
+        block_layer.write_page(&mut page, PageNo::from_u64(page_number));
+        let retrieved_page = block_layer.read_page(PageNo::from_u64(page_number));
         assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
 
@@ -197,8 +200,8 @@ mod tests {
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
-        block_layer.write_page(&mut page, page_number);
-        let retrieved_page = block_layer.read_page(page_number);
+        block_layer.write_page(&mut page, PageNo::from_u64(page_number));
+        let retrieved_page = block_layer.read_page(PageNo::from_u64(page_number));
         assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
 
@@ -216,8 +219,8 @@ mod tests {
         page.set_page_number(page_number);
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
-        block_layer.write_page(&mut page, page_number);
-        let retrieved_page = block_layer.read_page(page_number);
+        block_layer.write_page(&mut page, PageNo::from_u64(page_number));
+        let retrieved_page = block_layer.read_page(PageNo::from_u64(page_number));
         assert_eq!(&retrieved_page.get_page_bytes()[40..44], &[1, 2, 3, 4]);
     }
 
@@ -232,7 +235,7 @@ mod tests {
         page.set_page_number(4);
         page.set_type(PageType::Free);
         // This should panic as out of range of file.
-        block_layer.write_page(&mut page, 4);
+        block_layer.write_page(&mut page, PageNo::from_u64(4));
     }
 
     #[test]
@@ -257,6 +260,6 @@ mod tests {
         let mut block_layer = PageContainerLayer::new(file_layer, block_size);
         let mut page = DbRootPage::create_new(block_layer.get_page_config());
         block_layer.generate_free_pages(1, 0);
-        block_layer.write_page(page.get_page(), 0);
+        block_layer.write_page(page.get_page(), PageNo::from_u64(0));
     }
 }

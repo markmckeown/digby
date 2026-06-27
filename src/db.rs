@@ -7,6 +7,7 @@ use crate::file_layer::FileLayer;
 use crate::free_page_tracker::FreePageTracker;
 use crate::overflow_tuple::OverflowTuple;
 use crate::page::PageTrait;
+use crate::page_no::PageNo;
 use crate::page_cache::PageCache;
 use crate::tuple::{Overflow, Tuple, TupleTrait};
 use crate::tx_ctx::TxCtx;
@@ -143,7 +144,7 @@ impl Db {
         // Get the page number of the root of the tree.
         let tree_root_page_no = tx_ctx.global_root_page_no;
         // Get the actual root page.
-        let root_page = self.page_cache.get_page(tree_root_page_no);
+        let root_page = self.page_cache.get_page(PageNo::from_u64(tree_root_page_no));
         // Now pass to the TreeDeleteHandler to do the delete.
         let (new_tree_root_page_no, deleted) = TreeDeleteHandler::delete_key(
             &key_to_use,
@@ -252,7 +253,7 @@ impl Db {
         // Now get the page number of the root of the global tree.
         let tree_root_page_no = tx_ctx.global_root_page_no;
         // Now get the root page of the tree.
-        let page = self.page_cache.get_page(tree_root_page_no);
+        let page = self.page_cache.get_page(PageNo::from_u64(tree_root_page_no));
         // Store the tuple, this will return the page number of the
         // new root of the page.
         let new_tree_root_page_no = StoreTupleProcessor::store_tuple(
@@ -278,7 +279,7 @@ impl Db {
         // Now get the page number of the root of the global tree.
         let tree_root_page_no = tx_ctx.global_root_page_no;
         // Get the root of the tree.
-        let page = self.page_cache.get_page(tree_root_page_no);
+        let page = self.page_cache.get_page(PageNo::from_u64(tree_root_page_no));
         // Clear the tree, will return the new root of the tree which
         // will now be a leaf page.
         tx_ctx.global_root_page_no = ClearHandler::clear_tree(
@@ -296,7 +297,7 @@ impl Db {
         // Find the free page directory that has the free page numbers.
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
         let free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no),
+            self.page_cache.get_page(PageNo::from_u64(free_page_dir_page_no)),
             new_version,
             *self.page_cache.get_page_config(),
         );
@@ -347,7 +348,7 @@ impl Db {
 
         // Get the root page of the table directory tree.
         let table_tree_root_page_no = tx_ctx.tree_dir_root_page_no;
-        let page = self.page_cache.get_page(table_tree_root_page_no);
+        let page = self.page_cache.get_page(PageNo::from_u64(table_tree_root_page_no));
         // Store the reference to the new table in the table
         // directory tree.
         tx_ctx.tree_dir_root_page_no = StoreTupleProcessor::store_tuple(
@@ -486,7 +487,7 @@ impl Db {
 
         // Store the tuple in the table's tree, this will return
         // the new root page number for the table tree.
-        let table_root_page = self.page_cache.get_page(table_root_page);
+        let table_root_page = self.page_cache.get_page(PageNo::from_u64(table_root_page));
         let new_table_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             table_root_page,
@@ -508,7 +509,7 @@ impl Db {
 
         // Now store the new table reference into the table directory tree.
         let table_dir_root_page_no = tx_ctx.tree_dir_root_page_no;
-        let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
+        let table_dir_root_page = self.page_cache.get_page(PageNo::from_u64(table_dir_root_page_no));
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
             table_dir_root_page,
@@ -558,7 +559,7 @@ impl Db {
         let table_root_page = table_root_page_no_wrapped.unwrap();
 
         // First clear the table tree.
-        let table_root_page = self.page_cache.get_page(table_root_page);
+        let table_root_page = self.page_cache.get_page(PageNo::from_u64(table_root_page));
         let new_table_root_page_no = ClearHandler::clear_tree(
             table_root_page,
             &mut tx_ctx.free_page_tracker,
@@ -568,7 +569,7 @@ impl Db {
 
         // Now need to update the table directory tree.
         let table_dir_root_page_no = tx_ctx.tree_dir_root_page_no;
-        let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
+        let table_dir_root_page = self.page_cache.get_page(PageNo::from_u64(table_dir_root_page_no));
 
         // If the table is to be deleted, then delete the table key/name
         // from the table directory tree.
@@ -671,7 +672,7 @@ impl Db {
 
         // Delete the key from the table tree and get back the new root page
         // number of the table tree.
-        let root_page = self.page_cache.get_page(table_root_page_no);
+        let root_page = self.page_cache.get_page(PageNo::from_u64(table_root_page_no));
         let (new_tree_free_page_no, deleted) = TreeDeleteHandler::delete_key(
             &key_to_use,
             root_page,
@@ -698,7 +699,7 @@ impl Db {
 
         // Get the table directory tree.
         let table_dir_root_page_no = tx_ctx.tree_dir_root_page_no;
-        let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
+        let table_dir_root_page = self.page_cache.get_page(PageNo::from_u64(table_dir_root_page_no));
         // Update the reference for the table tree.
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
@@ -715,7 +716,7 @@ impl Db {
 // Functions to either create or to initialise the database.
 impl Db {
     fn check_db_integrity(&mut self) -> std::io::Result<()> {
-        let root_page = DbRootPage::from_page(self.page_cache.get_page(0));
+        let root_page = DbRootPage::from_page(self.page_cache.get_page(PageNo::from_u64(0)));
         // There is no sanity check for sanity type, if the db was created with
         // encryption and then opened without a key then we will not be able to open
         // the root_page as the checksum will not match.
@@ -730,8 +731,8 @@ impl Db {
             );
         }
         // Get the two master pages.
-        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1));
-        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2));
+        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::from_u64(1)));
+        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::from_u64(2)));
         // Determine which is the current master.
         let current_master = if master_page1.get_version() > master_page2.get_version() {
             master_page1
@@ -741,7 +742,8 @@ impl Db {
         let current_version = current_master.get_version();
         // Check the free_dir_page is sane.
         let free_dir_page_no = current_master.get_free_page_dir_page_no();
-        let free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
+        let free_dir_page = 
+            FreeDirPage::from_page(self.page_cache.get_page(PageNo::from_u64(free_dir_page_no)));
         assert!(free_dir_page.get_version() <= current_version);
 
         Ok(())
@@ -756,7 +758,7 @@ impl Db {
         // Provides a list of free pages that can be modified or added
         // to the free page directory if not used in the init process -
         // the init process will generate some unused pages.
-        let mut free_pages: Vec<u64> = self.page_cache.generate_free_pages(10, 0);
+        let mut free_pages: Vec<PageNo> = self.page_cache.generate_free_pages(10, 0);
         assert!(free_pages.len() == 10);
 
         // Write the global tree root page at page number 5.
@@ -764,7 +766,7 @@ impl Db {
         let mut global_tree_root_page =
             LeafPage::create_new(self.page_cache.get_page_config(), 5, 0);
         // remove it from the free list
-        free_pages.retain(|&x| x != 5);
+        free_pages.retain(|&x| x.get_blk_offset() != 5);
         // Write the global_tree_root_page to disk.
         self.page_cache.put_page(global_tree_root_page.get_page());
 
@@ -772,14 +774,14 @@ impl Db {
         // The first page in a tree is a leaf page.
         let mut table_dir_page = LeafPage::create_new(self.page_cache.get_page_config(), 4, 0);
         // remove from the free page list
-        free_pages.retain(|&x| x != 4);
+        free_pages.retain(|&x| x.get_blk_offset() != 4);
         self.page_cache.put_page(table_dir_page.get_page());
 
         // Write first master page at page number 1.
         let mut master_page1: DbMasterPage =
             DbMasterPage::create_new(self.page_cache.get_page_config(), 1, 0);
         // remove from free page list
-        free_pages.retain(|&x| x != 1);
+        free_pages.retain(|&x| x.get_blk_offset() != 1);
         // Tell the first master page where the free page directory page is,
         // where the table directory root page is and where the global
         // tree root is.
@@ -793,7 +795,7 @@ impl Db {
         let mut master_page2: DbMasterPage =
             DbMasterPage::create_new(self.page_cache.get_page_config(), 2, 1);
         // remove from free page list
-        free_pages.retain(|&x| x != 2);
+        free_pages.retain(|&x| x.get_blk_offset() != 2);
         master_page2.set_free_page_dir_page_no(3);
         master_page2.set_table_dir_page_no(4);
         master_page2.set_global_tree_root_page_no(5);
@@ -803,8 +805,8 @@ impl Db {
         let mut free_dir_page = FreeDirPage::create_new(self.page_cache.get_page_config(), 3, 0);
         // The free_dir_page is no longer free, and also the root db page won't be free after
         // we write it in the next step.
-        free_pages.retain(|&x| x != 0);
-        free_pages.retain(|&x| x != 3);
+        free_pages.retain(|&x| x.get_blk_offset() != 0);
+        free_pages.retain(|&x| x.get_blk_offset() != 3);
         free_dir_page.add_free_pages(&free_pages);
         self.page_cache.put_page(free_dir_page.get_page());
 
@@ -836,8 +838,8 @@ impl Db {
     //   Update the master page after making tree changes.
     //   Overwrite the non-current master page with the new version.
     fn get_master_page(&mut self) -> DbMasterPage {
-        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(1));
-        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(2));
+        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::from_u64(1)));
+        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::from_u64(2)));
 
         if master_page1.get_version() > master_page2.get_version() {
             master_page1
@@ -901,11 +903,11 @@ mod tests {
                 None,
                 CompressorType::None,
             );
-            let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(1));
-            let head_page2 = DbMasterPage::from_page(db.page_cache.get_page(2));
+            let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::from_u64(1)));
+            let head_page2 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::from_u64(2)));
             let free_page_dir_page_no = head_page2.get_free_page_dir_page_no();
             let free_page_dir_page =
-                FreeDirPage::from_page(db.page_cache.get_page(free_page_dir_page_no));
+                FreeDirPage::from_page(db.page_cache.get_page(PageNo::from_u64(free_page_dir_page_no)));
             assert!(free_page_dir_page.get_entries() == 4);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
