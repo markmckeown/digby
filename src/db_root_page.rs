@@ -3,6 +3,7 @@ use crate::block_sanity::BlockSanity;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
+use crate::page_no::PageNo;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 
@@ -18,7 +19,7 @@ impl PageTrait for DbRootPage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(&self) -> u64 {
+    fn get_page_number(&self) -> PageNo {
         self.page.get_page_number()
     }
 
@@ -65,7 +66,7 @@ impl DbRootPage {
         if page.get_type() != PageType::DbRoot {
             panic!("Invalid page type for RootPage");
         }
-        if page.get_page_number() != 0 {
+        if page.get_page_number().get_blk_offset() != 0 {
             panic!("Invalid page number for RootPage");
         }
         let head_page = DbRootPage { page };
@@ -159,7 +160,7 @@ mod tests {
         };
         let root_page = DbRootPage::create_new(&page_config);
 
-        assert_eq!(root_page.get_page_number(), 0);
+        assert_eq!(root_page.get_page_number().get_blk_offset(), 0);
         assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
         assert_eq!(root_page.get_db_major_version(), DbRootPage::VERSION_MAJOR);
         assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
@@ -174,14 +175,14 @@ mod tests {
         };
         let mut root_page = DbRootPage::create_new(&page_config);
 
-        assert_eq!(root_page.get_page_number(), 0);
+        assert_eq!(root_page.get_page_number().get_blk_offset(), 0);
         assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
         assert_eq!(root_page.get_db_major_version(), DbRootPage::VERSION_MAJOR);
         assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
         assert_eq!(root_page.page.get_type(), PageType::DbRoot);
         assert_eq!(root_page.get_page_bytes().len(), 4092);
         root_page.set_page_number(0);
-        assert_eq!(root_page.get_page_number(), 0);
+        assert_eq!(root_page.get_page_number().get_blk_offset(), 0);
     }
 
     #[test]
@@ -193,7 +194,7 @@ mod tests {
         };
         let mut root_page = DbRootPage::create_new(&page_config);
 
-        assert_eq!(root_page.get_page_number(), 0);
+        assert_eq!(root_page.get_page_number().get_blk_offset(), 0);
         assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
         assert_eq!(root_page.get_db_major_version(), DbRootPage::VERSION_MAJOR);
         assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);

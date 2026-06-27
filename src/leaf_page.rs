@@ -5,6 +5,7 @@ use crate::tuple::Overflow;
 use crate::tuple::Tuple;
 use crate::tuple::TupleTrait;
 use crate::{Page, block_layer::PageConfig};
+use crate::page_no::PageNo;
 use core::panic;
 use std::cmp::Ordering;
 
@@ -17,7 +18,7 @@ impl PageTrait for LeafPage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(&self) -> u64 {
+    fn get_page_number(&self) -> PageNo {
         self.page.get_page_number()
     }
 
@@ -642,7 +643,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number(),
+            self.page.get_page_number().to_u64(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -690,7 +691,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number(),
+            self.page.get_page_number().to_u64(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -742,7 +743,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number(),
+            self.page.get_page_number().to_u64(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -797,7 +798,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number(),
+            self.page.get_page_number().to_u64(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -857,7 +858,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number(),
+            self.page.get_page_number().to_u64(),
             version,
         );
         let mut right_page = LeafPage::create_new(

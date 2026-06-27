@@ -179,7 +179,7 @@ impl LeafPageHandler {
     ) {
         for (page, _) in leaf_page_refs {
             let old_page_no = page.get_page_number();
-            if old_page_no != 0 {
+            if old_page_no.to_u64() != 0 {
                 free_page_tracker.return_free_page_no(old_page_no);
             }
             let new_page_no = free_page_tracker.get_free_page(page_cache);

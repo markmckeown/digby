@@ -1,6 +1,7 @@
 use crate::block_layer::PageConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page_no::PageNo;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 
 // From Page Header - size 26
@@ -18,7 +19,7 @@ impl PageTrait for OverflowPage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(&self) -> u64 {
+    fn get_page_number(&self) -> PageNo {
         self.page.get_page_number()
     }
 
@@ -133,9 +134,9 @@ mod tests {
         assert_eq!(page.get_version(), 34);
         assert_eq!(page.get_next_page(), 0);
         assert_eq!(page.get_used_size(), 4);
-        assert_eq!(page.get_page_number(), 334);
+        assert_eq!(page.get_page_number().to_u64(), 334);
         page.set_page_number(457);
-        assert_eq!(page.get_page_number(), 457);
+        assert_eq!(page.get_page_number().to_u64(), 457);
     }
 
     #[should_panic(expected = "Invalid page type for OverflowPage")]
@@ -153,7 +154,7 @@ mod tests {
             page_size: 4092,
         };
         let overflow_page = OverflowPage::create_new(&page_config, 334, 34);
-        assert_eq!(overflow_page.get_page_number(), 334);
+        assert_eq!(overflow_page.get_page_number().to_u64(), 334);
         assert_eq!(overflow_page.get_version(), 34);
         assert_eq!(
             overflow_page.page.get_type(),

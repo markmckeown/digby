@@ -27,7 +27,7 @@ impl XxHashSanity {
         assert!(
             stored_checksum == calculated_checksum,
             "Calculated checksum does not match stored checksum for page {}",
-            page.get_page_number()
+            page.get_page_number().to_u64()
         );
     }
 }

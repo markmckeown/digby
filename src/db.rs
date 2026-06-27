@@ -402,7 +402,7 @@ impl Db {
         //   - The table directory tree.
         //   - The free page directory.
         //   - The new version.
-        master_page.set_free_page_dir_page_no(first_free_dir_page);
+        master_page.set_free_page_dir_page_no(first_free_dir_page.to_u64());
         master_page.set_global_tree_root_page_no(new_root_page_no);
         master_page.set_table_dir_page_no(new_table_tree_root_no);
         master_page.set_version(new_version);
@@ -576,7 +576,7 @@ impl Db {
         let new_table_dir_root_page_no: u64 = if delete {
             tx_ctx
                 .free_page_tracker
-                .return_free_page_no(new_table_root_page_no);
+                .return_free_page_no(PageNo::from_u64(new_table_root_page_no));
             let (new_page, _is_deleted) = TreeDeleteHandler::delete_key(
                 table_name,
                 table_dir_root_page,

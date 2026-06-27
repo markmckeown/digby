@@ -71,7 +71,7 @@ impl TreeDeleteHandler {
 
         let tuple = leaf_page.delete_key(key);
         if tuple.is_none() {
-            return (root_page_no, false);
+            return (root_page_no.to_u64(), false);
         }
 
         // Have we just removed an overflow page?
@@ -106,7 +106,7 @@ impl TreeDeleteHandler {
             page_cache,
             new_version,
             new_leaf_page_no,
-            old_leaf_page_no,
+            old_leaf_page_no.to_u64(),
         );
         (new_root_page_no, true)
     }
@@ -162,8 +162,8 @@ impl TreeDeleteHandler {
             let mut dir_page = dir_page_wrapped.unwrap();
             dir_page.remove_key_page(key, page_to_delete);
             if dir_page.is_empty() {
-                page_to_delete = dir_page.get_page_number();
-                free_page_tracker.return_free_page_no(page_to_delete);
+                page_to_delete = dir_page.get_page_number().to_u64();
+                free_page_tracker.return_free_page_no(PageNo::from_u64(page_to_delete));
             } else {
                 // This dir page is not empty - push back on stack for
                 // remapping.
@@ -263,7 +263,7 @@ impl TreeDeleteHandler {
         let tuple = root_page.delete_key(key);
         if tuple.is_none() {
             // Nothing deleted, no changes to the tree.
-            return (root_page_no, false);
+            return (root_page_no.to_u64(), false);
         }
 
         // A tuple was deleted and we can unwrap it.

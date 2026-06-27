@@ -50,7 +50,7 @@ impl PageTrait for FreeDirPage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(&self) -> u64 {
+    fn get_page_number(&self) -> PageNo {
         self.page.get_page_number()
     }
 

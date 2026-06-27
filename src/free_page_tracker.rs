@@ -20,7 +20,7 @@ use crate::page_no::PageNo;
 //
 pub struct FreePageTracker {
     free_dir_page_list: Vec<FreeDirPage>,
-    returned_pages: Vec<u64>,
+    returned_pages: Vec<PageNo>,
     new_version: u64,
     page_config: PageConfig,
 }
@@ -90,13 +90,13 @@ impl FreePageTracker {
         new_free_page.to_u64()
     }
 
-    pub fn get_return_pages(&self) -> Vec<u64> {
+    pub fn get_return_pages(&self) -> Vec<PageNo> {
         self.returned_pages.clone()
     }
 
     // Commit no long needs this page no. It should be recycled for the next
     // commit and should not be used in this commit.
-    pub fn return_free_page_no(&mut self, page_no: u64) {
+    pub fn return_free_page_no(&mut self, page_no: PageNo) {
         assert!(!self.free_dir_page_list.is_empty());
         self.returned_pages.push(page_no);
     }
@@ -122,7 +122,7 @@ impl FreePageTracker {
             if last.is_full() {
                 break;
             }
-            last.add_free_page(page_no);
+            last.add_free_page(page_no.to_u64());
         }
 
         // If there are still free page numbers to be added then need to create
@@ -133,13 +133,13 @@ impl FreePageTracker {
             let next_free_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
             let mut next_free_dir_page =
                 FreeDirPage::create_new(&self.page_config, next_free_page_no.to_u64(), self.new_version);
-            next_free_dir_page.set_next(last.get_page_number());
-            last.set_previous(next_free_dir_page.get_page_number());
+            next_free_dir_page.set_next(last.get_page_number().to_u64());
+            last.set_previous(next_free_dir_page.get_page_number().to_u64());
             while let Some(page_no) = self.returned_pages.pop() {
                 if next_free_dir_page.is_full() {
                     break;
                 }
-                next_free_dir_page.add_free_page(page_no);
+                next_free_dir_page.add_free_page(page_no.to_u64());
             }
             self.free_dir_page_list.push(next_free_dir_page);
             last = self.free_dir_page_list.last_mut().unwrap();
@@ -190,7 +190,7 @@ mod tests {
         assert_eq!(page_cache.get_total_page_count(), 9);
 
         for number in 16u64..=5000 {
-            free_page_tracker.return_free_page_no(number);
+            free_page_tracker.return_free_page_no(PageNo::from_u64(number));
         }
         assert_eq!(page_cache.get_total_page_count(), 9);
         let mut pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
@@ -203,7 +203,7 @@ mod tests {
         }
 
         free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(PageNo::from_u64(free_page_dir_no)),
+            page_cache.get_page(free_page_dir_no),
             version + 2,
             *page_cache.get_page_config(),
         );

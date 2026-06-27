@@ -1,6 +1,7 @@
 use crate::block_layer::PageConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page_no::PageNo;
 
 pub struct FreePage {
     page: Page,
@@ -11,7 +12,7 @@ impl PageTrait for FreePage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(&self) -> u64 {
+    fn get_page_number(&self) -> PageNo {
         self.page.get_page_number()
     }
 
@@ -68,7 +69,7 @@ mod tests {
         };
         let free_page = FreePage::create_new(&page_config, 42);
 
-        assert_eq!(free_page.get_page_number(), 42);
+        assert_eq!(free_page.get_page_number().to_u64(), 42);
         // We can access `page` through the trait method
         // but we know it's a FreePage type by successfully creating it
     }
@@ -80,7 +81,7 @@ mod tests {
         page.set_page_number(100);
 
         let free_page = FreePage::from_page(page);
-        assert_eq!(free_page.get_page_number(), 100);
+        assert_eq!(free_page.get_page_number().to_u64(), 100);
     }
 
     #[test]
@@ -103,14 +104,14 @@ mod tests {
         free_page.set_version(5);
         assert_eq!(free_page.get_version(), 5);
 
-        assert_eq!(free_page.get_page_number(), 1);
+        assert_eq!(free_page.get_page_number().to_u64(), 1);
         free_page.set_page_number(42);
-        assert_eq!(free_page.get_page_number(), 42);
+        assert_eq!(free_page.get_page_number().to_u64(), 42);
 
         let bytes = free_page.get_page_bytes();
         assert_eq!(bytes.len(), 4092);
 
         let page = free_page.get_page();
-        assert_eq!(page.get_page_number(), 42);
+        assert_eq!(page.get_page_number().to_u64(), 42);
     }
 }

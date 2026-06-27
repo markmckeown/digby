@@ -2,6 +2,7 @@ use crate::block_layer::PageConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
+use crate::page_no::PageNo;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 
@@ -17,7 +18,7 @@ impl PageTrait for DbMasterPage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(&self) -> u64 {
+    fn get_page_number(&self) -> PageNo {
         self.page.get_page_number()
     }
 
@@ -117,7 +118,7 @@ impl DbMasterPage {
 
     pub fn flip_page_number(&mut self) {
         let page_number = self.get_page_number();
-        let new_page_number: u64 = if page_number == 1 { 2 } else { 1 };
+        let new_page_number: u64 = if page_number.get_blk_offset() == 1 { 2 } else { 1 };
         self.page.set_page_number(new_page_number);
     }
 }
@@ -150,14 +151,14 @@ mod tests {
             page_size: 4092,
         };
         let mut master_page = DbMasterPage::create_new(&page_config, 1, 5);
-        assert_eq!(master_page.get_page_number(), 1);
+        assert_eq!(master_page.get_page_number().get_blk_offset(), 1);
         assert_eq!(master_page.get_version(), 5);
         assert_eq!(master_page.page.get_type(), PageType::DbMaster);
         assert_eq!(master_page.get_page_bytes().len(), 4092);
         master_page.set_page_number(1);
-        assert_eq!(master_page.get_page_number(), 1);
+        assert_eq!(master_page.get_page_number().get_blk_offset(), 1);
         master_page.set_page_number(2);
-        assert_eq!(master_page.get_page_number(), 2);
+        assert_eq!(master_page.get_page_number().get_blk_offset(), 2);
     }
 
     #[test]
@@ -177,7 +178,7 @@ mod tests {
         page.set_page_number(2);
 
         let master_page = DbMasterPage::from_page(page);
-        assert_eq!(master_page.get_page_number(), 2);
+        assert_eq!(master_page.get_page_number().get_blk_offset(), 2);
     }
 
     #[test]
@@ -203,9 +204,9 @@ mod tests {
     fn test_flip_page_number() {
         let mut master_page = DbMasterPage::new(4096, 4092, 1, 1);
         master_page.flip_page_number();
-        assert_eq!(master_page.get_page_number(), 2);
+        assert_eq!(master_page.get_page_number().get_blk_offset(), 2);
 
         master_page.flip_page_number();
-        assert_eq!(master_page.get_page_number(), 1);
+        assert_eq!(master_page.get_page_number().get_blk_offset(), 1);
     }
 }

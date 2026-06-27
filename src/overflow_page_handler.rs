@@ -82,7 +82,7 @@ impl OverflowPageHandler {
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
     ) -> u32 {
-        free_page_tracker.return_free_page_no(first_page);
+        free_page_tracker.return_free_page_no(PageNo::from_u64(first_page));
         let mut page_no = first_page;
         let mut count: u32 = 1;
         loop {
@@ -91,7 +91,7 @@ impl OverflowPageHandler {
             if page_no == 0 {
                 break;
             }
-            free_page_tracker.return_free_page_no(page_no);
+            free_page_tracker.return_free_page_no(PageNo::from_u64(page_no));
             count += 1;
         }
 

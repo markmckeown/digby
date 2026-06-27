@@ -1,8 +1,7 @@
 use crate::block_layer::PageConfig;
 use crate::version_holder::VersionHolder;
-use byteorder::{LittleEndian, ReadBytesExt};
 use std::convert::TryFrom;
-use std::io::Cursor;
+use crate::page_no::PageNo;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum PageType {
@@ -41,7 +40,7 @@ impl TryFrom<u8> for PageType {
 
 pub trait PageTrait {
     fn get_page_bytes(&self) -> &[u8];
-    fn get_page_number(&self) -> u64;
+    fn get_page_number(&self) -> PageNo;
     fn set_page_number(&mut self, page_no: u64) -> ();
     fn get_page(&mut self) -> &mut Page;
     fn get_version(&self) -> u64;
@@ -60,10 +59,8 @@ impl PageTrait for Page {
         &self.bytes[0..self.page_size]
     }
 
-    fn get_page_number(&self) -> u64 {
-        let mut cursor = Cursor::new(&self.bytes[..]);
-        cursor.set_position(0);
-        cursor.read_u64::<LittleEndian>().unwrap()
+    fn get_page_number(&self) -> PageNo {
+        PageNo::from_bytes(&self.bytes[0..8])
     }
 
     fn set_page_number(&mut self, page_no: u64) {
@@ -143,12 +140,12 @@ mod tests {
     fn test_page_creation() {
         let mut page = Page::new(4096, 4092);
         assert_eq!(page.get_page_bytes().len(), 4092);
-        assert_eq!(page.get_page_number(), 0);
+        assert_eq!(page.get_page_number().to_u64(), 0);
         assert_eq!(0, page.get_version());
-        assert_eq!(0, page.get_page().get_page_number());
+        assert_eq!(0, page.get_page().get_page_number().to_u64());
         page.set_page_number(42);
         page.set_type(PageType::LeafPage);
-        assert_eq!(page.get_page_number(), 42);
+        assert_eq!(page.get_page_number().to_u64(), 42);
         assert_eq!(page.get_type() as u8, PageType::LeafPage as u8);
     }
 }

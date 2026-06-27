@@ -81,7 +81,7 @@ impl PageCache {
     }
 
     pub fn put_page(&mut self, page: &mut Page) {
-        let page_no = PageNo::from_u64(page.get_page_number());
+        let page_no = page.get_page_number();
         // Take a copy of the page before the block_layer processes it,
         // the block layer might encrypt it.
         // TODO - block_layer.write_page should return the page to us to avoid need to copy.
@@ -133,7 +133,7 @@ mod tests {
         page_cache.sync_all();
         // Read the page back from the cache
         let read_page = page_cache.get_page(PageNo::from_u64(page_number));
-        assert_eq!(read_page.get_page_number(), page_number);
+        assert_eq!(read_page.get_page_number().to_u64(), page_number);
         assert_eq!(read_page.get_page_bytes(), page.get_page_bytes());
     }
 }

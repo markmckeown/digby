@@ -1,5 +1,6 @@
 use crate::page::PageTrait;
 use crate::page::PageType;
+use crate::page_no::PageNo;
 use crate::tree_dir_entry;
 use crate::{Page, block_layer::PageConfig};
 use core::panic;
@@ -14,7 +15,7 @@ impl PageTrait for DirPage {
         self.page.get_page_bytes()
     }
 
-    fn get_page_number(&self) -> u64 {
+    fn get_page_number(&self) -> PageNo {
         self.page.get_page_number()
     }
 
@@ -717,7 +718,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number(),
+            self.page.get_page_number().to_u64(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -770,7 +771,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number(),
+            self.page.get_page_number().to_u64(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -831,7 +832,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number(),
+            self.page.get_page_number().to_u64(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -890,7 +891,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number(),
+            self.page.get_page_number().to_u64(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -1200,7 +1201,7 @@ mod tests {
             page_size: 1024,
         };
         let dir_page = DirPage::create_new(&page_config, 1, 0);
-        assert_eq!(dir_page.get_page_number(), 1);
+        assert_eq!(dir_page.get_page_number().to_u64(), 1);
         assert_eq!(dir_page.get_version(), 0);
         assert_eq!(dir_page.get_entries_size(), 0);
         assert_eq!(
