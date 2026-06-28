@@ -27,8 +27,11 @@ impl OverflowPageHandler {
         let mut next_page: u64;
         loop {
             next_page = free_page_tracker.get_free_page(page_cache);
-            let mut page =
-                OverflowPage::create_new(page_cache.get_page_config(), next_page, version);
+            let mut page = OverflowPage::create_new(
+                page_cache.get_page_config(),
+                PageNo::from_u64(next_page),
+                version,
+            );
             page.set_next_page(previous);
 
             let free_space = page.get_free_space();

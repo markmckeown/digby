@@ -43,7 +43,7 @@ impl PageTrait for OverflowPage {
 impl OverflowPage {
     const HEADER_SIZE: usize = 26;
 
-    pub fn create_new(page_config: &PageConfig, page_number: u64, version: u64) -> Self {
+    pub fn create_new(page_config: &PageConfig, page_number: PageNo, version: u64) -> Self {
         OverflowPage::new(
             page_config.block_size,
             page_config.page_size,
@@ -52,14 +52,12 @@ impl OverflowPage {
         )
     }
 
-    fn new(block_size: usize, page_size: usize, page_number: u64, version: u64) -> Self {
+    fn new(block_size: usize, page_size: usize, page_number: PageNo, version: u64) -> Self {
         let mut overflow_page = OverflowPage {
             page: Page::new(block_size, page_size),
         };
         overflow_page.page.set_type(crate::page::PageType::Overflow);
-        overflow_page
-            .page
-            .set_page_number(PageNo::from_u64(page_number));
+        overflow_page.page.set_page_number(page_number);
         overflow_page.set_version(version);
         overflow_page
     }
@@ -126,7 +124,7 @@ mod tests {
     #[test]
     fn test_adding_bytes() {
         let page_size = 4096;
-        let mut page = OverflowPage::new(page_size, page_size, 334, 34);
+        let mut page = OverflowPage::new(page_size, page_size, PageNo::from_u64(334), 34);
         let buffer = b"This is a big buffer".to_vec();
 
         page.add_bytes(buffer[0..4].as_ref(), 4);
@@ -155,7 +153,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
         };
-        let overflow_page = OverflowPage::create_new(&page_config, 334, 34);
+        let overflow_page = OverflowPage::create_new(&page_config, PageNo::from_u64(334), 34);
         assert_eq!(overflow_page.get_page_number().to_u64(), 334);
         assert_eq!(overflow_page.get_version(), 34);
         assert_eq!(
