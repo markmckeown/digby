@@ -44,9 +44,9 @@ impl PageTrait for DbMasterPage {
 }
 
 impl DbMasterPage {
-    pub fn create_new(page_config: &PageConfig, page_number: u64, version: u64) -> Self {
+    pub fn create_new(page_config: &PageConfig, page_number: PageNo, version: u64) -> Self {
         assert!(
-            page_number == 1 || page_number == 2,
+            page_number.get_blk_offset() == 1 || page_number.get_blk_offset() == 2,
             "DbMasterPage must have page number 1 or 2"
         );
         DbMasterPage::new(
@@ -57,12 +57,12 @@ impl DbMasterPage {
         )
     }
 
-    fn new(block_size: usize, page_size: usize, page_number: u64, version: u64) -> Self {
+    fn new(block_size: usize, page_size: usize, page_number: PageNo, version: u64) -> Self {
         let mut head_page = DbMasterPage {
             page: Page::new(block_size, page_size),
         };
         head_page.page.set_type(PageType::DbMaster);
-        head_page.page.set_page_number(PageNo::from_u64(page_number));
+        head_page.page.set_page_number(page_number);
         head_page.set_version(version);
         head_page
     }
@@ -129,7 +129,8 @@ mod tests {
 
     #[test]
     fn test_head_page() {
-        let mut master_page = DbMasterPage::new(4096, 4092, 0, 1);
+        let mut master_page = DbMasterPage::new(4096, 4092, 
+            PageNo::from_u64(0), 1);
         assert_eq!(master_page.get_version(), 1);
         master_page.set_version(2);
         assert_eq!(master_page.get_version(), 2);
@@ -150,7 +151,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
         };
-        let mut master_page = DbMasterPage::create_new(&page_config, 1, 5);
+        let mut master_page = DbMasterPage::create_new(&page_config, PageNo::from_u64(1), 5);
         assert_eq!(master_page.get_page_number().get_blk_offset(), 1);
         assert_eq!(master_page.get_version(), 5);
         assert_eq!(master_page.page.get_type(), PageType::DbMaster);
@@ -168,7 +169,8 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
         };
-        let _master_page = DbMasterPage::create_new(&page_config, 4, 5);
+        let _master_page = DbMasterPage::create_new(&page_config, 
+            PageNo::from_u64(4), 5);
     }
 
     #[test]
@@ -202,7 +204,8 @@ mod tests {
 
     #[test]
     fn test_flip_page_number() {
-        let mut master_page = DbMasterPage::new(4096, 4092, 1, 1);
+        let mut master_page = DbMasterPage::new(4096, 4092, 
+            PageNo::from_u64(1), 1);
         master_page.flip_page_number();
         assert_eq!(master_page.get_page_number().get_blk_offset(), 2);
 

@@ -779,7 +779,8 @@ impl Db {
 
         // Write first master page at page number 1.
         let mut master_page1: DbMasterPage =
-            DbMasterPage::create_new(self.page_cache.get_page_config(), 1, 0);
+            DbMasterPage::create_new(self.page_cache.get_page_config(), 
+            PageNo::new(0, 1), 0);
         // remove from free page list
         free_pages.retain(|&x| x.get_blk_offset() != 1);
         // Tell the first master page where the free page directory page is,
@@ -793,7 +794,8 @@ impl Db {
         // Write second master page at page number 2, the version
         // is 1 - this makes master_page2 the current master page.
         let mut master_page2: DbMasterPage =
-            DbMasterPage::create_new(self.page_cache.get_page_config(), 2, 1);
+            DbMasterPage::create_new(self.page_cache.get_page_config(), 
+            PageNo::new(0, 2), 1);
         // remove from free page list
         free_pages.retain(|&x| x.get_blk_offset() != 2);
         master_page2.set_free_page_dir_page_no(3);
