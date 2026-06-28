@@ -1,7 +1,7 @@
 use crate::block_layer::PageConfig;
+use crate::page_no::PageNo;
 use crate::version_holder::VersionHolder;
 use std::convert::TryFrom;
-use crate::page_no::PageNo;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum PageType {

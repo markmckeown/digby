@@ -137,7 +137,7 @@ mod tests {
             entries.push(tree_dir_entry);
         }
 
-        let mut tree_dir_page = DirPage::create_new(&page_config, 0, 0);
+        let mut tree_dir_page = DirPage::create_new(&page_config, PageNo::from_u64(0), 0);
 
         let mut new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, entries);
         assert_eq!(new_pages.len(), 1);

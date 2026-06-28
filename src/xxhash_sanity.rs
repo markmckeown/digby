@@ -5,7 +5,6 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 use xxhash_rust::xxh32::xxh32;
 
-
 pub struct XxHashSanity {}
 
 impl XxHashSanity {

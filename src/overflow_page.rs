@@ -57,7 +57,9 @@ impl OverflowPage {
             page: Page::new(block_size, page_size),
         };
         overflow_page.page.set_type(crate::page::PageType::Overflow);
-        overflow_page.page.set_page_number(PageNo::from_u64(page_number));
+        overflow_page
+            .page
+            .set_page_number(PageNo::from_u64(page_number));
         overflow_page.set_version(version);
         overflow_page
     }

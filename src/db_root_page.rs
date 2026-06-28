@@ -24,7 +24,11 @@ impl PageTrait for DbRootPage {
     }
 
     fn set_page_number(&mut self, page_no: PageNo) {
-        assert_eq!(page_no.get_blk_offset(), 0, "DbRootPage must have page number 0");
+        assert_eq!(
+            page_no.get_blk_offset(),
+            0,
+            "DbRootPage must have page number 0"
+        );
         self.page.set_page_number(page_no)
     }
 
@@ -55,7 +59,7 @@ impl DbRootPage {
             page: Page::new(block_size, page_size),
         };
         db_root_page.page.set_type(PageType::DbRoot);
-        db_root_page.page.set_page_number(PageNo::from_u64(0));
+        db_root_page.page.set_page_number(PageNo::new(0, 0));
         db_root_page.set_magic_number();
         db_root_page.set_db_major_version();
         db_root_page.set_db_minor_version();

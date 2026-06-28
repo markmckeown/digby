@@ -43,7 +43,9 @@ impl FreePage {
             page: Page::new(block_size, page_size),
         };
         free_page.page.set_type(crate::page::PageType::Free);
-        free_page.page.set_page_number(PageNo::from_u64(page_number));
+        free_page
+            .page
+            .set_page_number(PageNo::from_u64(page_number));
         free_page
     }
 

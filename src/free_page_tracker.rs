@@ -131,8 +131,11 @@ impl FreePageTracker {
             // We create a new free page for the new free_page_dir page we need - we do not want to use a returned page no
             // as that could cause corruption. Returned pages are still in use until the commit is complete.
             let next_free_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-            let mut next_free_dir_page =
-                FreeDirPage::create_new(&self.page_config, next_free_page_no.to_u64(), self.new_version);
+            let mut next_free_dir_page = FreeDirPage::create_new(
+                &self.page_config,
+                next_free_page_no.to_u64(),
+                self.new_version,
+            );
             next_free_dir_page.set_next(last.get_page_number().to_u64());
             last.set_previous(next_free_dir_page.get_page_number().to_u64());
             while let Some(page_no) = self.returned_pages.pop() {
@@ -175,8 +178,11 @@ mod tests {
         let mut page_cache: PageCache = PageCache::new(block_layer);
 
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-        let mut free_dir_page =
-            FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no.to_u64(), version);
+        let mut free_dir_page = FreeDirPage::create_new(
+            page_cache.get_page_config(),
+            free_dir_page_no.to_u64(),
+            version,
+        );
         page_cache.put_page(free_dir_page.get_page());
 
         let mut free_page_tracker = FreePageTracker::new(

@@ -118,7 +118,11 @@ impl DbMasterPage {
 
     pub fn flip_page_number(&mut self) {
         let page_number = self.get_page_number();
-        let new_page_number: u64 = if page_number.get_blk_offset() == 1 { 2 } else { 1 };
+        let new_page_number: u64 = if page_number.get_blk_offset() == 1 {
+            2
+        } else {
+            1
+        };
         self.page.set_page_number(PageNo::from_u64(new_page_number));
     }
 }
@@ -129,8 +133,7 @@ mod tests {
 
     #[test]
     fn test_head_page() {
-        let mut master_page = DbMasterPage::new(4096, 4092, 
-            PageNo::from_u64(0), 1);
+        let mut master_page = DbMasterPage::new(4096, 4092, PageNo::from_u64(0), 1);
         assert_eq!(master_page.get_version(), 1);
         master_page.set_version(2);
         assert_eq!(master_page.get_version(), 2);
@@ -169,8 +172,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
         };
-        let _master_page = DbMasterPage::create_new(&page_config, 
-            PageNo::from_u64(4), 5);
+        let _master_page = DbMasterPage::create_new(&page_config, PageNo::from_u64(4), 5);
     }
 
     #[test]
@@ -204,8 +206,7 @@ mod tests {
 
     #[test]
     fn test_flip_page_number() {
-        let mut master_page = DbMasterPage::new(4096, 4092, 
-            PageNo::from_u64(1), 1);
+        let mut master_page = DbMasterPage::new(4096, 4092, PageNo::from_u64(1), 1);
         master_page.flip_page_number();
         assert_eq!(master_page.get_page_number().get_blk_offset(), 2);
 

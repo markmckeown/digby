@@ -1,14 +1,13 @@
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct PageNo(pub u64);
 
-
 // PageNo:
 //
 // | pg_ctr_blk_cnt_exp (1 byte) | file_blk_offset 7 bytes |
-// 
+//
 // A Page Container is made up of one or more blocks. The number
 // if blocks is encoded as pg_ctr_blk_cnt_exp in the page number.
-// The number of blocks in the page container is 
+// The number of blocks in the page container is
 //
 //   2 << pg_ctr_blk_cnt_exp
 //
@@ -26,7 +25,7 @@ impl PageNo {
 
     pub fn new(pg_blk_cnt_exp: u8, pg_blk_offset: u64) -> Self {
         assert!(pg_blk_cnt_exp <= 8);
-        Self((u64::from(pg_blk_cnt_exp) << 56)| (pg_blk_offset & Self::BOTTOM_56_MASK))
+        Self((u64::from(pg_blk_cnt_exp) << 56) | (pg_blk_offset & Self::BOTTOM_56_MASK))
     }
 
     pub fn from_u64(page_no: u64) -> Self {
@@ -39,9 +38,8 @@ impl PageNo {
         ))
     }
 
-
     pub fn to_u64(&self) -> u64 {
-       self.0
+        self.0
     }
 
     pub fn get_bytes(&self) -> [u8; 8] {
@@ -70,7 +68,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_page_no() { 
+    fn test_page_no() {
         let mut page_no = PageNo::from_u64(0);
         assert_eq!(page_no.get_blk_cnt(), 1);
         assert_eq!(page_no.get_pg_blk_size(4096), 4096);

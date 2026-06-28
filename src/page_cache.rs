@@ -1,4 +1,4 @@
-use crate::block_layer::{PageContainerLayer, PageConfig};
+use crate::block_layer::{PageConfig, PageContainerLayer};
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page_no::PageNo;
@@ -29,7 +29,8 @@ impl PageCache {
     // Generate free pages on disk that can be written back to. Returns
     // a list of page numbers.
     pub fn generate_free_pages(&mut self, no_new_pages: u64, block_cnt_exp: u8) -> Vec<PageNo> {
-        self.block_layer.generate_free_pages(no_new_pages, block_cnt_exp)
+        self.block_layer
+            .generate_free_pages(no_new_pages, block_cnt_exp)
     }
 
     // This returns a newly created page at the block layer. So each

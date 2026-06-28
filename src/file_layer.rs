@@ -29,7 +29,7 @@ impl FileLayer {
 
     pub fn append_new_page(&mut self, page: &Page, page_no: &PageNo) {
         use std::io::{Seek, SeekFrom, Write};
-        
+
         let block_count = page_no.get_blk_cnt();
         let block_offset = page_no.get_blk_offset();
         assert!(

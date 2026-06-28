@@ -104,7 +104,7 @@ impl DirPage {
     const VALUE_SIZE: usize = 8; // u64 page number of child page
     const SLOT_SIZE: usize = 3; // 2 (offset) + 1 (key_len)
 
-    pub fn create_new(page_config: &PageConfig, page_number: u64, version: u64) -> Self {
+    pub fn create_new(page_config: &PageConfig, page_number: PageNo, version: u64) -> Self {
         DirPage::new(
             page_config.block_size,
             page_config.page_size,
@@ -113,10 +113,10 @@ impl DirPage {
         )
     }
 
-    fn new(block_size: usize, page_size: usize, page_number: u64, version: u64) -> Self {
+    fn new(block_size: usize, page_size: usize, page_number: PageNo, version: u64) -> Self {
         let mut page = Page::new(block_size, page_size);
         page.set_type(PageType::DirPage);
-        page.set_page_number(PageNo::from_u64(page_number));
+        page.set_page_number(page_number);
         let mut dir_page = DirPage { page };
         dir_page.set_free_space(page_size as u16 - DirPage::HEADER_SIZE as u16);
         dir_page.set_version(version);
@@ -718,7 +718,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number().to_u64(),
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -726,7 +726,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            PageNo::from_u64(0),
             version,
         );
 
@@ -771,7 +771,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number().to_u64(),
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -779,7 +779,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            PageNo::from_u64(0),
             version,
         );
 
@@ -832,7 +832,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number().to_u64(),
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -840,7 +840,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            PageNo::from_u64(0),
             version,
         );
 
@@ -891,7 +891,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number().to_u64(),
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::create_new(
@@ -899,7 +899,7 @@ impl DirPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            PageNo::from_u64(0),
             version,
         );
 
@@ -1200,8 +1200,8 @@ mod tests {
             block_size: 1024,
             page_size: 1024,
         };
-        let dir_page = DirPage::create_new(&page_config, 1, 0);
-        assert_eq!(dir_page.get_page_number().to_u64(), 1);
+        let dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        assert_eq!(dir_page.get_page_number().get_blk_offset(), 1);
         assert_eq!(dir_page.get_version(), 0);
         assert_eq!(dir_page.get_entries_size(), 0);
         assert_eq!(
@@ -1234,7 +1234,7 @@ mod tests {
             block_size: 1028,
             page_size: 1024,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let page_no1 = 2;
@@ -1251,7 +1251,7 @@ mod tests {
             block_size: 1028,
             page_size: 1024,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         assert_eq!(dir_page.get_all_child_pages(), vec![]);
         let key1 = b"key1";
@@ -1270,7 +1270,7 @@ mod tests {
             block_size: 1028,
             page_size: 1024,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let page_no1 = 2;
@@ -1291,7 +1291,7 @@ mod tests {
             block_size: 1028,
             page_size: 1024,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let page_no1 = 2;
@@ -1308,7 +1308,7 @@ mod tests {
             block_size: 1028,
             page_size: 1024,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let key2 = b"key2";
@@ -1323,7 +1323,7 @@ mod tests {
             block_size: 1028,
             page_size: 1024,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let key2 = b"key2";
@@ -1350,7 +1350,7 @@ mod tests {
             block_size: 1024,
             page_size: 1024,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"key1";
         let key2 = b"key2";
         let page_no1 = 2;
@@ -1382,7 +1382,7 @@ mod tests {
             block_size: 1024,
             page_size: 1024,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"key2";
         let key2 = b"key3";
         let page_no1 = 2;
@@ -1415,7 +1415,7 @@ mod tests {
             block_size: 160,
             page_size: 112,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
         let key3 = b"aaaaaaaaaaaaaaaaaaab";
@@ -1440,7 +1440,7 @@ mod tests {
             block_size: 160,
             page_size: 112,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
         let key3 = b"aaaaaaaaaaaaaaaaaaab";
@@ -1465,7 +1465,7 @@ mod tests {
             block_size: 160,
             page_size: 112,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
         let key3 = b"aaaaaaaaaaaaaaaaaaab";
@@ -1490,7 +1490,7 @@ mod tests {
             block_size: 160,
             page_size: 112,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
         let key3 = b"aaaaaaaaaaaaaaaaaaab";
@@ -1515,7 +1515,7 @@ mod tests {
             block_size: 1024,
             page_size: 1024,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
 
         // Add left page.
         dir_page.set_page_to_left(1);
@@ -1561,7 +1561,7 @@ mod tests {
             block_size: 1024,
             page_size: 1024,
         };
-        let mut dir_page = DirPage::create_new(&page_config, 1, 0);
+        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         for i in 0..20 {
             let key = (i as u64).to_le_bytes().to_vec();
             dir_page.add_child_page(&key, i as u64);
