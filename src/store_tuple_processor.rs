@@ -352,11 +352,8 @@ mod tests {
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-        let mut free_dir_page = crate::FreeDirPage::create_new(
-            page_cache.get_page_config(),
-            free_dir_page_no.to_u64(),
-            version,
-        );
+        let mut free_dir_page =
+            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
         let root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
@@ -410,11 +407,8 @@ mod tests {
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-        let mut free_dir_page = crate::FreeDirPage::create_new(
-            page_cache.get_page_config(),
-            free_dir_page_no.to_u64(),
-            version,
-        );
+        let mut free_dir_page =
+            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
         let mut root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
@@ -482,11 +476,8 @@ mod tests {
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-        let mut free_dir_page = crate::FreeDirPage::create_new(
-            page_cache.get_page_config(),
-            free_dir_page_no.to_u64(),
-            version,
-        );
+        let mut free_dir_page =
+            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
         let mut root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();

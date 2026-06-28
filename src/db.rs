@@ -819,7 +819,8 @@ impl Db {
         self.page_cache.put_page(master_page2.get_page());
 
         // Now write the free page directory at page 3.
-        let mut free_dir_page = FreeDirPage::create_new(self.page_cache.get_page_config(), 3, 0);
+        let mut free_dir_page =
+            FreeDirPage::create_new(self.page_cache.get_page_config(), PageNo::new(0, 3), 0);
         // The free_dir_page is no longer free, and also the root db page won't be free after
         // we write it in the next step.
         free_pages.retain(|&x| x.get_blk_offset() != 0);
