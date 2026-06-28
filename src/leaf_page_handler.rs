@@ -203,7 +203,8 @@ mod tests {
         };
         let version = 0;
 
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, 56, version + 1);
+        let mut tree_leaf_page: LeafPage =
+            LeafPage::create_new(&page_config, PageNo::new(0, 56), version + 1);
         let mut new_version = version;
         let mut tuple: Tuple;
         let mut pages: UpdateResult = UpdateResult {
@@ -240,7 +241,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
         };
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, 0, 1);
+        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 1);
         let mut new_version = 2;
         let mut tuple: Tuple;
         // Each loop is a new commit.
@@ -269,7 +270,7 @@ mod tests {
             page_size: 4092,
         };
         let version = 0;
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, 0, 0);
+        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
         tree_leaf_page.set_version(version + 1);
         let mut new_version = version;
         let mut tuple: Tuple;
@@ -299,7 +300,7 @@ mod tests {
             page_size: 4092,
         };
         let version = 0;
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, 0, 0);
+        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
         tree_leaf_page.set_version(version + 1);
 
         let mut new_version = version;
@@ -334,7 +335,7 @@ mod tests {
             page_size: 4092,
         };
         let version = 0;
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, 0, 0);
+        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
         let mut new_version = version;
         let mut tuple: Tuple;
 
@@ -368,7 +369,7 @@ mod tests {
             page_size: 4092,
         };
         let version = 0;
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, 0, 0);
+        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
         tree_leaf_page.set_version(version + 1);
 
         let mut new_version = version;

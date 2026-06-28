@@ -113,7 +113,7 @@ impl LeafPage {
     const HEADER_SIZE: usize = 27; // 8 + 8 + 2 + 2 + 1 + 2 +1 + 2 + 1
     const SLOT_SIZE: usize = 5; // 2 (offset) + 1 (key_len) + 2 (val_len)
 
-    pub fn create_new(page_config: &PageConfig, page_number: u64, version: u64) -> Self {
+    pub fn create_new(page_config: &PageConfig, page_number: PageNo, version: u64) -> Self {
         LeafPage::new(
             page_config.block_size,
             page_config.page_size,
@@ -122,10 +122,10 @@ impl LeafPage {
         )
     }
 
-    fn new(block_size: usize, page_size: usize, page_number: u64, version: u64) -> Self {
+    fn new(block_size: usize, page_size: usize, page_number: PageNo, version: u64) -> Self {
         let mut page = Page::new(block_size, page_size);
         page.set_type(PageType::LeafPage);
-        page.set_page_number(PageNo::from_u64(page_number));
+        page.set_page_number(page_number);
         page.set_version(version);
         let mut leaf_page = LeafPage { page };
         leaf_page.set_free_space(page_size as u16 - LeafPage::HEADER_SIZE as u16);
@@ -643,7 +643,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number().to_u64(),
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -651,7 +651,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            PageNo::from_u64(0),
             version,
         );
 
@@ -691,7 +691,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number().to_u64(),
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -699,7 +699,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            PageNo::from_u64(0),
             version,
         );
 
@@ -743,7 +743,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number().to_u64(),
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -751,7 +751,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            PageNo::from_u64(0),
             version,
         );
 
@@ -798,7 +798,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number().to_u64(),
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -806,7 +806,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            PageNo::from_u64(0),
             version,
         );
 
@@ -858,7 +858,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            self.page.get_page_number().to_u64(),
+            self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::create_new(
@@ -866,7 +866,7 @@ impl LeafPage {
                 block_size: self.page.block_size,
                 page_size: self.page.page_size,
             },
-            0,
+            PageNo::from_u64(0),
             version,
         );
 
@@ -1058,7 +1058,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 23);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 23);
         assert_eq!(leaf_page.get_page_bytes().len(), 4000);
         assert_eq!(leaf_page.get_version(), 23);
         assert!(!LeafPage::has_left_fence(leaf_page.get_page()));
@@ -1171,7 +1171,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(LeafPage::get_entries_size(leaf_page.get_page()), 0);
         assert_eq!(leaf_page.get_left_key(), None);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
@@ -1186,7 +1186,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(LeafPage::get_entries_size(leaf_page.get_page()), 0);
         assert_eq!(leaf_page.get_left_key(), None);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
@@ -1201,7 +1201,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
         assert!(leaf_page.add_tuple(&tuple_1).0);
         leaf_page.set_prefix_length(5);
@@ -1214,7 +1214,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         leaf_page.set_right_fence_key(b"left_fence");
         leaf_page.set_prefix_length(15);
     }
@@ -1225,7 +1225,7 @@ mod tests {
             block_size: 4096,
             page_size: 129,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
         let right_fence_key = b"aaaaaaaaaaaaaaz";
         leaf_page.set_left_fence_key(left_fence_key);
@@ -1247,7 +1247,7 @@ mod tests {
             block_size: 4096,
             page_size: 129,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
         let right_fence_key = b"aaaaaaaaaaaaaaz";
         leaf_page.set_left_fence_key(left_fence_key);
@@ -1270,7 +1270,7 @@ mod tests {
             block_size: 4096,
             page_size: 129,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
         let right_fence_key = b"aaaaaaaaaaaaaay";
         leaf_page.set_left_fence_key(left_fence_key);
@@ -1292,7 +1292,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
         let right_fence_key = b"aaaaaaaaaaaaaay";
         leaf_page.set_left_fence_key(left_fence_key);
@@ -1314,7 +1314,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
         let tuple_2 = Tuple::new(b"aa", b"aa_value", 123);
         let tuple_3 = Tuple::new(b"aaa", b"aaa_value", 123);
@@ -1337,7 +1337,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_a = Tuple::new(b"a", b"a_value", 123);
         let tuple_b = Tuple::new(b"b", b"b_value", 123);
         let tuple_c = Tuple::new(b"c", b"c_value", 123);
@@ -1431,7 +1431,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
         };
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_a = Tuple::new(b"a", b"a_value", 123);
         let tuple_b = Tuple::new(b"b", b"b_value", 123);
         let tuple_c = Tuple::new(b"c", b"c_value", 123);
@@ -1623,7 +1623,7 @@ mod tests {
         let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
         let key3: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
         let key4: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 4];
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple1 = Tuple::new(&key1, b"value1", 123);
         let tuple2 = Tuple::new(&key2, b"value2", 123);
         let tuple3 = Tuple::new(&key3, b"value3", 123);
@@ -1661,7 +1661,7 @@ mod tests {
         let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
         let key3: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
         let key4: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 4];
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple1 = Tuple::new(&key1, b"value1", 123);
         let tuple2 = Tuple::new(&key2, b"value2", 123);
         let tuple3 = Tuple::new(&key3, b"value3", 123);
@@ -1695,7 +1695,7 @@ mod tests {
         let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
         let key3: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
         let key4: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 4];
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple1 = Tuple::new(&key1, b"value1", 123);
         let tuple2 = Tuple::new(&key2, b"value2", 123);
         let tuple3 = Tuple::new(&key3, b"value3", 123);
@@ -1733,7 +1733,7 @@ mod tests {
         let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
         let key3: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
         let key4: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 4];
-        let mut leaf_page = LeafPage::create_new(&page_config, 1, 0);
+        let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple1 = Tuple::new(&key1, b"value1", 123);
         let tuple2 = Tuple::new(&key2, b"value2", 123);
         let tuple3 = Tuple::new(&key3, b"value3", 123);

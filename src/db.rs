@@ -334,7 +334,7 @@ impl Db {
         let new_table_root_page_no = tx_ctx.free_page_tracker.get_free_page(&mut self.page_cache);
         let mut new_table_root_page = LeafPage::create_new(
             self.page_cache.get_page_config(),
-            new_table_root_page_no,
+            PageNo::from_u64(new_table_root_page_no),
             tx_ctx.new_version,
         );
         // Store the new root page back into the file.
@@ -781,7 +781,7 @@ impl Db {
         // Write the global tree root page at page number 5.
         // The first page in a tree is a leaf page.
         let mut global_tree_root_page =
-            LeafPage::create_new(self.page_cache.get_page_config(), 5, 0);
+            LeafPage::create_new(self.page_cache.get_page_config(), PageNo::from_u64(5), 0);
         // remove it from the free list
         free_pages.retain(|&x| x.get_blk_offset() != 5);
         // Write the global_tree_root_page to disk.
@@ -789,7 +789,8 @@ impl Db {
 
         // Write the table directory page at page number 4.
         // The first page in a tree is a leaf page.
-        let mut table_dir_page = LeafPage::create_new(self.page_cache.get_page_config(), 4, 0);
+        let mut table_dir_page =
+            LeafPage::create_new(self.page_cache.get_page_config(), PageNo::from_u64(4), 0);
         // remove from the free page list
         free_pages.retain(|&x| x.get_blk_offset() != 4);
         self.page_cache.put_page(table_dir_page.get_page());

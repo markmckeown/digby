@@ -84,8 +84,11 @@ impl ClearHandler {
         new_version: u64,
     ) -> u64 {
         let new_root_page_no = free_page_tracker.get_free_page(page_cache);
-        let mut new_root_page =
-            LeafPage::create_new(page_cache.get_page_config(), new_root_page_no, new_version);
+        let mut new_root_page = LeafPage::create_new(
+            page_cache.get_page_config(),
+            PageNo::new(0, new_root_page_no),
+            new_version,
+        );
         page_cache.put_page(new_root_page.get_page());
         new_root_page_no
     }

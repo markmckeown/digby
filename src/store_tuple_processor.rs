@@ -357,11 +357,8 @@ mod tests {
         page_cache.put_page(free_dir_page.get_page());
 
         let root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-        let mut leaf_page = LeafPage::create_new(
-            page_cache.get_page_config(),
-            root_tree_page_no.to_u64(),
-            version,
-        );
+        let mut leaf_page =
+            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
 
         let mut free_page_tracker = FreePageTracker::new(
@@ -412,11 +409,8 @@ mod tests {
         page_cache.put_page(free_dir_page.get_page());
 
         let mut root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-        let mut leaf_page = LeafPage::create_new(
-            page_cache.get_page_config(),
-            root_tree_page_no.to_u64(),
-            version,
-        );
+        let mut leaf_page =
+            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
 
         let mut j: u32 = 0;
@@ -481,11 +475,8 @@ mod tests {
         page_cache.put_page(free_dir_page.get_page());
 
         let mut root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-        let mut leaf_page = LeafPage::create_new(
-            page_cache.get_page_config(),
-            root_tree_page_no.to_u64(),
-            version,
-        );
+        let mut leaf_page =
+            LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
 
         for i in 0u64..20000 {
