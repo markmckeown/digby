@@ -121,21 +121,13 @@ impl FreeDirPage {
     }
 
     // Set the next free page directory in the linked list of free page directories.
-    pub fn set_nxt_free_dir_pg(&mut self, entries: u64) {
-        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(16);
-        cursor
-            .write_u64::<LittleEndian>(entries)
-            .expect("Failed to write next page");
+    pub fn set_nxt_free_dir_pg(&mut self, nxt_free_dir_pg: &PageNo) {
+        self.page.get_page_bytes_mut()[16 .. 16 + 8].copy_from_slice(&nxt_free_dir_pg.get_bytes());
     }
 
     // The previous free page directory in the linked list of free page directories.
-    pub fn set_prev_free_dir_pg(&mut self, entries: u64) {
-        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(24);
-        cursor
-            .write_u64::<LittleEndian>(entries)
-            .expect("Failed to write previous page");
+    pub fn set_prev_free_dir_pg(&mut self,prev_free_dir_pg: &PageNo) {
+        self.page.get_page_bytes_mut()[24 .. 24 + 8].copy_from_slice(&prev_free_dir_pg.get_bytes());
     }
 
     fn is_full_for(&self, number_of_pages: usize) -> bool {
