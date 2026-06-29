@@ -64,14 +64,14 @@ impl FreePageTracker {
         // The last has no free pages then check if it has
         // a link to another free_page_dir.
         let next_free_dir_page_no = last.get_nxt_free_dir_pg();
-        if next_free_dir_page_no != 0 {
+        if next_free_dir_page_no.get_blk_offset() != 0 {
             // There is another free_dir_page, replace entry in the list with
             // with next free_dir_page and put last into the list
             // of returned pages.
             self.returned_pages.push(last.get_page_number());
             self.free_dir_page_list.pop(); // The last page is now out of scope and no longer used.
             self.free_dir_page_list.push(FreeDirPage::from_page(
-                page_cache.get_page(PageNo::from_u64(next_free_dir_page_no)),
+                page_cache.get_page(next_free_dir_page_no),
             ));
             // Now recursively call get_free_page - the new page will have free page numbers
             // so it is gurantueed to work.

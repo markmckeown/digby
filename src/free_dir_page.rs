@@ -115,12 +115,12 @@ impl FreeDirPage {
             .expect("Failed to write entries");
     }
 
-    pub fn get_nxt_free_dir_pg(&self) -> u64 {
-        let mut cursor = Cursor::new(self.page.get_page_bytes());
-        cursor.set_position(16);
-        cursor.read_u64::<LittleEndian>().unwrap()
+    // The next free page directory in the linked list of free page directories.
+    pub fn get_nxt_free_dir_pg(&self) -> PageNo {
+        PageNo::from_bytes(&self.page.get_page_bytes()[16..16 + 8])
     }
 
+    // Set the next free page directory in the linked list of free page directories.
     pub fn set_nxt_free_dir_pg(&mut self, entries: u64) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(16);
@@ -129,6 +129,7 @@ impl FreeDirPage {
             .expect("Failed to write next page");
     }
 
+    // The previous free page directory in the linked list of free page directories.
     pub fn set_prev_free_dir_pg(&mut self, entries: u64) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(24);
