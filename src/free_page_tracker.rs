@@ -63,7 +63,7 @@ impl FreePageTracker {
 
         // The last has no free pages then check if it has
         // a link to another free_page_dir.
-        let next_free_dir_page_no = last.get_next();
+        let next_free_dir_page_no = last.get_nxt_free_dir_pg();
         if next_free_dir_page_no != 0 {
             // There is another free_dir_page, replace entry in the list with
             // with next free_dir_page and put last into the list
@@ -133,8 +133,8 @@ impl FreePageTracker {
             let next_free_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
             let mut next_free_dir_page =
                 FreeDirPage::create_new(&self.page_config, next_free_page_no, self.new_version);
-            next_free_dir_page.set_next(last.get_page_number().to_u64());
-            last.set_previous(next_free_dir_page.get_page_number().to_u64());
+            next_free_dir_page.set_nxt_free_dir_pg(last.get_page_number().to_u64());
+            last.set_prev_free_dir_pg(next_free_dir_page.get_page_number().to_u64());
             while let Some(page_no) = self.returned_pages.pop() {
                 if next_free_dir_page.is_full() {
                     break;

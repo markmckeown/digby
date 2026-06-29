@@ -115,13 +115,13 @@ impl FreeDirPage {
             .expect("Failed to write entries");
     }
 
-    pub fn get_next(&self) -> u64 {
+    pub fn get_nxt_free_dir_pg(&self) -> u64 {
         let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(16);
         cursor.read_u64::<LittleEndian>().unwrap()
     }
 
-    pub fn set_next(&mut self, entries: u64) {
+    pub fn set_nxt_free_dir_pg(&mut self, entries: u64) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(16);
         cursor
@@ -129,7 +129,7 @@ impl FreeDirPage {
             .expect("Failed to write next page");
     }
 
-    pub fn set_previous(&mut self, entries: u64) {
+    pub fn set_prev_free_dir_pg(&mut self, entries: u64) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(24);
         cursor
