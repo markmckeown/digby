@@ -51,7 +51,7 @@ impl FreePageTracker {
     // to write back. If there are no free pages in the system then this
     // object will have to ask the PageCache to create more free pages - this
     // is why the PageCache is provided as a parameter.
-    pub fn get_free_page(&mut self, page_cache: &mut PageCache) -> u64 {
+    pub fn get_free_page(&mut self, page_cache: &mut PageCache) -> PageNo {
         assert!(!self.free_dir_page_list.is_empty());
 
         let last = self.free_dir_page_list.last_mut().unwrap();
@@ -87,7 +87,7 @@ impl FreePageTracker {
         // Grab a free page number to return to the commit before adding to free_dir_page
         let new_free_page = new_free_pages.pop().unwrap();
         last.add_free_pages(&new_free_pages);
-        new_free_page.to_u64()
+        new_free_page
     }
 
     pub fn get_return_pages(&self) -> Vec<PageNo> {
@@ -114,7 +114,7 @@ impl FreePageTracker {
         let mut last = self.free_dir_page_list.last_mut().unwrap();
         // Get a free_page_no for last to be written to.
         self.returned_pages.push(last.get_page_number());
-        last.set_page_number(PageNo::from_u64(next_free_page_no));
+        last.set_page_number(next_free_page_no);
         last.set_version(self.new_version);
 
         // Add all the returned page numbers to the free_dir_page last.
@@ -186,7 +186,7 @@ mod tests {
         );
 
         let new_free_page = free_page_tracker.get_free_page(&mut page_cache);
-        assert!(new_free_page == 1);
+        assert!(new_free_page.get_blk_offset() == 1);
         assert_eq!(page_cache.get_total_page_count(), 9);
 
         for number in 16u64..=5000 {

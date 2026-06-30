@@ -30,7 +30,7 @@ impl ClearHandler {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
-    ) -> u64 {
+    ) -> PageNo {
         // If the root of the page is a leaf page, ie
         // only page in the tree then special case it.
         if first.get_type() == PageType::LeafPage {
@@ -82,13 +82,10 @@ impl ClearHandler {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
-    ) -> u64 {
+    ) -> PageNo {
         let new_root_page_no = free_page_tracker.get_free_page(page_cache);
-        let mut new_root_page = LeafPage::create_new(
-            page_cache.get_page_config(),
-            PageNo::new(0, new_root_page_no),
-            new_version,
-        );
+        let mut new_root_page =
+            LeafPage::create_new(page_cache.get_page_config(), new_root_page_no, new_version);
         page_cache.put_page(new_root_page.get_page());
         new_root_page_no
     }
@@ -98,7 +95,7 @@ impl ClearHandler {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
-    ) -> u64 {
+    ) -> PageNo {
         ClearHandler::clear_leaf_page(root_page, free_page_tracker, page_cache);
         ClearHandler::create_new_root_page(free_page_tracker, page_cache, new_version)
     }

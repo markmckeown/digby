@@ -1,7 +1,6 @@
 use crate::dir_page::DirPage;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
-use crate::page_no::PageNo;
 use crate::{FreePageTracker, TreeDirEntry};
 
 pub struct TreeDirHandler {}
@@ -61,7 +60,7 @@ impl TreeDirHandler {
                 free_page_tracker.return_free_page_no(old_page_no);
             }
             let new_page_no = free_page_tracker.get_free_page(page_cache);
-            page_ref.page.set_page_number(PageNo::from_u64(new_page_no));
+            page_ref.page.set_page_number(new_page_no);
             page_ref.page.set_version(version);
         }
     }
@@ -109,6 +108,7 @@ mod tests {
     use crate::LeafPage;
     use crate::Tuple;
     use crate::block_layer::PageConfig;
+    use crate::page_no::PageNo;
 
     #[test]
     fn test_add_1() {

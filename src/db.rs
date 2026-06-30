@@ -159,7 +159,7 @@ impl Db {
             // If nothing deleted then pages do not need to be rewritten.
             return false;
         }
-        tx_ctx.global_root_page_no = new_tree_root_page_no;
+        tx_ctx.global_root_page_no = new_tree_root_page_no.to_u64();
         deleted
     }
 
@@ -293,7 +293,8 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
             tx_ctx.new_version,
-        );
+        )
+        .to_u64();
     }
 
     pub fn new_transaction(&mut self) -> TxCtx {
@@ -334,7 +335,7 @@ impl Db {
         let new_table_root_page_no = tx_ctx.free_page_tracker.get_free_page(&mut self.page_cache);
         let mut new_table_root_page = LeafPage::create_new(
             self.page_cache.get_page_config(),
-            PageNo::from_u64(new_table_root_page_no),
+            new_table_root_page_no,
             tx_ctx.new_version,
         );
         // Store the new root page back into the file.
@@ -346,7 +347,7 @@ impl Db {
         // root page number for the table's tree.
         let tuple = TupleProcessor::generate_tuple(
             name,
-            &new_table_root_page_no.to_le_bytes(),
+            &new_table_root_page_no.get_bytes(),
             &mut self.page_cache,
             &mut tx_ctx.free_page_tracker,
             tx_ctx.new_version,
@@ -586,10 +587,10 @@ impl Db {
 
         // If the table is to be deleted, then delete the table key/name
         // from the table directory tree.
-        let new_table_dir_root_page_no: u64 = if delete {
+        let new_table_dir_root_page_no: PageNo = if delete {
             tx_ctx
                 .free_page_tracker
-                .return_free_page_no(PageNo::from_u64(new_table_root_page_no));
+                .return_free_page_no(new_table_root_page_no);
             let (new_page, _is_deleted) = TreeDeleteHandler::delete_key(
                 table_name,
                 table_dir_root_page,
@@ -606,7 +607,7 @@ impl Db {
             // Create new table reference.
             let table_tuple = TupleProcessor::generate_tuple(
                 table_name,
-                &new_table_root_page_no.to_le_bytes(),
+                &new_table_root_page_no.get_bytes(),
                 &mut self.page_cache,
                 &mut tx_ctx.free_page_tracker,
                 tx_ctx.new_version,
@@ -614,15 +615,15 @@ impl Db {
             );
             // Store table reference and provide the
             // new table directory tree root page.
-            StoreTupleProcessor::store_tuple(
+            PageNo::from_u64(StoreTupleProcessor::store_tuple(
                 table_tuple,
                 table_dir_root_page,
                 &mut tx_ctx.free_page_tracker,
                 &mut self.page_cache,
                 tx_ctx.new_version,
-            )
+            ))
         };
-        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
+        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no.to_u64();
     }
 
     // Get a value from a table tree.
@@ -705,7 +706,7 @@ impl Db {
         // table tree.
         let table_tuple = TupleProcessor::generate_tuple(
             table_name,
-            &new_tree_free_page_no.to_le_bytes(),
+            &new_tree_free_page_no.get_bytes(),
             &mut self.page_cache,
             &mut tx_ctx.free_page_tracker,
             tx_ctx.new_version,

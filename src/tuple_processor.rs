@@ -86,18 +86,13 @@ impl TupleProcessor {
             let new_key = TupleProcessor::generate_short_key(key);
             return Tuple::new_with_overflow(
                 &new_key,
-                overflow_page_no.to_le_bytes().to_vec().as_ref(),
+                &overflow_page_no.get_bytes(),
                 version,
                 overflow_type,
             );
         }
 
-        Tuple::new_with_overflow(
-            key,
-            overflow_page_no.to_le_bytes().to_vec().as_ref(),
-            version,
-            overflow_type,
-        )
+        Tuple::new_with_overflow(key, &overflow_page_no.get_bytes(), version, overflow_type)
     }
 
     pub fn is_oversized_key(key: &[u8]) -> bool {

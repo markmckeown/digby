@@ -16,23 +16,20 @@ impl OverflowPageHandler {
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
         version: u64,
-    ) -> u64 {
+    ) -> PageNo {
         // We write the buffer backwards as we want to create a linked list
         // of pages. The last page we write will be the head of the list
         // and contain the start of the OverflowTuple.
         let buffer = tuple.get_serialized();
         let mut end = tuple.get_byte_size();
 
-        let mut previous: u64 = 0;
-        let mut next_page: u64;
+        let mut previous = PageNo::from_u64(0);
+        let mut next_page: PageNo;
         loop {
             next_page = free_page_tracker.get_free_page(page_cache);
-            let mut page = OverflowPage::create_new(
-                page_cache.get_page_config(),
-                PageNo::from_u64(next_page),
-                version,
-            );
-            page.set_next_page(previous);
+            let mut page =
+                OverflowPage::create_new(page_cache.get_page_config(), next_page, version);
+            page.set_next_page(previous.to_u64());
 
             let free_space = page.get_free_space();
             let bytes_to_write: usize = if end < free_space { end } else { free_space };
@@ -149,8 +146,10 @@ mod tests {
             new_version,
         );
 
-        let reloaded_tuple =
-            OverflowPageHandler::get_overflow_tuple(overflow_tuple_page_no, &mut page_cache);
+        let reloaded_tuple = OverflowPageHandler::get_overflow_tuple(
+            overflow_tuple_page_no.to_u64(),
+            &mut page_cache,
+        );
         assert_eq!(reloaded_tuple.get_version(), 90);
         assert_eq!(reloaded_tuple.get_key(), key);
         assert_eq!(reloaded_tuple.get_value(), value);
@@ -169,7 +168,7 @@ mod tests {
         );
         assert_eq!(count, 0);
 
-        let page_no_bytes = overflow_tuple_page_no.to_le_bytes();
+        let page_no_bytes = overflow_tuple_page_no.get_bytes();
         let overflow_tuple_val =
             Tuple::new_with_overflow(&key[0..10], &page_no_bytes, 1, Overflow::KeyValueOverflow);
         let count = OverflowPageHandler::delete_overflow_tuple_pages(
