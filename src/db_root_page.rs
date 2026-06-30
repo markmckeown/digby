@@ -161,6 +161,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4092,
+            block_sanity_size: 4,
         };
         let root_page = DbRootPage::create_new(&page_config);
 
@@ -176,6 +177,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4092,
+            block_sanity_size: 4,
         };
         let mut root_page = DbRootPage::create_new(&page_config);
 
@@ -195,6 +197,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4092,
+            block_sanity_size: 4,
         };
         let mut root_page = DbRootPage::create_new(&page_config);
 
@@ -255,6 +258,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4092,
+            block_sanity_size: 4,
         };
         let mut root_page = DbRootPage::create_new(&page_config);
 

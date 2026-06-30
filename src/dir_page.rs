@@ -713,19 +713,15 @@ impl DirPage {
         // The current page has no prefix.
         // When split the new page on the right will have a left fence
         // but no right fence. Both pages will have no prefix.
-        let mut left_page = DirPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut left_page = DirPage::new(
+            self.page.block_size,
+            self.page.page_size,
             self.page.get_page_number(),
             version,
         );
-        let mut right_page = DirPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut right_page = DirPage::new(
+            self.page.block_size,
+            self.page.page_size,
             PageNo::from_u64(0),
             version,
         );
@@ -766,19 +762,15 @@ impl DirPage {
         // will have no prefix.
         // New page to the right will have a left fence which is the mid key and the right of the
         // current page. The new right page will have a prefix.
-        let mut left_page = DirPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut left_page = DirPage::new(
+            self.page.block_size,
+            self.page.page_size,
             self.page.get_page_number(),
             version,
         );
-        let mut right_page = DirPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut right_page = DirPage::new(
+            self.page.block_size,
+            self.page.page_size,
             PageNo::from_u64(0),
             version,
         );
@@ -827,19 +819,15 @@ impl DirPage {
         // and no right fence key.
         // New page to the left will have a left fence and right fence with a prefix.
         // New page to the right will have a left fence and no right fence and no prefix.
-        let mut left_page = DirPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut left_page = DirPage::new(
+            self.page.block_size,
+            self.page.page_size,
             self.page.get_page_number(),
             version,
         );
-        let mut right_page = DirPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut right_page = DirPage::new(
+            self.page.block_size,
+            self.page.page_size,
             PageNo::from_u64(0),
             version,
         );
@@ -886,19 +874,15 @@ impl DirPage {
     fn split_page_4(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // Center Page - has right and left fence and also a prefix.
         // This means we need to calculate the new prefix length for the left and right pages after the split.
-        let mut left_page = DirPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut left_page = DirPage::new(
+            self.page.block_size,
+            self.page.page_size,
             self.page.get_page_number(),
             version,
         );
-        let mut right_page = DirPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut right_page = DirPage::new(
+            self.page.block_size,
+            self.page.page_size,
             PageNo::from_u64(0),
             version,
         );
@@ -1199,6 +1183,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1024,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_number().get_blk_offset(), 1);
@@ -1221,6 +1206,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1028,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut leaf_page = Page::new(page_config.block_size, page_config.page_size);
         leaf_page.set_type(PageType::LeafPage);
@@ -1233,6 +1219,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1028,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1250,6 +1237,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1028,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1269,6 +1257,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1028,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1290,6 +1279,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1028,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1307,6 +1297,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1028,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1322,6 +1313,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1028,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1349,6 +1341,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1024,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"key1";
@@ -1381,6 +1374,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1024,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"key2";
@@ -1414,6 +1408,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 160,
             page_size: 112,
+            block_sanity_size: 160 - 112,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1439,6 +1434,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 160,
             page_size: 112,
+            block_sanity_size: 160 - 112,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1464,6 +1460,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 160,
             page_size: 112,
+            block_sanity_size: 160 - 112,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1489,6 +1486,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 160,
             page_size: 112,
+            block_sanity_size: 160 - 112,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1514,6 +1512,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1024,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
 
@@ -1560,6 +1559,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 1024,
             page_size: 1024,
+            block_sanity_size: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         for i in 0..20 {

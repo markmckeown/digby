@@ -153,6 +153,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4092,
+            block_sanity_size: 4,
         };
         let mut master_page = DbMasterPage::create_new(&page_config, PageNo::from_u64(1), 5);
         assert_eq!(master_page.get_page_number().get_blk_offset(), 1);
@@ -171,6 +172,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4092,
+            block_sanity_size: 4,
         };
         let _master_page = DbMasterPage::create_new(&page_config, PageNo::from_u64(4), 5);
     }

@@ -638,19 +638,15 @@ impl LeafPage {
             Self::get_key_prefix(&self.page).is_empty(),
             "BUG: Page has a prefix when splitting page with no fences."
         );
-        let mut left_page = LeafPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut left_page = LeafPage::new(
+            self.page.block_size,
+            self.page.page_size,
             self.page.get_page_number(),
             version,
         );
-        let mut right_page = LeafPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut right_page = LeafPage::new(
+            self.page.block_size,
+            self.page.page_size,
             PageNo::from_u64(0),
             version,
         );
@@ -686,19 +682,15 @@ impl LeafPage {
             Self::get_key_prefix(&self.page).is_empty(),
             "BUG: Page has a prefix when splitting page with only a right fence."
         );
-        let mut left_page = LeafPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut left_page = LeafPage::new(
+            self.page.block_size,
+            self.page.page_size,
             self.page.get_page_number(),
             version,
         );
-        let mut right_page = LeafPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut right_page = LeafPage::new(
+            self.page.block_size,
+            self.page.page_size,
             PageNo::from_u64(0),
             version,
         );
@@ -738,19 +730,15 @@ impl LeafPage {
     fn split_page_3(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         // Right Page - has left fence but no right fence. This means no prefix
         // and no right fence key.
-        let mut left_page = LeafPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut left_page = LeafPage::new(
+            self.page.block_size,
+            self.page.page_size,
             self.page.get_page_number(),
             version,
         );
-        let mut right_page = LeafPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut right_page = LeafPage::new(
+            self.page.block_size,
+            self.page.page_size,
             PageNo::from_u64(0),
             version,
         );
@@ -793,19 +781,15 @@ impl LeafPage {
     fn split_page_4(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         // Center Page - has right and left fence and also a Prefix.
         // This means we need to calculate the new prefix length for the left and right pages after the split.
-        let mut left_page = LeafPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut left_page = LeafPage::new(
+            self.page.block_size,
+            self.page.page_size,
             self.page.get_page_number(),
             version,
         );
-        let mut right_page = LeafPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut right_page = LeafPage::new(
+            self.page.block_size,
+            self.page.page_size,
             PageNo::from_u64(0),
             version,
         );
@@ -853,19 +837,15 @@ impl LeafPage {
     }
 
     fn split_page_low_entry_count(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
-        let mut left_page = LeafPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut left_page = LeafPage::new(
+            self.page.block_size,
+            self.page.page_size,
             self.page.get_page_number(),
             version,
         );
-        let mut right_page = LeafPage::create_new(
-            &PageConfig {
-                block_size: self.page.block_size,
-                page_size: self.page.page_size,
-            },
+        let mut right_page = LeafPage::new(
+            self.page.block_size,
+            self.page.page_size,
             PageNo::from_u64(0),
             version,
         );
@@ -1046,6 +1026,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
+            block_sanity_size: 96,
         };
         let mut dir_page = Page::new(page_config.block_size, page_config.page_size);
         dir_page.set_type(PageType::DirPage);
@@ -1057,6 +1038,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
+            block_sanity_size: 96,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 23);
         assert_eq!(leaf_page.get_page_bytes().len(), 4000);
@@ -1170,6 +1152,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
+            block_sanity_size: 96,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(LeafPage::get_entries_size(leaf_page.get_page()), 0);
@@ -1185,6 +1168,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
+            block_sanity_size: 96,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(LeafPage::get_entries_size(leaf_page.get_page()), 0);
@@ -1200,6 +1184,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
+            block_sanity_size: 96,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
@@ -1213,6 +1198,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
+            block_sanity_size: 96,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         leaf_page.set_right_fence_key(b"left_fence");
@@ -1224,6 +1210,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 129,
+            block_sanity_size: 4096 -  129,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1246,6 +1233,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 129,
+            block_sanity_size: 4096 -  129,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1269,6 +1257,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 129,
+            block_sanity_size: 4096 -  129,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1291,6 +1280,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
+            block_sanity_size: 96,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1313,6 +1303,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
+            block_sanity_size: 96,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
@@ -1336,6 +1327,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
+            block_sanity_size: 96,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_a = Tuple::new(b"a", b"a_value", 123);
@@ -1430,6 +1422,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4000,
+            block_sanity_size: 96,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_a = Tuple::new(b"a", b"a_value", 123);
@@ -1617,6 +1610,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4092,
+            block_sanity_size: 4,
         };
 
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
@@ -1655,6 +1649,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4092,
+            block_sanity_size: 4,
         };
 
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
@@ -1688,6 +1683,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 125,
+            block_sanity_size: 4096 - 125,
         };
 
         // Page is too samll for the reset
@@ -1726,6 +1722,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 129,
+            block_sanity_size: 4096 - 129,
         };
 
         // Page is too samll - it can be reset but not with the new tuple

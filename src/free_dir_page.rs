@@ -151,15 +151,12 @@ impl FreeDirPage {
         PageNo::from_bytes(&self.page.get_page_bytes_mut()[offset..offset + 8])
     }
 
-    pub fn add_free_page(&mut self, free_page_number: u64) {
+    pub fn add_free_page(&mut self, free_page_number: PageNo) {
         assert!(!self.is_full());
         let entries = self.get_entries();
-        let offset = FreeDirPage::HEADER_SIZE as u64 + (8 * self.get_entries() as u64);
-        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(offset);
-        cursor
-            .write_u64::<LittleEndian>(free_page_number)
-            .expect("Failed to write free page");
+        let offset = FreeDirPage::HEADER_SIZE + (8 * self.get_entries() as usize);
+        self.page.get_page_bytes_mut()[offset..offset + 8]
+            .copy_from_slice(&free_page_number.get_bytes());
         self.set_entries(entries + 1);
     }
 
@@ -167,15 +164,11 @@ impl FreeDirPage {
         assert!(!self.is_full_for(free_pages.len()));
         assert!(free_pages.len() < u16::MAX as usize);
         let entries = self.get_entries();
-        let mut offset = FreeDirPage::HEADER_SIZE as u64 + (8 * self.get_entries() as u64);
-        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(offset);
+        let mut offset = FreeDirPage::HEADER_SIZE + (8 * self.get_entries() as usize);
         for free_page in free_pages {
-            cursor
-                .write_u64::<LittleEndian>(free_page.to_u64())
-                .expect("Failed to write free page");
+            self.page.get_page_bytes_mut()[offset..offset + 8]
+                .copy_from_slice(&free_page.get_bytes());
             offset += 8;
-            cursor.set_position(offset);
         }
         self.set_entries(entries + free_pages.len() as u16);
     }
@@ -189,8 +182,8 @@ mod tests {
     fn test_adding_entries() {
         let mut free_page_dir = FreeDirPage::new(4096, 4092, PageNo::new(0, 34), 4564);
         assert!(!free_page_dir.has_free_pages());
-        free_page_dir.add_free_page(73);
-        free_page_dir.add_free_page(103);
+        free_page_dir.add_free_page(PageNo::new(0, 73));
+        free_page_dir.add_free_page(PageNo::new(0, 103));
         assert_eq!(4092, free_page_dir.get_page_bytes().len());
         assert!(free_page_dir.has_free_pages());
         assert!(103 == free_page_dir.get_free_page().get_blk_offset());
@@ -205,7 +198,7 @@ mod tests {
         for number in 1..=1020 {
             if !free_page_dir.is_full() {
                 count += 1;
-                free_page_dir.add_free_page(number);
+                free_page_dir.add_free_page(PageNo::new(0, number));
             }
         }
         assert!(free_page_dir.is_full());

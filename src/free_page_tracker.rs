@@ -122,7 +122,7 @@ impl FreePageTracker {
             if last.is_full() {
                 break;
             }
-            last.add_free_page(page_no.to_u64());
+            last.add_free_page(page_no);
         }
 
         // If there are still free page numbers to be added then need to create
@@ -139,7 +139,7 @@ impl FreePageTracker {
                 if next_free_dir_page.is_full() {
                     break;
                 }
-                next_free_dir_page.add_free_page(page_no.to_u64());
+                next_free_dir_page.add_free_page(page_no);
             }
             self.free_dir_page_list.push(next_free_dir_page);
             last = self.free_dir_page_list.last_mut().unwrap();

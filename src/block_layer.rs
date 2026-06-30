@@ -4,14 +4,17 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page_no::PageNo;
 
-// The page container layer sits above the file layer.
-// Data is stored to the file as blocks, the blocks
-// contain pages.
+// The DB is divided into pages, for example leaf
+// pages (which hold key/values) or directory pages
+// (which hold pointer to other pages). Each page
+// is stored in a page container, the page container
+// holds a page and either some encryption state
+// for the page (including a checksum) or a checksum
+// for the page. The page container is made up
+// of one or more blocks, all blocks are of the same
+// size in the DB. The DB reads and writes to the
+// file in blocks.
 //
-// A page container contains a page and is made up of
-// one or more file blocks, along with the page it
-// contains either a checksum for the page or the
-// encryption information for the page.
 //
 // Everything above the page container layer works in pages,
 // the file_layer works in blocks and the page_container_layer
@@ -29,7 +32,7 @@ use crate::page_no::PageNo;
 //
 // The file block size is determined at DB creation time,
 // on Linux 4096 bytes can be sent to disk atomically -
-// there is recent support for untorn writes that could
+// there is recent kernel support for untorn writes that could
 // support 16K writes atomically.
 //
 // The page container layer is also respnsible for generating
@@ -42,6 +45,7 @@ use crate::page_no::PageNo;
 pub struct PageConfig {
     pub block_size: usize,
     pub page_size: usize,
+    pub block_sanity_size: usize,
 }
 
 pub struct PageContainerLayer {
@@ -60,6 +64,7 @@ impl PageContainerLayer {
             page_config: PageConfig {
                 block_size,
                 page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
+                block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
             },
             key: Vec::new(),
             block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
@@ -81,6 +86,7 @@ impl PageContainerLayer {
             page_config: PageConfig {
                 block_size,
                 page_size: block_size - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
+                block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
             },
             key: enc_key,
             block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),

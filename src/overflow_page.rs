@@ -152,6 +152,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 4092,
+            block_sanity_size: 4,
         };
         let overflow_page = OverflowPage::create_new(&page_config, PageNo::from_u64(334), 34);
         assert_eq!(overflow_page.get_page_number().to_u64(), 334);
