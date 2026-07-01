@@ -1,3 +1,4 @@
+use crate::block_layer::PageConfig;
 use crate::block_layer::PageContainerLayer;
 use crate::block_sanity::BlockSanity;
 use crate::compressor::CompressorType;
@@ -26,6 +27,7 @@ use crate::{
 pub struct Db {
     page_cache: PageCache,
     compressor: Compressor,
+    _page_config: PageConfig,
 }
 
 impl Db {
@@ -95,12 +97,25 @@ impl Db {
         // File layer is passed to block layer.
         let block_layer: PageContainerLayer;
         let sanity_type: BlockSanity;
+        let page_config: PageConfig;
         if let Some(k) = key {
-            block_layer = PageContainerLayer::new_with_key(file_layer, block_size, k);
             sanity_type = BlockSanity::Aes128Gcm;
+            let sanity_bytes_used = BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm);
+            page_config = PageConfig {
+                block_size,
+                page_size: block_size - sanity_bytes_used,
+                block_sanity_size: sanity_bytes_used,
+            };
+            block_layer = PageContainerLayer::new_with_key(file_layer, page_config, k);
         } else {
-            block_layer = PageContainerLayer::new(file_layer, block_size);
             sanity_type = BlockSanity::XxH32Checksum;
+            let sanity_bytes_used = BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum);
+            page_config = PageConfig {
+                block_size,
+                page_size: block_size - sanity_bytes_used,
+                block_sanity_size: sanity_bytes_used,
+            };
+            block_layer = PageContainerLayer::new(file_layer, page_config);
         }
         // Create page cache with the block layer.
         let page_cache: PageCache = PageCache::new(block_layer);
@@ -108,6 +123,7 @@ impl Db {
         let mut db = Db {
             page_cache,
             compressor: Compressor::new(compressor_type),
+            _page_config: page_config,
         };
 
         if is_new {

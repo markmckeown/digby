@@ -110,18 +110,24 @@ impl PageCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::block_layer::PageConfig;
     use crate::{
         file_layer::FileLayer,
         page::{self, PageTrait},
     };
     use tempfile::tempfile;
-    const PAGE_SIZE: usize = 4096;
+
+    const PAGE_CONFIG: PageConfig = PageConfig {
+        block_size: 4096,
+        page_size: 4092,
+        block_sanity_size: 4,
+    };
 
     #[test]
     fn test_page_cache_read_write() {
         let temp_file = tempfile().expect("Failed to create temp file");
-        let file_layer = FileLayer::new(temp_file, PAGE_SIZE);
-        let block_layer = PageContainerLayer::new(file_layer, PAGE_SIZE);
+        let file_layer = FileLayer::new(temp_file, PAGE_CONFIG.block_size);
+        let block_layer = PageContainerLayer::new(file_layer, PAGE_CONFIG);
         let mut page_cache = PageCache::new(block_layer);
         let page_number = 0;
 

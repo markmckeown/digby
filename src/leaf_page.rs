@@ -1210,7 +1210,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 129,
-            block_sanity_size: 4096 -  129,
+            block_sanity_size: 4096 - 129,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1233,7 +1233,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 129,
-            block_sanity_size: 4096 -  129,
+            block_sanity_size: 4096 - 129,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1257,7 +1257,7 @@ mod tests {
         let page_config = PageConfig {
             block_size: 4096,
             page_size: 129,
-            block_sanity_size: 4096 -  129,
+            block_sanity_size: 4096 - 129,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";

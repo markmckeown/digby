@@ -332,7 +332,14 @@ impl StoreTupleProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::block_layer::PageConfig;
     use crate::page_no;
+
+    const PAGE_CONFIG: PageConfig = PageConfig {
+        block_size: 4096,
+        page_size: 4092,
+        block_sanity_size: 4,
+    };
 
     #[test]
     fn test_root_is_leaf_add_1() {
@@ -346,9 +353,9 @@ mod tests {
             .open(&temp_file)
             .expect("Failed to open or create DB file");
 
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, PAGE_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, crate::Db::BLOCK_SIZE);
+            crate::PageContainerLayer::new(file_layer, PAGE_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
@@ -398,9 +405,9 @@ mod tests {
             .open(&temp_file)
             .expect("Failed to open or create DB file");
 
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, PAGE_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, crate::Db::BLOCK_SIZE);
+            crate::PageContainerLayer::new(file_layer, PAGE_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
@@ -464,9 +471,9 @@ mod tests {
             .open(&temp_file)
             .expect("Failed to open or create DB file");
 
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, PAGE_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, crate::Db::BLOCK_SIZE);
+            crate::PageContainerLayer::new(file_layer, PAGE_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();

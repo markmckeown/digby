@@ -102,6 +102,13 @@ impl OverflowPageHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::block_layer::PageConfig;
+
+    const PAGE_CONFIG: PageConfig = PageConfig {
+        block_size: 4096,
+        page_size: 4092,
+        block_sanity_size: 4,
+    };
 
     #[test]
     fn store_overflow_tuple() {
@@ -119,9 +126,9 @@ mod tests {
         let new_version: u64 = 90;
 
         // Set up the page_cache
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, PAGE_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, crate::Db::BLOCK_SIZE);
+            crate::PageContainerLayer::new(file_layer, PAGE_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         // Setup the free page infrastructure

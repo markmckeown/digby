@@ -157,6 +157,12 @@ impl FreePageTracker {
 mod tests {
     use super::*;
 
+    const PAGE_CONFIG: PageConfig = PageConfig {
+        block_size: 4096,
+        page_size: 4092,
+        block_sanity_size: 4,
+    };
+
     #[test]
     fn test_add_remove_pages() {
         let temp_file = tempfile::NamedTempFile::new().expect("Failed to create temp file");
@@ -169,9 +175,9 @@ mod tests {
             .expect("Failed to open or create DB file");
 
         let version = 0;
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, crate::Db::BLOCK_SIZE);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, PAGE_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, crate::Db::BLOCK_SIZE);
+            crate::PageContainerLayer::new(file_layer, PAGE_CONFIG);
         let mut page_cache: PageCache = PageCache::new(block_layer);
 
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();

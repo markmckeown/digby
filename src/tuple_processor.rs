@@ -123,6 +123,14 @@ mod tests {
     use crate::tuple::TupleTrait;
     use tempfile::NamedTempFile;
 
+    use crate::block_layer::PageConfig;
+
+    const PAGE_CONFIG: PageConfig = PageConfig {
+        block_size: 4096,
+        page_size: 4092,
+        block_sanity_size: 4,
+    };
+
     #[test]
     fn test_tuple_processor_oversized_key() {
         let small_key = vec![0u8; 255];
@@ -151,8 +159,8 @@ mod tests {
             .truncate(true)
             .open(temp_file.path())
             .unwrap();
-        let file_layer = FileLayer::new(file, 4096);
-        let block_layer = PageContainerLayer::new(file_layer, 4096);
+        let file_layer = FileLayer::new(file, PAGE_CONFIG.block_size);
+        let block_layer = PageContainerLayer::new(file_layer, PAGE_CONFIG);
         let mut page_cache = PageCache::new(block_layer);
         let version = 0;
         let new_version = 1;
