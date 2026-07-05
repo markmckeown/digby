@@ -1,4 +1,4 @@
-use crate::block_layer::PageConfig;
+use crate::block_layer::DbConfig;
 use crate::block_sanity::BlockSanity;
 use crate::page::Page;
 use crate::page::PageTrait;
@@ -50,7 +50,7 @@ impl DbRootPage {
     const VERSION_MAJOR: u16 = 0;
     const VERSION_MINOR: u16 = 1;
 
-    pub fn create_new(page_config: &PageConfig) -> Self {
+    pub fn create_new(page_config: &DbConfig) -> Self {
         DbRootPage::new(page_config.block_size, page_config.page_size)
     }
 
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_create_new() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn test_set_page_no() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "DbRootPage must have page number 0")]
     fn test_set_page_no_bad_page_no() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_setters_and_getters() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,

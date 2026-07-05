@@ -1,4 +1,4 @@
-use crate::block_layer::PageConfig;
+use crate::block_layer::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
@@ -44,7 +44,7 @@ impl PageTrait for DbMasterPage {
 }
 
 impl DbMasterPage {
-    pub fn create_new(page_config: &PageConfig, page_number: PageNo, version: u64) -> Self {
+    pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
         assert!(
             page_number.get_blk_offset() == 1 || page_number.get_blk_offset() == 2,
             "DbMasterPage must have page number 1 or 2"
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_create_new() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -169,7 +169,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "DbMasterPage must have page number 1 or 2")]
     fn test_bad_page_no() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,

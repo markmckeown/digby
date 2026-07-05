@@ -5,7 +5,7 @@ use crate::page_no::PageNo;
 use crate::tuple::Overflow;
 use crate::tuple::Tuple;
 use crate::tuple::TupleTrait;
-use crate::{Page, block_layer::PageConfig};
+use crate::{Page, block_layer::DbConfig};
 use core::panic;
 use std::cmp::Ordering;
 
@@ -113,7 +113,7 @@ impl LeafPage {
     const HEADER_SIZE: usize = 27; // 8 + 8 + 2 + 2 + 1 + 2 +1 + 2 + 1
     const SLOT_SIZE: usize = 5; // 2 (offset) + 1 (key_len) + 2 (val_len)
 
-    pub fn create_new(page_config: &PageConfig, page_number: PageNo, version: u64) -> Self {
+    pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
         LeafPage::new(
             page_config.block_size,
             page_config.page_size,
@@ -1023,7 +1023,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Page type is not Leaf")]
     fn test_not_leaf_page() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
@@ -1035,7 +1035,7 @@ mod tests {
 
     #[test]
     fn test_split() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
@@ -1149,7 +1149,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set left fence key on a page that already has entries.")]
     fn test_set_left_fence_empty_page() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
@@ -1165,7 +1165,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set right fence key on a page that already has entries.")]
     fn test_set_right_fence_empty_page() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
@@ -1181,7 +1181,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
     fn test_set_prefix_empty_page() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
@@ -1195,7 +1195,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Prefix length cannot be larger than the right fence key size.")]
     fn test_set_prefix_bad_fence() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
@@ -1207,7 +1207,7 @@ mod tests {
 
     #[test]
     fn test_page_reset_left_fence_overflow() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 129,
             block_sanity_size: 4096 - 129,
@@ -1230,7 +1230,7 @@ mod tests {
 
     #[test]
     fn test_add_page_reset_left_fence_overflow() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 129,
             block_sanity_size: 4096 - 129,
@@ -1254,7 +1254,7 @@ mod tests {
 
     #[test]
     fn test_page_reset_right_fence_overflow() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 129,
             block_sanity_size: 4096 - 129,
@@ -1277,7 +1277,7 @@ mod tests {
 
     #[test]
     fn test_delete_out_of_range() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
@@ -1300,7 +1300,7 @@ mod tests {
 
     #[test]
     fn test_multi_length_keys() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
@@ -1324,7 +1324,7 @@ mod tests {
 
     #[test]
     fn test_add_and_remove_tuple() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
@@ -1419,7 +1419,7 @@ mod tests {
 
     #[test]
     fn test_overwrite_tuple() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
@@ -1607,7 +1607,7 @@ mod tests {
 
     #[test]
     fn test_reset() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -1646,7 +1646,7 @@ mod tests {
     fn test_reset_no_prefix() {
         // Left most page - no prefix and no left fence.
         // No compression.
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -1680,7 +1680,7 @@ mod tests {
 
     #[test]
     fn test_reset_to_small_to_reset() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 125,
             block_sanity_size: 4096 - 125,
@@ -1719,7 +1719,7 @@ mod tests {
 
     #[test]
     fn test_reset_to_small_after_reset_to_add_tuple() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 129,
             block_sanity_size: 4096 - 129,

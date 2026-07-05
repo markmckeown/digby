@@ -192,12 +192,12 @@ impl LeafPageHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_layer::PageConfig;
+    use crate::block_layer::DbConfig;
     use crate::page_no::PageNo;
 
     #[test]
     fn test_small_tuple_split_page() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -238,7 +238,7 @@ mod tests {
     // In this test we overwrite the same key twice.
     #[test]
     fn test_over_write_big_tuples() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_add_big_tuples() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn test_add_small_large_large() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -334,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_add_large_small_large() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -369,7 +369,7 @@ mod tests {
 
     #[test]
     fn test_add_small_large_large_reverse() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,

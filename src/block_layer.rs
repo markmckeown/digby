@@ -42,7 +42,7 @@ use crate::page_no::PageNo;
 // This struct is used to communicate to anything that is
 // interested what the block size and page size is.
 #[derive(Copy, Clone)]
-pub struct PageConfig {
+pub struct DbConfig {
     pub block_size: usize,
     pub page_size: usize,
     pub block_sanity_size: usize,
@@ -50,13 +50,13 @@ pub struct PageConfig {
 
 pub struct PageContainerLayer {
     file_layer: FileLayer,
-    page_config: PageConfig,
+    page_config: DbConfig,
     block_sanity: BlockSanity,
     key: Vec<u8>, // The encryption key if encryption is being used.
 }
 
 impl PageContainerLayer {
-    pub fn new(file_layer: FileLayer, page_config: PageConfig) -> Self {
+    pub fn new(file_layer: FileLayer, page_config: DbConfig) -> Self {
         PageContainerLayer {
             file_layer,
             page_config,
@@ -65,7 +65,7 @@ impl PageContainerLayer {
         }
     }
 
-    pub fn new_with_key(file_layer: FileLayer, page_config: PageConfig, key: Vec<u8>) -> Self {
+    pub fn new_with_key(file_layer: FileLayer, page_config: DbConfig, key: Vec<u8>) -> Self {
         let mut enc_key = vec![0u8; 16];
         // Note we only use the first 16 bytes of the key for AES-128-GCM
         if key.len() >= 16 {
@@ -82,7 +82,7 @@ impl PageContainerLayer {
         }
     }
 
-    pub fn get_page_config(&self) -> &PageConfig {
+    pub fn get_page_config(&self) -> &DbConfig {
         &self.page_config
     }
 
@@ -163,12 +163,12 @@ impl PageContainerLayer {
 mod tests {
     use super::*;
     use crate::DbRootPage;
-    use crate::block_layer::PageConfig;
+    use crate::block_layer::DbConfig;
     use crate::file_layer::FileLayer;
     use crate::page::{Page, PageType};
     use tempfile::tempfile;
 
-    const PAGE_CONFIG: PageConfig = PageConfig {
+    const PAGE_CONFIG: DbConfig = DbConfig {
         block_size: 4096,
         page_size: 4092,
         block_sanity_size: 4,
@@ -198,7 +198,7 @@ mod tests {
         let key = [0u8; 32].to_vec(); // Key for AES-128-GCM
         let mut block_layer = PageContainerLayer::new_with_key(
             file_layer,
-            PageConfig {
+            DbConfig {
                 block_size: 4096,
                 page_size: 4096 - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
                 block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
@@ -224,7 +224,7 @@ mod tests {
         let key = [0u8; 8].to_vec(); // Key for AES-128-GCM
         let mut block_layer = PageContainerLayer::new_with_key(
             file_layer,
-            PageConfig {
+            DbConfig {
                 block_size: 4096,
                 page_size: 4096 - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
                 block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),

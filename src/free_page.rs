@@ -1,4 +1,4 @@
-use crate::block_layer::PageConfig;
+use crate::block_layer::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page_no::PageNo;
@@ -34,7 +34,7 @@ impl PageTrait for FreePage {
 }
 
 impl FreePage {
-    pub fn create_new(page_config: &PageConfig, page_number: u64) -> Self {
+    pub fn create_new(page_config: &DbConfig, page_number: u64) -> Self {
         FreePage::new(page_config.block_size, page_config.page_size, page_number)
     }
 
@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn test_create_new() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn test_page_trait_methods() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,

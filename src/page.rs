@@ -1,4 +1,4 @@
-use crate::block_layer::PageConfig;
+use crate::block_layer::DbConfig;
 use crate::page_no::PageNo;
 use crate::version_holder::VersionHolder;
 use std::convert::TryFrom;
@@ -83,7 +83,7 @@ impl PageTrait for Page {
 }
 
 impl Page {
-    pub fn create_new(page_meta: &PageConfig) -> Self {
+    pub fn create_new(page_meta: &DbConfig) -> Self {
         Page {
             bytes: vec![0u8; page_meta.block_size],
             block_size: page_meta.block_size,

@@ -1,4 +1,4 @@
-use crate::block_layer::{PageConfig, PageContainerLayer};
+use crate::block_layer::{DbConfig, PageContainerLayer};
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page_no::PageNo;
@@ -22,7 +22,7 @@ impl PageCache {
         }
     }
 
-    pub fn get_page_config(&self) -> &PageConfig {
+    pub fn get_page_config(&self) -> &DbConfig {
         self.block_layer.get_page_config()
     }
 
@@ -110,14 +110,14 @@ impl PageCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_layer::PageConfig;
+    use crate::block_layer::DbConfig;
     use crate::{
         file_layer::FileLayer,
         page::{self, PageTrait},
     };
     use tempfile::tempfile;
 
-    const PAGE_CONFIG: PageConfig = PageConfig {
+    const PAGE_CONFIG: DbConfig = DbConfig {
         block_size: 4096,
         page_size: 4092,
         block_sanity_size: 4,

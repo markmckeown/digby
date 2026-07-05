@@ -2,7 +2,7 @@ use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::page_no::PageNo;
 use crate::tree_dir_entry;
-use crate::{Page, block_layer::PageConfig};
+use crate::{Page, block_layer::DbConfig};
 use core::panic;
 use std::cmp::Ordering;
 
@@ -104,7 +104,7 @@ impl DirPage {
     const VALUE_SIZE: usize = 8; // u64 page number of child page
     const SLOT_SIZE: usize = 3; // 2 (offset) + 1 (key_len)
 
-    pub fn create_new(page_config: &PageConfig, page_number: PageNo, version: u64) -> Self {
+    pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
         DirPage::new(
             page_config.block_size,
             page_config.page_size,
@@ -1180,7 +1180,7 @@ mod tests {
 
     #[test]
     fn test_create_new() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1024,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1203,7 +1203,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Page type is not DirPage")]
     fn test_invalid_page() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1028,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1216,7 +1216,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set left fence key on a page that already has entries.")]
     fn test_cannot_set_left_fence_after_adding_entries() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1028,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1234,7 +1234,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set right fence key on a page that already has entries.")]
     fn test_cannot_set_right_fence_after_adding_entries() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1028,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1254,7 +1254,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot split a page with fewer than 3 entries.")]
     fn test_cannot_split_page_with_less_than_3_entries() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1028,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1276,7 +1276,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
     fn test_cannot_set_right_prefix_after_adding_entries() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1028,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1294,7 +1294,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Prefix length cannot be larger than the right fence key size.")]
     fn test_prefix_larger_than_right_fence() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1028,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1310,7 +1310,7 @@ mod tests {
 
     #[test]
     fn test_add_child_page() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1028,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1338,7 +1338,7 @@ mod tests {
 
     #[test]
     fn test_add_child_page_reset_right_fence() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1024,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1371,7 +1371,7 @@ mod tests {
 
     #[test]
     fn test_add_child_page_reset_left_fence() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1024,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1405,7 +1405,7 @@ mod tests {
 
     #[test]
     fn test_reset_left_fence_full() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 160,
             page_size: 112,
             block_sanity_size: 160 - 112,
@@ -1431,7 +1431,7 @@ mod tests {
 
     #[test]
     fn test_add_left_fence_full() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 160,
             page_size: 112,
             block_sanity_size: 160 - 112,
@@ -1457,7 +1457,7 @@ mod tests {
 
     #[test]
     fn test_reset_right_fence_full() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 160,
             page_size: 112,
             block_sanity_size: 160 - 112,
@@ -1483,7 +1483,7 @@ mod tests {
 
     #[test]
     fn test_add_right_fence_full() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 160,
             page_size: 112,
             block_sanity_size: 160 - 112,
@@ -1509,7 +1509,7 @@ mod tests {
 
     #[test]
     fn test_get_next_page() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1024,
             page_size: 1024,
             block_sanity_size: 0,
@@ -1556,7 +1556,7 @@ mod tests {
 
     #[test]
     fn test_split_page() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 1024,
             page_size: 1024,
             block_sanity_size: 0,

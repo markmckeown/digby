@@ -1,4 +1,4 @@
-use crate::block_layer::PageConfig;
+use crate::block_layer::DbConfig;
 use crate::free_dir_page::FreeDirPage;
 use crate::page::Page;
 use crate::page::PageTrait;
@@ -22,7 +22,7 @@ pub struct FreePageTracker {
     free_dir_page_list: Vec<FreeDirPage>,
     returned_pages: Vec<PageNo>,
     new_version: u64,
-    page_config: PageConfig,
+    page_config: DbConfig,
 }
 
 impl FreePageTracker {
@@ -32,7 +32,7 @@ impl FreePageTracker {
     // that need to be written back.
     //
     // page is the head of the free page directory.
-    pub fn new(page: Page, new_version: u64, page_config: PageConfig) -> Self {
+    pub fn new(page: Page, new_version: u64, page_config: DbConfig) -> Self {
         let free_dir_page = FreeDirPage::from_page(page);
         assert!(free_dir_page.get_version() < new_version);
         // We store free_dir_page, the head of the free page directory
@@ -157,7 +157,7 @@ impl FreePageTracker {
 mod tests {
     use super::*;
 
-    const PAGE_CONFIG: PageConfig = PageConfig {
+    const PAGE_CONFIG: DbConfig = DbConfig {
         block_size: 4096,
         page_size: 4092,
         block_sanity_size: 4,

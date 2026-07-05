@@ -107,12 +107,12 @@ mod tests {
     use super::*;
     use crate::LeafPage;
     use crate::Tuple;
-    use crate::block_layer::PageConfig;
+    use crate::block_layer::DbConfig;
     use crate::page_no::PageNo;
 
     #[test]
     fn test_add_1() {
-        let page_config = PageConfig {
+        let page_config = DbConfig {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,

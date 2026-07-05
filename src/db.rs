@@ -1,4 +1,4 @@
-use crate::block_layer::PageConfig;
+use crate::block_layer::DbConfig;
 use crate::block_layer::PageContainerLayer;
 use crate::block_sanity::BlockSanity;
 use crate::compressor::CompressorType;
@@ -27,7 +27,7 @@ use crate::{
 pub struct Db {
     page_cache: PageCache,
     compressor: Compressor,
-    _page_config: PageConfig,
+    _page_config: DbConfig,
 }
 
 impl Db {
@@ -97,11 +97,11 @@ impl Db {
         // File layer is passed to block layer.
         let block_layer: PageContainerLayer;
         let sanity_type: BlockSanity;
-        let page_config: PageConfig;
+        let page_config: DbConfig;
         if let Some(k) = key {
             sanity_type = BlockSanity::Aes128Gcm;
             let sanity_bytes_used = BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm);
-            page_config = PageConfig {
+            page_config = DbConfig {
                 block_size,
                 page_size: block_size - sanity_bytes_used,
                 block_sanity_size: sanity_bytes_used,
@@ -110,7 +110,7 @@ impl Db {
         } else {
             sanity_type = BlockSanity::XxH32Checksum;
             let sanity_bytes_used = BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum);
-            page_config = PageConfig {
+            page_config = DbConfig {
                 block_size,
                 page_size: block_size - sanity_bytes_used,
                 block_sanity_size: sanity_bytes_used,

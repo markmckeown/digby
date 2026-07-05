@@ -1,4 +1,4 @@
-use crate::block_layer::PageConfig;
+use crate::block_layer::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page_no::PageNo;
@@ -73,7 +73,7 @@ impl PageTrait for FreeDirPage {
 
 impl FreeDirPage {
     const HEADER_SIZE: usize = 34;
-    pub fn create_new(page_config: &PageConfig, page_number: PageNo, version: u64) -> Self {
+    pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
         FreeDirPage::new(
             page_config.block_size,
             page_config.page_size,
