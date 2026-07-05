@@ -7,7 +7,7 @@ pub struct Compressor {
     pub compressor_type: CompressorType,
 }
 
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum CompressorType {
     None = 0,
     LZ4 = 1,

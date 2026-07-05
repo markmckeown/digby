@@ -116,6 +116,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut tree_leaf_page = LeafPage::create_new(&page_config, PageNo::from_u64(0), 0);
         tree_leaf_page.set_page_number(PageNo::from_u64(21));

@@ -69,6 +69,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let free_page = FreePage::create_new(&page_config, 42);
 
@@ -102,6 +103,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut free_page = FreePage::create_new(&page_config, 1);
 

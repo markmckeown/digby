@@ -201,6 +201,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let version = 0;
 
@@ -242,6 +243,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 1);
         let mut new_version = 2;
@@ -271,6 +273,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
@@ -302,6 +305,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
@@ -338,6 +342,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
@@ -373,6 +378,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);

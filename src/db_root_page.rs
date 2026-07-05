@@ -162,6 +162,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let root_page = DbRootPage::create_new(&page_config);
 
@@ -178,6 +179,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut root_page = DbRootPage::create_new(&page_config);
 
@@ -198,6 +200,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut root_page = DbRootPage::create_new(&page_config);
 
@@ -259,6 +262,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut root_page = DbRootPage::create_new(&page_config);
 

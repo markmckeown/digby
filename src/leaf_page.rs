@@ -1027,6 +1027,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut dir_page = Page::new(page_config.block_size, page_config.page_size);
         dir_page.set_type(PageType::DirPage);
@@ -1039,6 +1040,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 23);
         assert_eq!(leaf_page.get_page_bytes().len(), 4000);
@@ -1153,6 +1155,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(LeafPage::get_entries_size(leaf_page.get_page()), 0);
@@ -1169,6 +1172,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(LeafPage::get_entries_size(leaf_page.get_page()), 0);
@@ -1185,6 +1189,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
@@ -1199,6 +1204,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         leaf_page.set_right_fence_key(b"left_fence");
@@ -1211,6 +1217,7 @@ mod tests {
             block_size: 4096,
             page_size: 129,
             block_sanity_size: 4096 - 129,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1234,6 +1241,7 @@ mod tests {
             block_size: 4096,
             page_size: 129,
             block_sanity_size: 4096 - 129,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1258,6 +1266,7 @@ mod tests {
             block_size: 4096,
             page_size: 129,
             block_sanity_size: 4096 - 129,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1281,6 +1290,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1304,6 +1314,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
@@ -1328,6 +1339,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_a = Tuple::new(b"a", b"a_value", 123);
@@ -1423,6 +1435,7 @@ mod tests {
             block_size: 4096,
             page_size: 4000,
             block_sanity_size: 96,
+            compressor_type: crate::compressor::CompressorType::None,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_a = Tuple::new(b"a", b"a_value", 123);
@@ -1611,6 +1624,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
 
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
@@ -1650,6 +1664,7 @@ mod tests {
             block_size: 4096,
             page_size: 4092,
             block_sanity_size: 4,
+            compressor_type: crate::compressor::CompressorType::None,
         };
 
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
@@ -1684,9 +1699,10 @@ mod tests {
             block_size: 4096,
             page_size: 125,
             block_sanity_size: 4096 - 125,
+            compressor_type: crate::compressor::CompressorType::None,
         };
 
-        // Page is too samll for the reset
+        // Page is too small for the reset
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
         let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
         let key3: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];
@@ -1723,9 +1739,10 @@ mod tests {
             block_size: 4096,
             page_size: 129,
             block_sanity_size: 4096 - 129,
+            compressor_type: crate::compressor::CompressorType::None,
         };
 
-        // Page is too samll - it can be reset but not with the new tuple
+        // Page is too small - it can be reset but not with the new tuple
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
         let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
         let key3: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 3];

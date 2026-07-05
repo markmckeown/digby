@@ -105,6 +105,7 @@ impl Db {
                 block_size,
                 page_size: block_size - sanity_bytes_used,
                 block_sanity_size: sanity_bytes_used,
+                compressor_type,
             };
             block_layer = PageContainerLayer::new_with_key(file_layer, page_config, k);
         } else {
@@ -114,6 +115,7 @@ impl Db {
                 block_size,
                 page_size: block_size - sanity_bytes_used,
                 block_sanity_size: sanity_bytes_used,
+                compressor_type,
             };
             block_layer = PageContainerLayer::new(file_layer, page_config);
         }
@@ -855,7 +857,7 @@ impl Db {
         let mut db_root_page: DbRootPage =
             DbRootPage::create_new(self.page_cache.get_page_config());
         db_root_page.set_sanity_type(sanity_type);
-        db_root_page.set_compression_type(self.compressor.compressor_type.clone().into());
+        db_root_page.set_compression_type(self.compressor.compressor_type.into());
         self.page_cache.put_page(db_root_page.get_page());
 
         assert!(free_pages.len() == 4, "There should be 4 free pages");
