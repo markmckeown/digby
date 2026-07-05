@@ -1,4 +1,5 @@
-use crate::block_layer::{DbConfig, PageContainerLayer};
+use crate::block_layer::PageContainerLayer;
+use crate::db_config::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page_no::PageNo;
@@ -110,7 +111,7 @@ impl PageCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_layer::DbConfig;
+    use crate::db_config::DbConfig;
     use crate::{
         file_layer::FileLayer,
         page::{self, PageTrait},

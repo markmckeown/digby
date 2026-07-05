@@ -123,7 +123,7 @@ mod tests {
     use crate::tuple::TupleTrait;
     use tempfile::NamedTempFile;
 
-    use crate::block_layer::DbConfig;
+    use crate::db_config::DbConfig;
 
     const PAGE_CONFIG: DbConfig = DbConfig {
         block_size: 4096,

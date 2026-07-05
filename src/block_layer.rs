@@ -1,4 +1,5 @@
 use crate::block_sanity::BlockSanity;
+use crate::db_config::DbConfig;
 use crate::file_layer::FileLayer;
 use crate::page::Page;
 use crate::page::PageTrait;
@@ -38,15 +39,6 @@ use crate::page_no::PageNo;
 // The page container layer is also respnsible for generating
 // free pages.
 //
-
-// This struct is used to communicate to anything that is
-// interested what the block size and page size is.
-#[derive(Copy, Clone)]
-pub struct DbConfig {
-    pub block_size: usize,
-    pub page_size: usize,
-    pub block_sanity_size: usize,
-}
 
 pub struct PageContainerLayer {
     file_layer: FileLayer,
@@ -163,7 +155,7 @@ impl PageContainerLayer {
 mod tests {
     use super::*;
     use crate::DbRootPage;
-    use crate::block_layer::DbConfig;
+    use crate::db_config::DbConfig;
     use crate::file_layer::FileLayer;
     use crate::page::{Page, PageType};
     use tempfile::tempfile;

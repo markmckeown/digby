@@ -102,7 +102,7 @@ impl OverflowPageHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_layer::DbConfig;
+    use crate::db_config::DbConfig;
 
     const PAGE_CONFIG: DbConfig = DbConfig {
         block_size: 4096,

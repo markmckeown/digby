@@ -1,5 +1,5 @@
-use crate::block_layer::DbConfig;
 use crate::block_sanity::BlockSanity;
+use crate::db_config::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;

@@ -1,4 +1,4 @@
-use crate::block_layer::DbConfig;
+use crate::db_config::DbConfig;
 use crate::page_no::PageNo;
 use crate::version_holder::VersionHolder;
 use std::convert::TryFrom;

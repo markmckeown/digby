@@ -7,6 +7,7 @@ pub use db_root_page::DbRootPage;
 pub mod file_layer;
 pub use file_layer::FileLayer;
 pub mod block_layer;
+pub mod db_config;
 pub use block_layer::PageContainerLayer;
 pub mod db;
 pub use db::Db;

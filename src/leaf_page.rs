@@ -5,7 +5,7 @@ use crate::page_no::PageNo;
 use crate::tuple::Overflow;
 use crate::tuple::Tuple;
 use crate::tuple::TupleTrait;
-use crate::{Page, block_layer::DbConfig};
+use crate::{Page, db_config::DbConfig};
 use core::panic;
 use std::cmp::Ordering;
 

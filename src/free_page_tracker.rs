@@ -1,4 +1,4 @@
-use crate::block_layer::DbConfig;
+use crate::db_config::DbConfig;
 use crate::free_dir_page::FreeDirPage;
 use crate::page::Page;
 use crate::page::PageTrait;

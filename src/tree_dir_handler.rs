@@ -107,7 +107,7 @@ mod tests {
     use super::*;
     use crate::LeafPage;
     use crate::Tuple;
-    use crate::block_layer::DbConfig;
+    use crate::db_config::DbConfig;
     use crate::page_no::PageNo;
 
     #[test]

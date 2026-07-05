@@ -1,7 +1,7 @@
-use crate::block_layer::DbConfig;
 use crate::block_layer::PageContainerLayer;
 use crate::block_sanity::BlockSanity;
 use crate::compressor::CompressorType;
+use crate::db_config::DbConfig;
 use crate::db_master_page::DbMasterPage;
 use crate::db_root_page::DbRootPage;
 use crate::file_layer::FileLayer;
