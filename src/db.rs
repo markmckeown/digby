@@ -1,4 +1,3 @@
-use crate::block_layer::PageContainerLayer;
 use crate::block_sanity::BlockSanity;
 use crate::compressor::CompressorType;
 use crate::db_config::DbConfig;
@@ -9,6 +8,7 @@ use crate::free_page_tracker::FreePageTracker;
 use crate::overflow_tuple::OverflowTuple;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
+use crate::page_container_layer::PageContainerLayer;
 use crate::page_no::PageNo;
 use crate::tuple::{Overflow, Tuple, TupleTrait};
 use crate::tx_ctx::TxCtx;

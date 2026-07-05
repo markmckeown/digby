@@ -116,10 +116,10 @@ impl TupleProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_layer::PageContainerLayer;
     use crate::compressor::{Compressor, CompressorType};
     use crate::file_layer::FileLayer;
     use crate::page::PageTrait;
+    use crate::page_container_layer::PageContainerLayer;
     use crate::tuple::TupleTrait;
     use tempfile::NamedTempFile;
 
