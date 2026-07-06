@@ -19,10 +19,10 @@ impl StoreTupleProcessor {
     // We use get_page_ref to access the page cache, this supplies shared
     // references to the page rather than copies of the pages as when
     // used with update and delete.
-    pub fn get_tuple(key: &[u8], page_no: u64, page_cache: &mut PageCache) -> Option<Tuple> {
+    pub fn get_tuple(key: &[u8], page_no: PageNo, page_cache: &mut PageCache) -> Option<Tuple> {
         let mut page_number = page_no;
         loop {
-            let page = page_cache.get_page_ref(PageNo::from_u64(page_number));
+            let page = page_cache.get_page_ref(page_number);
             // If the page is a tree leaf then if the key is stored
             // then it will be in this leaf page.
             if page.get_type() == PageType::LeafPage {
@@ -88,7 +88,7 @@ impl StoreTupleProcessor {
         // This is the stack for storing the tree dir as we descend into
         // the tree.
         let mut dir_pages: Vec<DirPage> = Vec::new();
-        let mut next_page_no: u64;
+        let mut next_page_no: PageNo;
         let leaf_page: LeafPage;
         let key = tuple.get_key();
 
@@ -101,7 +101,7 @@ impl StoreTupleProcessor {
             // Push the directory node onto the stack to update later.
             dir_pages.push(dir_page);
             // Get the page from the cache - this is copy of the page.
-            let page = page_cache.get_page(PageNo::from_u64(next_page_no));
+            let page = page_cache.get_page(next_page_no);
             // If the page is a leaf page we can start the add process
             if page.get_type() == PageType::LeafPage {
                 leaf_page = LeafPage::from_page(page);
@@ -522,7 +522,7 @@ mod tests {
         assert_eq!(root_dir_page.get_entries_size(), 1);
         let tuple = StoreTupleProcessor::get_tuple(
             13000u64.to_be_bytes().to_vec().as_ref(),
-            root_tree_page_no.to_u64(),
+            root_tree_page_no,
             &mut page_cache,
         );
         assert!(tuple.is_some());

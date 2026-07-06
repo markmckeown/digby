@@ -30,27 +30,27 @@ impl FileLayer {
     pub fn append_new_page(&mut self, page: &Page, page_no: &PageNo) {
         use std::io::{Seek, SeekFrom, Write};
 
-        let block_count = page_no.get_blk_cnt();
-        let block_offset = page_no.get_blk_offset();
+        let pg_blk_count = page_no.get_blk_cnt();
+        let pg_blk_offset = page_no.get_blk_offset();
         assert!(
-            block_offset == self.block_count,
+            pg_blk_offset == self.block_count,
             "page_number should match page_count"
         );
-        let offset = block_offset * self.block_size as u64;
+        let offset = pg_blk_offset * self.block_size as u64;
         self.file
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for append_new_page");
         self.file
             .write_all(page.get_block_bytes())
             .expect("Failed to write for append_new_page");
-        self.block_count += block_count;
+        self.block_count += pg_blk_count;
     }
 
     pub fn write_page_to_disk(&mut self, page: &Page, page_no: &PageNo) -> std::io::Result<()> {
         use std::io::{Seek, SeekFrom, Write};
 
-        let block_offset = page_no.get_blk_offset();
-        let offset = block_offset * self.block_size as u64;
+        let pg_blk_offset = page_no.get_blk_offset();
+        let offset = pg_blk_offset * self.block_size as u64;
         self.file
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for write_page_to_disk");
@@ -67,10 +67,10 @@ impl FileLayer {
     ) -> std::io::Result<()> {
         use std::io::{Read, Seek, SeekFrom};
 
-        let block_offset = page_no.get_blk_offset();
-        assert!(block_offset < self.block_count);
+        let pg_blk_offset = page_no.get_blk_offset();
+        assert!(pg_blk_offset < self.block_count);
 
-        let offset = block_offset * self.block_size as u64;
+        let offset = pg_blk_offset * self.block_size as u64;
         self.file
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for read");

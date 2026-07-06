@@ -162,9 +162,7 @@ impl Db {
         // Get the page number of the root of the tree.
         let tree_root_page_no = tx_ctx.global_root_page_no;
         // Get the actual root page.
-        let root_page = self
-            .page_cache
-            .get_page(PageNo::from_u64(tree_root_page_no));
+        let root_page = self.page_cache.get_page(tree_root_page_no);
         // Now pass to the TreeDeleteHandler to do the delete.
         let (new_tree_root_page_no, deleted) = TreeDeleteHandler::delete_key(
             &key_to_use,
@@ -177,7 +175,7 @@ impl Db {
             // If nothing deleted then pages do not need to be rewritten.
             return false;
         }
-        tx_ctx.global_root_page_no = new_tree_root_page_no.to_u64();
+        tx_ctx.global_root_page_no = new_tree_root_page_no;
         deleted
     }
 
@@ -199,7 +197,7 @@ impl Db {
     //
     // The tree_page_no can be the root of the global tree or
     // the root page of a table tree.
-    fn get_from_tree(&mut self, key: &[u8], tree_page_no: u64) -> Option<Vec<u8>> {
+    fn get_from_tree(&mut self, key: &[u8], tree_page_no: PageNo) -> Option<Vec<u8>> {
         // If the key is very large then a shorted version is stored in the tree
         // using the SHA256 of the key.
         if !TupleProcessor::is_oversized_key(key) {
@@ -273,9 +271,7 @@ impl Db {
         // Now get the page number of the root of the global tree.
         let tree_root_page_no = tx_ctx.global_root_page_no;
         // Now get the root page of the tree.
-        let page = self
-            .page_cache
-            .get_page(PageNo::from_u64(tree_root_page_no));
+        let page = self.page_cache.get_page(tree_root_page_no);
         // Store the tuple, this will return the page number of the
         // new root of the page.
         let new_tree_root_page_no = StoreTupleProcessor::store_tuple(
@@ -285,7 +281,7 @@ impl Db {
             &mut self.page_cache,
             tx_ctx.new_version,
         );
-        tx_ctx.global_root_page_no = new_tree_root_page_no;
+        tx_ctx.global_root_page_no = PageNo::from_u64(new_tree_root_page_no);
     }
 
     pub fn clear(&mut self) {
@@ -301,9 +297,7 @@ impl Db {
         // Now get the page number of the root of the global tree.
         let tree_root_page_no = tx_ctx.global_root_page_no;
         // Get the root of the tree.
-        let page = self
-            .page_cache
-            .get_page(PageNo::from_u64(tree_root_page_no));
+        let page = self.page_cache.get_page(tree_root_page_no);
         // Clear the tree, will return the new root of the tree which
         // will now be a leaf page.
         tx_ctx.global_root_page_no = ClearHandler::clear_tree(
@@ -311,8 +305,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
             tx_ctx.new_version,
-        )
-        .to_u64();
+        );
     }
 
     pub fn new_transaction(&mut self) -> TxCtx {
@@ -322,8 +315,7 @@ impl Db {
         // Find the free page directory that has the free page numbers.
         let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
         let free_page_tracker = FreePageTracker::new(
-            self.page_cache
-                .get_page(PageNo::from_u64(free_page_dir_page_no)),
+            self.page_cache.get_page(free_page_dir_page_no),
             new_version,
             *self.page_cache.get_page_config(),
         );
@@ -374,18 +366,16 @@ impl Db {
 
         // Get the root page of the table directory tree.
         let table_tree_root_page_no = tx_ctx.tree_dir_root_page_no;
-        let page = self
-            .page_cache
-            .get_page(PageNo::from_u64(table_tree_root_page_no));
+        let page = self.page_cache.get_page(table_tree_root_page_no);
         // Store the reference to the new table in the table
         // directory tree.
-        tx_ctx.tree_dir_root_page_no = StoreTupleProcessor::store_tuple(
+        tx_ctx.tree_dir_root_page_no = PageNo::from_u64(StoreTupleProcessor::store_tuple(
             tuple,
             page,
             &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
             tx_ctx.new_version,
-        );
+        ));
     }
 
     pub fn commit(&mut self, tx_ctx: &mut TxCtx) {
@@ -412,8 +402,8 @@ impl Db {
         &mut self,
         master_page: &mut DbMasterPage,
         new_version: u64,
-        new_root_page_no: u64,
-        new_table_tree_root_no: u64,
+        new_root_page_no: PageNo,
+        new_table_tree_root_no: PageNo,
         free_page_tracker: &mut FreePageTracker,
     ) {
         // Write out the free pages.
@@ -430,7 +420,7 @@ impl Db {
         //   - The table directory tree.
         //   - The free page directory.
         //   - The new version.
-        master_page.set_free_page_dir_page_no(first_free_dir_page.to_u64());
+        master_page.set_free_page_dir_page_no(first_free_dir_page);
         master_page.set_global_tree_root_page_no(new_root_page_no);
         master_page.set_table_dir_page_no(new_table_tree_root_no);
         master_page.set_version(new_version);
@@ -447,13 +437,13 @@ impl Db {
         self.page_cache.sync_data();
     }
 
-    pub fn get_table_tree_root(&mut self, name: &[u8]) -> Option<u64> {
+    pub fn get_table_tree_root(&mut self, name: &[u8]) -> Option<PageNo> {
         let tx_ctx = self.new_transaction();
         self.get_table_tree_root_txn(name, &tx_ctx)
     }
 
     // Get the root page number for a table tree if it exists.
-    pub fn get_table_tree_root_txn(&mut self, name: &[u8], tx_ctx: &TxCtx) -> Option<u64> {
+    pub fn get_table_tree_root_txn(&mut self, name: &[u8], tx_ctx: &TxCtx) -> Option<PageNo> {
         assert!(
             name.len() < u8::MAX as usize,
             "Cannot handle keys larger than u8::MAX."
@@ -465,7 +455,7 @@ impl Db {
         {
             assert!(tuple.get_overflow() == Overflow::None);
             assert_eq!(tuple.get_value().len(), 8);
-            let page_no = u64::from_le_bytes(tuple.get_value().try_into().unwrap());
+            let page_no = PageNo::from_bytes(tuple.get_value());
             Some(page_no)
         } else {
             None
@@ -515,7 +505,7 @@ impl Db {
 
         // Store the tuple in the table's tree, this will return
         // the new root page number for the table tree.
-        let table_root_page = self.page_cache.get_page(PageNo::from_u64(table_root_page));
+        let table_root_page = self.page_cache.get_page(table_root_page);
         let new_table_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             table_root_page,
@@ -537,9 +527,7 @@ impl Db {
 
         // Now store the new table reference into the table directory tree.
         let table_dir_root_page_no = tx_ctx.tree_dir_root_page_no;
-        let table_dir_root_page = self
-            .page_cache
-            .get_page(PageNo::from_u64(table_dir_root_page_no));
+        let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
             table_dir_root_page,
@@ -547,7 +535,7 @@ impl Db {
             &mut self.page_cache,
             tx_ctx.new_version,
         );
-        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
+        tx_ctx.tree_dir_root_page_no = PageNo::from_u64(new_table_dir_root_page_no);
     }
 
     // Remove all the entries in a table.
@@ -589,7 +577,7 @@ impl Db {
         let table_root_page = table_root_page_no_wrapped.unwrap();
 
         // First clear the table tree.
-        let table_root_page = self.page_cache.get_page(PageNo::from_u64(table_root_page));
+        let table_root_page = self.page_cache.get_page(table_root_page);
         let new_table_root_page_no = ClearHandler::clear_tree(
             table_root_page,
             &mut tx_ctx.free_page_tracker,
@@ -599,9 +587,7 @@ impl Db {
 
         // Now need to update the table directory tree.
         let table_dir_root_page_no = tx_ctx.tree_dir_root_page_no;
-        let table_dir_root_page = self
-            .page_cache
-            .get_page(PageNo::from_u64(table_dir_root_page_no));
+        let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
 
         // If the table is to be deleted, then delete the table key/name
         // from the table directory tree.
@@ -641,7 +627,7 @@ impl Db {
                 tx_ctx.new_version,
             ))
         };
-        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no.to_u64();
+        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
     }
 
     // Get a value from a table tree.
@@ -704,9 +690,7 @@ impl Db {
 
         // Delete the key from the table tree and get back the new root page
         // number of the table tree.
-        let root_page = self
-            .page_cache
-            .get_page(PageNo::from_u64(table_root_page_no));
+        let root_page = self.page_cache.get_page(table_root_page_no);
         let (new_tree_free_page_no, deleted) = TreeDeleteHandler::delete_key(
             &key_to_use,
             root_page,
@@ -733,9 +717,7 @@ impl Db {
 
         // Get the table directory tree.
         let table_dir_root_page_no = tx_ctx.tree_dir_root_page_no;
-        let table_dir_root_page = self
-            .page_cache
-            .get_page(PageNo::from_u64(table_dir_root_page_no));
+        let table_dir_root_page = self.page_cache.get_page(table_dir_root_page_no);
         // Update the reference for the table tree.
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
@@ -744,7 +726,7 @@ impl Db {
             &mut self.page_cache,
             tx_ctx.new_version,
         );
-        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
+        tx_ctx.tree_dir_root_page_no = PageNo::from_u64(new_table_dir_root_page_no);
         deleted
     }
 }
@@ -752,13 +734,13 @@ impl Db {
 // Functions to either create or to initialise the database.
 impl Db {
     fn check_db_integrity(&mut self) -> std::io::Result<()> {
-        let root_page = DbRootPage::from_page(self.page_cache.get_page(PageNo::from_u64(0)));
+        let root_page = DbRootPage::from_page(self.page_cache.get_page(PageNo::new(0, 0)));
         // There is no sanity check for sanity type, if the db was created with
         // encryption and then opened without a key then we will not be able to open
         // the root_page as the checksum will not match.
         // This could be avoided if the root page was not encrypted.
         let stored_compressor_type = CompressorType::try_from(root_page.get_compression_type())
-            .expect("Unknown compressoion");
+            .expect("Unknown compression");
         if stored_compressor_type != self.compressor.compressor_type {
             panic!(
                 "Db compression mis-match, stored type is {:?}, requested type {:?}",
@@ -767,8 +749,8 @@ impl Db {
             );
         }
         // Get the two master pages.
-        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::from_u64(1)));
-        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::from_u64(2)));
+        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(0, 1)));
+        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(0, 2)));
         // Determine which is the current master.
         let current_master = if master_page1.get_version() > master_page2.get_version() {
             master_page1
@@ -778,8 +760,7 @@ impl Db {
         let current_version = current_master.get_version();
         // Check the free_dir_page is sane.
         let free_dir_page_no = current_master.get_free_page_dir_page_no();
-        let free_dir_page =
-            FreeDirPage::from_page(self.page_cache.get_page(PageNo::from_u64(free_dir_page_no)));
+        let free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
         assert!(free_dir_page.get_version() <= current_version);
 
         Ok(())
@@ -822,9 +803,9 @@ impl Db {
         // Tell the first master page where the free page directory page is,
         // where the table directory root page is and where the global
         // tree root is.
-        master_page1.set_free_page_dir_page_no(3);
-        master_page1.set_table_dir_page_no(4);
-        master_page1.set_global_tree_root_page_no(5);
+        master_page1.set_free_page_dir_page_no(PageNo::from_u64(3));
+        master_page1.set_table_dir_page_no(PageNo::from_u64(4));
+        master_page1.set_global_tree_root_page_no(PageNo::from_u64(5));
         self.page_cache.put_page(master_page1.get_page());
 
         // Write second master page at page number 2, the version
@@ -833,9 +814,9 @@ impl Db {
             DbMasterPage::create_new(self.page_cache.get_page_config(), PageNo::new(0, 2), 1);
         // remove from free page list
         free_pages.retain(|&x| x.get_blk_offset() != 2);
-        master_page2.set_free_page_dir_page_no(3);
-        master_page2.set_table_dir_page_no(4);
-        master_page2.set_global_tree_root_page_no(5);
+        master_page2.set_free_page_dir_page_no(PageNo::from_u64(3));
+        master_page2.set_table_dir_page_no(PageNo::from_u64(4));
+        master_page2.set_global_tree_root_page_no(PageNo::from_u64(5));
         self.page_cache.put_page(master_page2.get_page());
 
         // Now write the free page directory at page 3.
@@ -944,10 +925,8 @@ mod tests {
             let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::from_u64(1)));
             let head_page2 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::from_u64(2)));
             let free_page_dir_page_no = head_page2.get_free_page_dir_page_no();
-            let free_page_dir_page = FreeDirPage::from_page(
-                db.page_cache
-                    .get_page(PageNo::from_u64(free_page_dir_page_no)),
-            );
+            let free_page_dir_page =
+                FreeDirPage::from_page(db.page_cache.get_page(free_page_dir_page_no));
             assert!(free_page_dir_page.get_entries() == 4);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");

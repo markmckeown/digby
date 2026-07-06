@@ -54,14 +54,14 @@ impl TreeDeleteHandler {
         // This is the stack for storing the tree dir as we descend into
         // the tree.
         let mut dir_pages: Vec<DirPage> = Vec::new();
-        let mut next_page: u64;
+        let mut next_page: PageNo;
         let mut leaf_page: LeafPage;
         // loop down until we hit the leaf page keeping a track of the
         // the dir pages as we go.
         loop {
             next_page = dir_page.get_next(key);
             dir_pages.push(dir_page);
-            let page = page_cache.get_page(PageNo::from_u64(next_page));
+            let page = page_cache.get_page(next_page);
             if page.get_type() == PageType::LeafPage {
                 leaf_page = LeafPage::from_page(page);
                 break;

@@ -144,7 +144,7 @@ mod tests {
         let mut new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, entries);
         assert_eq!(new_pages.len(), 1);
         tree_dir_page = new_pages.pop().unwrap().page;
-        assert_eq!(tree_dir_page.get_page_to_left(), 21);
+        assert_eq!(tree_dir_page.get_page_to_left(), PageNo::from_u64(21));
         assert_eq!(tree_dir_page.get_dir_left_key().unwrap(), b"h".to_vec());
 
         let tuple3: Tuple = Tuple::new(b"a".to_vec().as_ref(), b"a_value".to_vec().as_ref(), 345);
@@ -165,6 +165,6 @@ mod tests {
         new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, entries);
         assert_eq!(new_pages.len(), 1);
         tree_dir_page = new_pages.pop().unwrap().page;
-        assert_eq!(tree_dir_page.get_page_to_left(), 79);
+        assert_eq!(tree_dir_page.get_page_to_left(), PageNo::from_u64(79));
     }
 }

@@ -3,8 +3,6 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::page_no::PageNo;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use std::io::Cursor;
 
 // | Page No (8 bytes) | VersionHolder (8 bytes) | GlobalTreeRootPage (8 bytes) |
 // | TableDirPage(8 bytes) | FreePageDir (8 bytes) |
@@ -75,45 +73,39 @@ impl DbMasterPage {
         DbMasterPage { page }
     }
 
-    const GLOBAL_TREE_OFFSET: u64 = 16;
-    pub fn get_global_tree_root_page_no(&self) -> u64 {
-        self.get_u64_at_offset(DbMasterPage::GLOBAL_TREE_OFFSET)
+    const GLOBAL_TREE_OFFSET: usize = 16;
+    pub fn get_global_tree_root_page_no(&self) -> PageNo {
+        self.get_pg_no_offset(DbMasterPage::GLOBAL_TREE_OFFSET)
     }
 
-    pub fn set_global_tree_root_page_no(&mut self, page_no: u64) {
-        self.set_u64_at_offset(DbMasterPage::GLOBAL_TREE_OFFSET, page_no);
+    pub fn set_global_tree_root_page_no(&mut self, page_no: PageNo) {
+        self.set_pg_no_offset(DbMasterPage::GLOBAL_TREE_OFFSET, page_no);
     }
 
-    const FREE_PAGE_DIR_OFFSET: u64 = 32;
-    pub fn get_free_page_dir_page_no(&self) -> u64 {
-        self.get_u64_at_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET)
+    const FREE_PAGE_DIR_OFFSET: usize = 32;
+    pub fn get_free_page_dir_page_no(&self) -> PageNo {
+        self.get_pg_no_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET)
     }
 
-    pub fn set_free_page_dir_page_no(&mut self, page_no: u64) {
-        self.set_u64_at_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET, page_no);
+    pub fn set_free_page_dir_page_no(&mut self, page_no: PageNo) {
+        self.set_pg_no_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET, page_no);
     }
 
-    const TABLE_DIR_PAGE: u64 = 24;
-    pub fn get_table_dir_page_no(&self) -> u64 {
-        self.get_u64_at_offset(DbMasterPage::TABLE_DIR_PAGE)
+    const TABLE_DIR_PAGE: usize = 24;
+    pub fn get_table_dir_page_no(&self) -> PageNo {
+        self.get_pg_no_offset(DbMasterPage::TABLE_DIR_PAGE)
     }
 
-    pub fn set_table_dir_page_no(&mut self, page_no: u64) {
-        self.set_u64_at_offset(DbMasterPage::TABLE_DIR_PAGE, page_no);
+    pub fn set_table_dir_page_no(&mut self, page_no: PageNo) {
+        self.set_pg_no_offset(DbMasterPage::TABLE_DIR_PAGE, page_no);
     }
 
-    fn set_u64_at_offset(&mut self, offset: u64, value: u64) {
-        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(offset);
-        cursor
-            .write_u64::<LittleEndian>(value)
-            .expect("Failed to write table dir page number");
+    fn set_pg_no_offset(&mut self, offset: usize, value: PageNo) {
+        self.page.get_page_bytes_mut()[offset..offset + 8].copy_from_slice(&value.get_bytes());
     }
 
-    fn get_u64_at_offset(&self, offset: u64) -> u64 {
-        let mut cursor = Cursor::new(self.page.get_page_bytes());
-        cursor.set_position(offset);
-        cursor.read_u64::<LittleEndian>().unwrap()
+    fn get_pg_no_offset(&self, offset: usize) -> PageNo {
+        PageNo::from_bytes(&self.page.get_page_bytes()[offset..offset + 8])
     }
 
     pub fn flip_page_number(&mut self) {
@@ -137,15 +129,15 @@ mod tests {
         assert_eq!(master_page.get_version(), 1);
         master_page.set_version(2);
         assert_eq!(master_page.get_version(), 2);
-        assert!(0 == master_page.get_free_page_dir_page_no());
-        assert!(0 == master_page.get_global_tree_root_page_no());
-        assert!(0 == master_page.get_table_dir_page_no());
-        master_page.set_free_page_dir_page_no(67);
-        master_page.set_global_tree_root_page_no(87);
-        master_page.set_table_dir_page_no(34);
-        assert!(67 == master_page.get_free_page_dir_page_no());
-        assert!(87 == master_page.get_global_tree_root_page_no());
-        assert!(34 == master_page.get_table_dir_page_no());
+        assert!(0 == master_page.get_free_page_dir_page_no().get_blk_offset());
+        assert!(0 == master_page.get_global_tree_root_page_no().get_blk_offset());
+        assert!(0 == master_page.get_table_dir_page_no().get_blk_offset());
+        master_page.set_free_page_dir_page_no(PageNo::new(0, 67));
+        master_page.set_global_tree_root_page_no(PageNo::new(0, 87));
+        master_page.set_table_dir_page_no(PageNo::new(0, 34));
+        assert!(67 == master_page.get_free_page_dir_page_no().get_blk_offset());
+        assert!(87 == master_page.get_global_tree_root_page_no().get_blk_offset());
+        assert!(34 == master_page.get_table_dir_page_no().get_blk_offset());
     }
 
     #[test]
