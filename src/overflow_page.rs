@@ -99,7 +99,7 @@ impl OverflowPage {
     }
 
     pub fn get_free_space(&self) -> usize {
-        self.page.page_size - (self.get_used_size() as usize + OverflowPage::HEADER_SIZE)
+        self.get_pg_size() - (self.get_used_size() as usize + OverflowPage::HEADER_SIZE)
     }
 
     pub fn add_bytes(&mut self, bytes: &[u8], size: usize) {

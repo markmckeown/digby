@@ -490,7 +490,7 @@ impl DirPage {
         };
         // Get full copy of all tuples
         let entries = self.get_key_values();
-        self.reset(self.page.page_size);
+        self.reset(self.get_pg_size());
         self.set_left_fence_key(left_fence.as_ref());
         self.set_right_fence_key(new_right_fence);
         self.set_prefix_length(prefix_length as u8);
@@ -525,7 +525,7 @@ impl DirPage {
         };
         // Get full copy of all tuples
         let entries = self.get_key_values();
-        self.reset(self.page.page_size);
+        self.reset(self.get_pg_size());
         self.set_left_fence_key(new_left_fence);
         self.set_right_fence_key(right_fence.as_ref());
         self.set_prefix_length(prefix_length as u8);
@@ -709,13 +709,13 @@ impl DirPage {
         // but no right fence. Both pages will have no prefix.
         let mut left_page = DirPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             PageNo::from_u64(0),
             version,
         );
@@ -758,13 +758,13 @@ impl DirPage {
         // current page. The new right page will have a prefix.
         let mut left_page = DirPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             PageNo::from_u64(0),
             version,
         );
@@ -815,13 +815,13 @@ impl DirPage {
         // New page to the right will have a left fence and no right fence and no prefix.
         let mut left_page = DirPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             PageNo::from_u64(0),
             version,
         );
@@ -870,13 +870,13 @@ impl DirPage {
         // This means we need to calculate the new prefix length for the left and right pages after the split.
         let mut left_page = DirPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             PageNo::from_u64(0),
             version,
         );
@@ -977,8 +977,8 @@ impl DirPage {
 
         let free_space = self.get_free_space() as usize;
         let header_plus_slots_size = DirPage::HEADER_SIZE + entries * DirPage::SLOT_SIZE;
-        let entries_size = self.page.page_size - (header_plus_slots_size + free_space);
-        let entries_offset = self.page.page_size - entries_size;
+        let entries_size = self.get_pg_size() - (header_plus_slots_size + free_space);
+        let entries_offset = self.get_pg_size() - entries_size;
         let entry_offset = slot.offset as usize;
 
         // Shift slots to left to remove the slot at index.

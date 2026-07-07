@@ -201,7 +201,7 @@ impl LeafPage {
         };
         // Get full copy of all tuples
         let entties = self.get_all_tuples();
-        self.reset(self.page.page_size);
+        self.reset(self.get_pg_size());
         self.set_left_fence_key(left_fence.as_ref());
         self.set_right_fence_key(new_right_fence);
         self.set_prefix_length(prefix_length as u8);
@@ -235,7 +235,7 @@ impl LeafPage {
         };
         // Get full copy of all tuples
         let entries = self.get_all_tuples();
-        self.reset(self.page.page_size);
+        self.reset(self.get_pg_size());
         self.set_left_fence_key(new_left_fence);
         self.set_right_fence_key(right_fence.as_ref());
         self.set_prefix_length(prefix_length as u8);
@@ -640,13 +640,13 @@ impl LeafPage {
         );
         let mut left_page = LeafPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             PageNo::from_u64(0),
             version,
         );
@@ -684,13 +684,13 @@ impl LeafPage {
         );
         let mut left_page = LeafPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             PageNo::from_u64(0),
             version,
         );
@@ -732,13 +732,13 @@ impl LeafPage {
         // and no right fence key.
         let mut left_page = LeafPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             PageNo::from_u64(0),
             version,
         );
@@ -783,13 +783,13 @@ impl LeafPage {
         // This means we need to calculate the new prefix length for the left and right pages after the split.
         let mut left_page = LeafPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             PageNo::from_u64(0),
             version,
         );
@@ -839,13 +839,13 @@ impl LeafPage {
     fn split_page_low_entry_count(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         let mut left_page = LeafPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::new(
             self.page.block_size,
-            self.page.page_size,
+            self.get_pg_size(),
             PageNo::from_u64(0),
             version,
         );
@@ -950,8 +950,8 @@ impl LeafPage {
 
         let free_space = self.get_free_space() as usize;
         let header_plus_slots_size = LeafPage::HEADER_SIZE + entries * LeafPage::SLOT_SIZE;
-        let entries_size = self.page.page_size - (header_plus_slots_size + free_space);
-        let entries_offset = self.page.page_size - entries_size;
+        let entries_size = self.get_pg_size() - (header_plus_slots_size + free_space);
+        let entries_offset = self.get_pg_size() - entries_size;
         let entry_offset = slot.offset as usize;
 
         // Shift slots to left to remove the slot at index.

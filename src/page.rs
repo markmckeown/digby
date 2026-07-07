@@ -45,12 +45,15 @@ pub trait PageTrait {
     fn get_page(&mut self) -> &mut Page;
     fn get_version(&self) -> u64;
     fn set_version(&mut self, version: u64) -> ();
+    fn get_pg_size(&self) -> usize {
+        self.get_page_bytes().len()
+    }
 }
 
 // | Page No (u64) | VersionHolder (8 bytes) | Body | )
 pub struct Page {
     bytes: Vec<u8>,
-    pub page_size: usize,
+    page_size: usize,
     pub block_size: usize,
 }
 
