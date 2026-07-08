@@ -1,5 +1,6 @@
 use crate::compressor::Compressor;
 use crate::compressor::CompressorType;
+use crate::db_config::DbConfig;
 use crate::{
     FreePageTracker, OverflowPageHandler, OverflowTuple, PageCache,
     tuple::{Overflow, Tuple},
@@ -23,6 +24,7 @@ impl TupleProcessor {
         free_page_tracker: &mut FreePageTracker,
         version: u64,
         compressor: &Compressor,
+        _db_config: &DbConfig,
     ) -> Tuple {
         if !TupleProcessor::is_oversized_key(key) && value.len() < TupleProcessor::MAX_VALUE_SIZE {
             return Tuple::new(key, value, version);
@@ -125,7 +127,7 @@ mod tests {
 
     use crate::db_config::DbConfig;
 
-    const PAGE_CONFIG: DbConfig = DbConfig {
+    const DB_CONFIG: DbConfig = DbConfig {
         block_size: 4096,
         page_size: 4092,
         block_sanity_size: 4,
@@ -160,8 +162,8 @@ mod tests {
             .truncate(true)
             .open(temp_file.path())
             .unwrap();
-        let file_layer = FileLayer::new(file, PAGE_CONFIG.block_size);
-        let block_layer = PageContainerLayer::new(file_layer, PAGE_CONFIG);
+        let file_layer = FileLayer::new(file, DB_CONFIG.block_size);
+        let block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache = PageCache::new(block_layer);
         let version = 0;
         let new_version = 1;
@@ -187,6 +189,7 @@ mod tests {
             &mut free_page_tracker,
             1,
             &compressor_none,
+            &DB_CONFIG,
         );
         assert_eq!(tuple.get_overflow(), Overflow::None);
 
@@ -199,6 +202,7 @@ mod tests {
             &mut free_page_tracker,
             1,
             &compressor_lz4,
+            &DB_CONFIG,
         );
         assert_eq!(tuple_compressed.get_overflow(), Overflow::ValueCompressed);
 
@@ -210,6 +214,7 @@ mod tests {
             &mut free_page_tracker,
             1,
             &compressor_none,
+            &DB_CONFIG,
         );
         assert_eq!(tuple_large_val.get_overflow(), Overflow::ValueOverflow);
 
@@ -221,6 +226,7 @@ mod tests {
             &mut free_page_tracker,
             1,
             &compressor_none,
+            &DB_CONFIG,
         );
         assert_eq!(tuple_large_key.get_overflow(), Overflow::KeyOverflow);
 
@@ -231,6 +237,7 @@ mod tests {
             &mut free_page_tracker,
             1,
             &compressor_none,
+            &DB_CONFIG,
         );
         assert_eq!(tuple_large_both.get_overflow(), Overflow::KeyValueOverflow);
 
@@ -241,6 +248,7 @@ mod tests {
             &mut free_page_tracker,
             1,
             &compressor_lz4,
+            &DB_CONFIG,
         );
         assert_eq!(
             tuple_large_both_comp.get_overflow(),

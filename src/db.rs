@@ -27,7 +27,7 @@ use crate::{
 pub struct Db {
     page_cache: PageCache,
     compressor: Compressor,
-    _page_config: DbConfig,
+    db_config: DbConfig,
 }
 
 impl Db {
@@ -125,7 +125,7 @@ impl Db {
         let mut db = Db {
             page_cache,
             compressor: Compressor::new(compressor_type),
-            _page_config: page_config,
+            db_config: page_config,
         };
 
         if is_new {
@@ -170,6 +170,7 @@ impl Db {
             &mut self.page_cache,
             &mut tx_ctx.free_page_tracker,
             tx_ctx.new_version,
+            &self.db_config,
         );
         if !deleted {
             // If nothing deleted then pages do not need to be rewritten.
@@ -266,6 +267,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             tx_ctx.new_version,
             &self.compressor,
+            &self.db_config,
         );
 
         // Now get the page number of the root of the global tree.
@@ -280,6 +282,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
             tx_ctx.new_version,
+            &self.db_config,
         );
         tx_ctx.global_root_page_no = PageNo::from_u64(new_tree_root_page_no);
     }
@@ -305,6 +308,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
             tx_ctx.new_version,
+            &self.db_config,
         );
     }
 
@@ -362,6 +366,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             tx_ctx.new_version,
             &self.compressor,
+            &self.db_config,
         );
 
         // Get the root page of the table directory tree.
@@ -375,6 +380,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
             tx_ctx.new_version,
+            &self.db_config,
         ));
     }
 
@@ -501,6 +507,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             tx_ctx.new_version,
             &self.compressor,
+            &self.db_config,
         );
 
         // Store the tuple in the table's tree, this will return
@@ -512,6 +519,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
             tx_ctx.new_version,
+            &self.db_config,
         );
 
         // Need to update the table directory tree with the new root
@@ -523,6 +531,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             tx_ctx.new_version,
             &self.compressor,
+            &self.db_config,
         );
 
         // Now store the new table reference into the table directory tree.
@@ -534,6 +543,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
             tx_ctx.new_version,
+            &self.db_config,
         );
         tx_ctx.tree_dir_root_page_no = PageNo::from_u64(new_table_dir_root_page_no);
     }
@@ -583,6 +593,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
             tx_ctx.new_version,
+            &self.db_config,
         );
 
         // Now need to update the table directory tree.
@@ -601,6 +612,7 @@ impl Db {
                 &mut self.page_cache,
                 &mut tx_ctx.free_page_tracker,
                 tx_ctx.new_version,
+                &self.db_config,
             );
             // Page number of the new root of the table directory tree.
             new_page
@@ -616,6 +628,7 @@ impl Db {
                 &mut tx_ctx.free_page_tracker,
                 tx_ctx.new_version,
                 &self.compressor,
+                &self.db_config,
             );
             // Store table reference and provide the
             // new table directory tree root page.
@@ -625,6 +638,7 @@ impl Db {
                 &mut tx_ctx.free_page_tracker,
                 &mut self.page_cache,
                 tx_ctx.new_version,
+                &self.db_config,
             ))
         };
         tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
@@ -697,6 +711,7 @@ impl Db {
             &mut self.page_cache,
             &mut tx_ctx.free_page_tracker,
             tx_ctx.new_version,
+            &self.db_config,
         );
         if !deleted {
             // No changes to DB needed
@@ -713,6 +728,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             tx_ctx.new_version,
             &self.compressor,
+            &self.db_config,
         );
 
         // Get the table directory tree.
@@ -725,6 +741,7 @@ impl Db {
             &mut tx_ctx.free_page_tracker,
             &mut self.page_cache,
             tx_ctx.new_version,
+            &self.db_config,
         );
         tx_ctx.tree_dir_root_page_no = PageNo::from_u64(new_table_dir_root_page_no);
         deleted

@@ -1,5 +1,6 @@
 use crate::OverflowPageHandler;
 use crate::PageNo;
+use crate::db_config::DbConfig;
 use crate::dir_page::DirPage;
 use crate::free_page_tracker::FreePageTracker;
 use crate::leaf_page::LeafPage;
@@ -43,6 +44,7 @@ impl StoreTupleProcessor {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
+        _db_config: &DbConfig,
     ) -> u64 {
         // Special case if the first page is a leaf page.
         if first.get_type() == PageType::LeafPage {
@@ -335,7 +337,7 @@ mod tests {
     use crate::db_config::DbConfig;
     use crate::page_no;
 
-    const PAGE_CONFIG: DbConfig = DbConfig {
+    const DB_CONFIG: DbConfig = DbConfig {
         block_size: 4096,
         page_size: 4092,
         block_sanity_size: 4,
@@ -354,9 +356,9 @@ mod tests {
             .open(&temp_file)
             .expect("Failed to open or create DB file");
 
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, PAGE_CONFIG.block_size);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, PAGE_CONFIG);
+            crate::PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
@@ -388,6 +390,7 @@ mod tests {
             &mut free_page_tracker,
             &mut page_cache,
             version + 1,
+            &DB_CONFIG,
         );
         assert_eq!(new_root_tree_no, 2);
 
@@ -406,9 +409,9 @@ mod tests {
             .open(&temp_file)
             .expect("Failed to open or create DB file");
 
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, PAGE_CONFIG.block_size);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, PAGE_CONFIG);
+            crate::PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
@@ -442,6 +445,7 @@ mod tests {
                 &mut free_page_tracker,
                 &mut page_cache,
                 version + 1,
+                &DB_CONFIG,
             ));
             let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
             free_dir_page_no = free_pages.last().unwrap().get_page_number();
@@ -472,9 +476,9 @@ mod tests {
             .open(&temp_file)
             .expect("Failed to open or create DB file");
 
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, PAGE_CONFIG.block_size);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, PAGE_CONFIG);
+            crate::PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
@@ -506,6 +510,7 @@ mod tests {
                 &mut free_page_tracker,
                 &mut page_cache,
                 version + 1,
+                &DB_CONFIG,
             ));
             let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
             free_dir_page_no = free_pages.last().unwrap().get_page_number();

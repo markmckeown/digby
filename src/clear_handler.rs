@@ -1,5 +1,6 @@
 use crate::LeafPage;
 use crate::PageNo;
+use crate::db_config::DbConfig;
 use crate::dir_page::DirPage;
 use crate::free_page_tracker::FreePageTracker;
 use crate::overflow_page_handler::OverflowPageHandler;
@@ -30,6 +31,7 @@ impl ClearHandler {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
+        _db_config: &DbConfig,
     ) -> PageNo {
         // If the root of the page is a leaf page, ie
         // only page in the tree then special case it.

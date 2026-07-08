@@ -1,4 +1,5 @@
 use crate::PageNo;
+use crate::db_config::DbConfig;
 use crate::dir_page::DirPage;
 use crate::page::{PageTrait, PageType};
 use crate::tuple::{Overflow, TupleTrait};
@@ -16,6 +17,7 @@ impl TreeDeleteHandler {
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
         new_version: u64,
+        _db_config: &DbConfig,
     ) -> (PageNo, bool) {
         // The root of the tree is a leaf node.
         if root_page.get_type() == PageType::LeafPage {
