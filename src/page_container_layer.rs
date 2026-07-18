@@ -165,6 +165,8 @@ mod tests {
         page_size: 4092,
         block_sanity_size: 4,
         compressor_type: crate::compressor::CompressorType::None,
+        leaf_page_blk_exp: 0,
+        dir_page_blk_exp: 0,
     };
 
     #[test]
@@ -196,6 +198,8 @@ mod tests {
                 page_size: 4096 - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
                 block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
                 compressor_type: crate::compressor::CompressorType::None,
+                leaf_page_blk_exp: 0,
+                dir_page_blk_exp: 0,
             },
             key,
         );
@@ -223,6 +227,8 @@ mod tests {
                 page_size: 4096 - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
                 block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
                 compressor_type: crate::compressor::CompressorType::None,
+                leaf_page_blk_exp: 0,
+                dir_page_blk_exp: 0,
             },
             key,
         );

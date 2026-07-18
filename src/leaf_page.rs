@@ -1028,6 +1028,8 @@ mod tests {
             page_size: 4000,
             block_sanity_size: 96,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = Page::new(page_config.block_size, page_config.page_size);
         dir_page.set_type(PageType::DirPage);
@@ -1041,6 +1043,8 @@ mod tests {
             page_size: 4000,
             block_sanity_size: 96,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 23);
         assert_eq!(leaf_page.get_page_bytes().len(), 4000);
@@ -1156,6 +1160,8 @@ mod tests {
             page_size: 4000,
             block_sanity_size: 96,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(LeafPage::get_entries_size(leaf_page.get_page()), 0);
@@ -1173,6 +1179,8 @@ mod tests {
             page_size: 4000,
             block_sanity_size: 96,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(LeafPage::get_entries_size(leaf_page.get_page()), 0);
@@ -1190,6 +1198,8 @@ mod tests {
             page_size: 4000,
             block_sanity_size: 96,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
@@ -1205,6 +1215,8 @@ mod tests {
             page_size: 4000,
             block_sanity_size: 96,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         leaf_page.set_right_fence_key(b"left_fence");
@@ -1218,6 +1230,8 @@ mod tests {
             page_size: 129,
             block_sanity_size: 4096 - 129,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1242,6 +1256,8 @@ mod tests {
             page_size: 129,
             block_sanity_size: 4096 - 129,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1267,6 +1283,8 @@ mod tests {
             page_size: 129,
             block_sanity_size: 4096 - 129,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1291,6 +1309,8 @@ mod tests {
             page_size: 4000,
             block_sanity_size: 96,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
@@ -1315,6 +1335,8 @@ mod tests {
             page_size: 4000,
             block_sanity_size: 96,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
@@ -1340,6 +1362,8 @@ mod tests {
             page_size: 4000,
             block_sanity_size: 96,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_a = Tuple::new(b"a", b"a_value", 123);
@@ -1436,6 +1460,8 @@ mod tests {
             page_size: 4000,
             block_sanity_size: 96,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_a = Tuple::new(b"a", b"a_value", 123);
@@ -1625,6 +1651,8 @@ mod tests {
             page_size: 4092,
             block_sanity_size: 4,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
 
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
@@ -1665,6 +1693,8 @@ mod tests {
             page_size: 4092,
             block_sanity_size: 4,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
 
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
@@ -1700,6 +1730,8 @@ mod tests {
             page_size: 125,
             block_sanity_size: 4096 - 125,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
 
         // Page is too small for the reset
@@ -1740,6 +1772,8 @@ mod tests {
             page_size: 129,
             block_sanity_size: 4096 - 129,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
 
         // Page is too small - it can be reset but not with the new tuple

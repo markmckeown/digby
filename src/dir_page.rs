@@ -1182,6 +1182,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_number().get_blk_offset(), 1);
@@ -1206,6 +1208,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut leaf_page = Page::new(page_config.block_size, page_config.page_size);
         leaf_page.set_type(PageType::LeafPage);
@@ -1220,6 +1224,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1239,6 +1245,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1260,6 +1268,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1286,6 +1296,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1305,6 +1317,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1322,6 +1336,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1351,6 +1367,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"key1";
@@ -1385,6 +1403,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"key2";
@@ -1420,6 +1440,8 @@ mod tests {
             page_size: 112,
             block_sanity_size: 160 - 112,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1447,6 +1469,8 @@ mod tests {
             page_size: 112,
             block_sanity_size: 160 - 112,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1474,6 +1498,8 @@ mod tests {
             page_size: 112,
             block_sanity_size: 160 - 112,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1501,6 +1527,8 @@ mod tests {
             page_size: 112,
             block_sanity_size: 160 - 112,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1528,6 +1556,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
 
@@ -1576,6 +1606,8 @@ mod tests {
             page_size: 1024,
             block_sanity_size: 0,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         for i in 0..20 {

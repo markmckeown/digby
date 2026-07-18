@@ -202,6 +202,8 @@ mod tests {
             page_size: 4092,
             block_sanity_size: 4,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let version = 0;
 
@@ -244,6 +246,8 @@ mod tests {
             page_size: 4092,
             block_sanity_size: 4,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 1);
         let mut new_version = 2;
@@ -274,6 +278,8 @@ mod tests {
             page_size: 4092,
             block_sanity_size: 4,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
@@ -306,6 +312,8 @@ mod tests {
             page_size: 4092,
             block_sanity_size: 4,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
@@ -343,6 +351,8 @@ mod tests {
             page_size: 4092,
             block_sanity_size: 4,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
@@ -379,6 +389,8 @@ mod tests {
             page_size: 4092,
             block_sanity_size: 4,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);

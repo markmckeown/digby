@@ -70,6 +70,8 @@ mod tests {
             page_size: 4092,
             block_sanity_size: 4,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let free_page = FreePage::create_new(&page_config, 42);
 
@@ -104,6 +106,8 @@ mod tests {
             page_size: 4092,
             block_sanity_size: 4,
             compressor_type: crate::compressor::CompressorType::None,
+            leaf_page_blk_exp: 0,
+            dir_page_blk_exp: 0,
         };
         let mut free_page = FreePage::create_new(&page_config, 1);
 

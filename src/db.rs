@@ -106,6 +106,8 @@ impl Db {
                 page_size: block_size - sanity_bytes_used,
                 block_sanity_size: sanity_bytes_used,
                 compressor_type,
+                leaf_page_blk_exp: 0,
+                dir_page_blk_exp: 0,
             };
             block_layer = PageContainerLayer::new_with_key(file_layer, page_config, k);
         } else {
@@ -116,6 +118,8 @@ impl Db {
                 page_size: block_size - sanity_bytes_used,
                 block_sanity_size: sanity_bytes_used,
                 compressor_type,
+                leaf_page_blk_exp: 0,
+                dir_page_blk_exp: 0,
             };
             block_layer = PageContainerLayer::new(file_layer, page_config);
         }
