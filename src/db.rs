@@ -207,9 +207,9 @@ impl Db {
         // using the SHA256 of the key.
         if !TupleProcessor::is_oversized_key(key) {
             // Not oversized so look up key.
-            if let Some(tuple) =
-                StoreTupleProcessor::get_tuple(key, tree_page_no, &mut self.page_cache)
             {
+                let tuple =
+                    StoreTupleProcessor::get_tuple(key, tree_page_no, &mut self.page_cache)?;
                 // Found tuple, but it may be an overflow tuple (ie it has
                 // a small key but a large value). Need to get overflow tuple
                 // from the overflow pages.
@@ -217,8 +217,6 @@ impl Db {
                     return self.get_overflow_tuple_value(key, &tuple);
                 }
                 return Some(self.get_tuple_value(&tuple));
-            } else {
-                return None;
             }
         }
 
