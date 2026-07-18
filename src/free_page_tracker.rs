@@ -157,14 +157,14 @@ impl FreePageTracker {
 mod tests {
     use super::*;
 
-    const PAGE_CONFIG: DbConfig = DbConfig {
-        block_size: 4096,
-        page_size: 4092,
-        block_sanity_size: 4,
-        compressor_type: crate::compressor::CompressorType::None,
-        leaf_page_blk_exp: 0,
-        dir_page_blk_exp: 0,
-    };
+    const PAGE_CONFIG: DbConfig = DbConfig::builder()
+        .block_size(4096)
+        .page_size(4092)
+        .block_sanity_size(4)
+        .compressor_type(crate::compressor::CompressorType::None)
+        .leaf_page_blk_exp(0)
+        .dir_page_blk_exp(0)
+        .build();
 
     #[test]
     fn test_add_remove_pages() {

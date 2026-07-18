@@ -11,8 +11,8 @@ pub struct DbConfig {
 }
 
 impl DbConfig {
-    pub fn builder() -> DbConfigBuilder {
-        DbConfigBuilder::default()
+    pub const fn builder() -> DbConfigBuilder {
+        DbConfigBuilder::new()
     }
 }
 
@@ -28,6 +28,12 @@ pub struct DbConfigBuilder {
 
 impl Default for DbConfigBuilder {
     fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DbConfigBuilder {
+    pub const fn new() -> Self {
         Self {
             block_size: 4096,
             page_size: 4096,
@@ -37,44 +43,38 @@ impl Default for DbConfigBuilder {
             dir_page_blk_exp: 0,
         }
     }
-}
 
-impl DbConfigBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn block_size(mut self, block_size: usize) -> Self {
+    pub const fn block_size(mut self, block_size: usize) -> Self {
         self.block_size = block_size;
         self
     }
 
-    pub fn page_size(mut self, page_size: usize) -> Self {
+    pub const fn page_size(mut self, page_size: usize) -> Self {
         self.page_size = page_size;
         self
     }
 
-    pub fn block_sanity_size(mut self, block_sanity_size: usize) -> Self {
+    pub const fn block_sanity_size(mut self, block_sanity_size: usize) -> Self {
         self.block_sanity_size = block_sanity_size;
         self
     }
 
-    pub fn compressor_type(mut self, compressor_type: CompressorType) -> Self {
+    pub const fn compressor_type(mut self, compressor_type: CompressorType) -> Self {
         self.compressor_type = compressor_type;
         self
     }
 
-    pub fn leaf_page_blk_exp(mut self, leaf_page_blk_exp: u8) -> Self {
+    pub const fn leaf_page_blk_exp(mut self, leaf_page_blk_exp: u8) -> Self {
         self.leaf_page_blk_exp = leaf_page_blk_exp;
         self
     }
 
-    pub fn dir_page_blk_exp(mut self, dir_page_blk_exp: u8) -> Self {
+    pub const fn dir_page_blk_exp(mut self, dir_page_blk_exp: u8) -> Self {
         self.dir_page_blk_exp = dir_page_blk_exp;
         self
     }
 
-    pub fn build(self) -> DbConfig {
+    pub const fn build(self) -> DbConfig {
         DbConfig {
             block_size: self.block_size,
             page_size: self.page_size,

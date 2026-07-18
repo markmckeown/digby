@@ -101,26 +101,26 @@ impl Db {
         if let Some(k) = key {
             sanity_type = BlockSanity::Aes128Gcm;
             let sanity_bytes_used = BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm);
-            page_config = DbConfig {
-                block_size,
-                page_size: block_size - sanity_bytes_used,
-                block_sanity_size: sanity_bytes_used,
-                compressor_type,
-                leaf_page_blk_exp: 0,
-                dir_page_blk_exp: 0,
-            };
+            page_config = DbConfig::builder()
+                .block_size(block_size)
+                .page_size(block_size - sanity_bytes_used)
+                .block_sanity_size(sanity_bytes_used)
+                .compressor_type(compressor_type)
+                .leaf_page_blk_exp(0)
+                .dir_page_blk_exp(0)
+                .build();
             block_layer = PageContainerLayer::new_with_key(file_layer, page_config, k);
         } else {
             sanity_type = BlockSanity::XxH32Checksum;
             let sanity_bytes_used = BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum);
-            page_config = DbConfig {
-                block_size,
-                page_size: block_size - sanity_bytes_used,
-                block_sanity_size: sanity_bytes_used,
-                compressor_type,
-                leaf_page_blk_exp: 0,
-                dir_page_blk_exp: 0,
-            };
+            page_config = DbConfig::builder()
+                .block_size(block_size)
+                .page_size(block_size - sanity_bytes_used)
+                .block_sanity_size(sanity_bytes_used)
+                .compressor_type(compressor_type)
+                .leaf_page_blk_exp(0)
+                .dir_page_blk_exp(0)
+                .build();
             block_layer = PageContainerLayer::new(file_layer, page_config);
         }
         // Create page cache with the block layer.

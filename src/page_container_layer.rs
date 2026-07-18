@@ -160,14 +160,14 @@ mod tests {
     use crate::page::{Page, PageType};
     use tempfile::tempfile;
 
-    const PAGE_CONFIG: DbConfig = DbConfig {
-        block_size: 4096,
-        page_size: 4092,
-        block_sanity_size: 4,
-        compressor_type: crate::compressor::CompressorType::None,
-        leaf_page_blk_exp: 0,
-        dir_page_blk_exp: 0,
-    };
+    const PAGE_CONFIG: DbConfig = DbConfig::builder()
+        .block_size(4096)
+        .page_size(4092)
+        .block_sanity_size(4)
+        .compressor_type(crate::compressor::CompressorType::None)
+        .leaf_page_blk_exp(0)
+        .dir_page_blk_exp(0)
+        .build();
 
     #[test]
     fn test_block_layer_put_get() {
@@ -193,14 +193,14 @@ mod tests {
         let key = [0u8; 32].to_vec(); // Key for AES-128-GCM
         let mut block_layer = PageContainerLayer::new_with_key(
             file_layer,
-            DbConfig {
-                block_size: 4096,
-                page_size: 4096 - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
-                block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
-                compressor_type: crate::compressor::CompressorType::None,
-                leaf_page_blk_exp: 0,
-                dir_page_blk_exp: 0,
-            },
+            DbConfig::builder()
+                .block_size(4096)
+                .page_size(4096 - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm))
+                .block_sanity_size(BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm))
+                .compressor_type(crate::compressor::CompressorType::None)
+                .leaf_page_blk_exp(0)
+                .dir_page_blk_exp(0)
+                .build(),
             key,
         );
         let page_number = 0;
@@ -222,14 +222,14 @@ mod tests {
         let key = [0u8; 8].to_vec(); // Key for AES-128-GCM
         let mut block_layer = PageContainerLayer::new_with_key(
             file_layer,
-            DbConfig {
-                block_size: 4096,
-                page_size: 4096 - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
-                block_sanity_size: BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm),
-                compressor_type: crate::compressor::CompressorType::None,
-                leaf_page_blk_exp: 0,
-                dir_page_blk_exp: 0,
-            },
+            DbConfig::builder()
+                .block_size(4096)
+                .page_size(4096 - BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm))
+                .block_sanity_size(BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm))
+                .compressor_type(crate::compressor::CompressorType::None)
+                .leaf_page_blk_exp(0)
+                .dir_page_blk_exp(0)
+                .build(),
             key,
         );
         let page_number = 0;

@@ -1177,14 +1177,14 @@ mod tests {
 
     #[test]
     fn test_create_new() {
-        let page_config = DbConfig {
-            block_size: 1024,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1024)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_number().get_blk_offset(), 1);
         assert_eq!(dir_page.get_version(), 0);
@@ -1203,14 +1203,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Page type is not DirPage")]
     fn test_invalid_page() {
-        let page_config = DbConfig {
-            block_size: 1028,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1028)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = Page::new(page_config.block_size, page_config.page_size);
         leaf_page.set_type(PageType::LeafPage);
         let _dir_page = DirPage::from_page(leaf_page);
@@ -1219,14 +1219,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set left fence key on a page that already has entries.")]
     fn test_cannot_set_left_fence_after_adding_entries() {
-        let page_config = DbConfig {
-            block_size: 1028,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1028)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
@@ -1240,14 +1240,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set right fence key on a page that already has entries.")]
     fn test_cannot_set_right_fence_after_adding_entries() {
-        let page_config = DbConfig {
-            block_size: 1028,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1028)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         assert_eq!(dir_page.get_all_child_pages(), vec![]);
@@ -1263,14 +1263,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot split a page with fewer than 3 entries.")]
     fn test_cannot_split_page_with_less_than_3_entries() {
-        let page_config = DbConfig {
-            block_size: 1028,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1028)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
@@ -1291,14 +1291,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
     fn test_cannot_set_right_prefix_after_adding_entries() {
-        let page_config = DbConfig {
-            block_size: 1028,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1028)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
@@ -1312,14 +1312,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Prefix length cannot be larger than the right fence key size.")]
     fn test_prefix_larger_than_right_fence() {
-        let page_config = DbConfig {
-            block_size: 1028,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1028)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
@@ -1331,14 +1331,14 @@ mod tests {
 
     #[test]
     fn test_add_child_page() {
-        let page_config = DbConfig {
-            block_size: 1028,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1028)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
@@ -1362,14 +1362,14 @@ mod tests {
 
     #[test]
     fn test_add_child_page_reset_right_fence() {
-        let page_config = DbConfig {
-            block_size: 1024,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1024)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"key1";
         let key2 = b"key2";
@@ -1398,14 +1398,14 @@ mod tests {
 
     #[test]
     fn test_add_child_page_reset_left_fence() {
-        let page_config = DbConfig {
-            block_size: 1024,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1024)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"key2";
         let key2 = b"key3";
@@ -1435,14 +1435,14 @@ mod tests {
 
     #[test]
     fn test_reset_left_fence_full() {
-        let page_config = DbConfig {
-            block_size: 160,
-            page_size: 112,
-            block_sanity_size: 160 - 112,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(160)
+            .page_size(112)
+            .block_sanity_size(160 - 112)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
@@ -1464,14 +1464,14 @@ mod tests {
 
     #[test]
     fn test_add_left_fence_full() {
-        let page_config = DbConfig {
-            block_size: 160,
-            page_size: 112,
-            block_sanity_size: 160 - 112,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(160)
+            .page_size(112)
+            .block_sanity_size(160 - 112)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
@@ -1493,14 +1493,14 @@ mod tests {
 
     #[test]
     fn test_reset_right_fence_full() {
-        let page_config = DbConfig {
-            block_size: 160,
-            page_size: 112,
-            block_sanity_size: 160 - 112,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(160)
+            .page_size(112)
+            .block_sanity_size(160 - 112)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
@@ -1522,14 +1522,14 @@ mod tests {
 
     #[test]
     fn test_add_right_fence_full() {
-        let page_config = DbConfig {
-            block_size: 160,
-            page_size: 112,
-            block_sanity_size: 160 - 112,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(160)
+            .page_size(112)
+            .block_sanity_size(160 - 112)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
@@ -1551,14 +1551,14 @@ mod tests {
 
     #[test]
     fn test_get_next_page() {
-        let page_config = DbConfig {
-            block_size: 1024,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1024)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
 
         // Add left page.
@@ -1601,14 +1601,14 @@ mod tests {
 
     #[test]
     fn test_split_page() {
-        let page_config = DbConfig {
-            block_size: 1024,
-            page_size: 1024,
-            block_sanity_size: 0,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(1024)
+            .page_size(1024)
+            .block_sanity_size(0)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         for i in 0..20 {
             let key = (i as u64).to_le_bytes().to_vec();

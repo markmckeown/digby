@@ -1023,14 +1023,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Page type is not Leaf")]
     fn test_not_leaf_page() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4000,
-            block_sanity_size: 96,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4000)
+            .block_sanity_size(96)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut dir_page = Page::new(page_config.block_size, page_config.page_size);
         dir_page.set_type(PageType::DirPage);
         let _leaf_page = LeafPage::from_page(dir_page);
@@ -1038,14 +1038,14 @@ mod tests {
 
     #[test]
     fn test_split() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4000,
-            block_sanity_size: 96,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4000)
+            .block_sanity_size(96)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 23);
         assert_eq!(leaf_page.get_page_bytes().len(), 4000);
         assert_eq!(leaf_page.get_version(), 23);
@@ -1155,14 +1155,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set left fence key on a page that already has entries.")]
     fn test_set_left_fence_empty_page() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4000,
-            block_sanity_size: 96,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4000)
+            .block_sanity_size(96)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(LeafPage::get_entries_size(leaf_page.get_page()), 0);
         assert_eq!(leaf_page.get_left_key(), None);
@@ -1174,14 +1174,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set right fence key on a page that already has entries.")]
     fn test_set_right_fence_empty_page() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4000,
-            block_sanity_size: 96,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4000)
+            .block_sanity_size(96)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(LeafPage::get_entries_size(leaf_page.get_page()), 0);
         assert_eq!(leaf_page.get_left_key(), None);
@@ -1193,14 +1193,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
     fn test_set_prefix_empty_page() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4000,
-            block_sanity_size: 96,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4000)
+            .block_sanity_size(96)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
         assert!(leaf_page.add_tuple(&tuple_1).0);
@@ -1210,14 +1210,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Prefix length cannot be larger than the right fence key size.")]
     fn test_set_prefix_bad_fence() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4000,
-            block_sanity_size: 96,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4000)
+            .block_sanity_size(96)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         leaf_page.set_right_fence_key(b"left_fence");
         leaf_page.set_prefix_length(15);
@@ -1225,14 +1225,14 @@ mod tests {
 
     #[test]
     fn test_page_reset_left_fence_overflow() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 129,
-            block_sanity_size: 4096 - 129,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(129)
+            .block_sanity_size(4096 - 129)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
         let right_fence_key = b"aaaaaaaaaaaaaaz";
@@ -1251,14 +1251,14 @@ mod tests {
 
     #[test]
     fn test_add_page_reset_left_fence_overflow() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 129,
-            block_sanity_size: 4096 - 129,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(129)
+            .block_sanity_size(4096 - 129)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
         let right_fence_key = b"aaaaaaaaaaaaaaz";
@@ -1278,14 +1278,14 @@ mod tests {
 
     #[test]
     fn test_page_reset_right_fence_overflow() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 129,
-            block_sanity_size: 4096 - 129,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(129)
+            .block_sanity_size(4096 - 129)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
         let right_fence_key = b"aaaaaaaaaaaaaay";
@@ -1304,14 +1304,14 @@ mod tests {
 
     #[test]
     fn test_delete_out_of_range() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4000,
-            block_sanity_size: 96,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4000)
+            .block_sanity_size(96)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let left_fence_key = b"aaaaaaaaaaaaaaa";
         let right_fence_key = b"aaaaaaaaaaaaaay";
@@ -1330,14 +1330,14 @@ mod tests {
 
     #[test]
     fn test_multi_length_keys() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4000,
-            block_sanity_size: 96,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4000)
+            .block_sanity_size(96)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_1 = Tuple::new(b"a", b"a_value", 123);
         let tuple_2 = Tuple::new(b"aa", b"aa_value", 123);
@@ -1357,14 +1357,14 @@ mod tests {
 
     #[test]
     fn test_add_and_remove_tuple() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4000,
-            block_sanity_size: 96,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4000)
+            .block_sanity_size(96)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_a = Tuple::new(b"a", b"a_value", 123);
         let tuple_b = Tuple::new(b"b", b"b_value", 123);
@@ -1455,14 +1455,14 @@ mod tests {
 
     #[test]
     fn test_overwrite_tuple() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4000,
-            block_sanity_size: 96,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4000)
+            .block_sanity_size(96)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut leaf_page = LeafPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let tuple_a = Tuple::new(b"a", b"a_value", 123);
         let tuple_b = Tuple::new(b"b", b"b_value", 123);
@@ -1646,14 +1646,14 @@ mod tests {
 
     #[test]
     fn test_reset() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
 
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
         let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
@@ -1688,14 +1688,14 @@ mod tests {
     fn test_reset_no_prefix() {
         // Left most page - no prefix and no left fence.
         // No compression.
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
 
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
         let key2: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 2];
@@ -1725,14 +1725,14 @@ mod tests {
 
     #[test]
     fn test_reset_to_small_to_reset() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 125,
-            block_sanity_size: 4096 - 125,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(125)
+            .block_sanity_size(4096 - 125)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
 
         // Page is too small for the reset
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];
@@ -1767,14 +1767,14 @@ mod tests {
 
     #[test]
     fn test_reset_to_small_after_reset_to_add_tuple() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 129,
-            block_sanity_size: 4096 - 129,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(129)
+            .block_sanity_size(4096 - 129)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
 
         // Page is too small - it can be reset but not with the new tuple
         let key1: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 1];

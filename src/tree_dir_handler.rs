@@ -112,14 +112,14 @@ mod tests {
 
     #[test]
     fn test_add_1() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut tree_leaf_page = LeafPage::create_new(&page_config, PageNo::from_u64(0), 0);
         tree_leaf_page.set_page_number(PageNo::from_u64(21));
         let tuple: Tuple = Tuple::new(b"f".to_vec().as_ref(), b"f_value".to_vec().as_ref(), 345);

@@ -158,14 +158,14 @@ mod tests {
 
     #[test]
     fn test_create_new() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let root_page = DbRootPage::create_new(&page_config);
 
         assert_eq!(root_page.get_page_number().get_blk_offset(), 0);
@@ -177,14 +177,14 @@ mod tests {
 
     #[test]
     fn test_set_page_no() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut root_page = DbRootPage::create_new(&page_config);
 
         assert_eq!(root_page.get_page_number().get_blk_offset(), 0);
@@ -200,14 +200,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "DbRootPage must have page number 0")]
     fn test_set_page_no_bad_page_no() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut root_page = DbRootPage::create_new(&page_config);
 
         assert_eq!(root_page.get_page_number().get_blk_offset(), 0);
@@ -264,14 +264,14 @@ mod tests {
 
     #[test]
     fn test_setters_and_getters() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut root_page = DbRootPage::create_new(&page_config);
 
         root_page.set_sanity_type(BlockSanity::Aes128Gcm);

@@ -149,14 +149,14 @@ mod tests {
 
     #[test]
     fn test_create_new() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let overflow_page = OverflowPage::create_new(&page_config, PageNo::from_u64(334), 34);
         assert_eq!(overflow_page.get_page_number().to_u64(), 334);
         assert_eq!(overflow_page.get_version(), 34);

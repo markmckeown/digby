@@ -337,14 +337,14 @@ mod tests {
     use crate::db_config::DbConfig;
     use crate::page_no;
 
-    const DB_CONFIG: DbConfig = DbConfig {
-        block_size: 4096,
-        page_size: 4092,
-        block_sanity_size: 4,
-        compressor_type: crate::compressor::CompressorType::None,
-        leaf_page_blk_exp: 0,
-        dir_page_blk_exp: 0,
-    };
+    const DB_CONFIG: DbConfig = DbConfig::builder()
+        .block_size(4096)
+        .page_size(4092)
+        .block_sanity_size(4)
+        .compressor_type(crate::compressor::CompressorType::None)
+        .leaf_page_blk_exp(0)
+        .dir_page_blk_exp(0)
+        .build();
 
     #[test]
     fn test_root_is_leaf_add_1() {

@@ -197,14 +197,14 @@ mod tests {
 
     #[test]
     fn test_small_tuple_split_page() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let version = 0;
 
         let mut tree_leaf_page: LeafPage =
@@ -241,14 +241,14 @@ mod tests {
     // In this test we overwrite the same key twice.
     #[test]
     fn test_over_write_big_tuples() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 1);
         let mut new_version = 2;
         let mut tuple: Tuple;
@@ -273,14 +273,14 @@ mod tests {
 
     #[test]
     fn test_add_big_tuples() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
         tree_leaf_page.set_version(version + 1);
@@ -307,14 +307,14 @@ mod tests {
 
     #[test]
     fn test_add_small_large_large() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
         tree_leaf_page.set_version(version + 1);
@@ -346,14 +346,14 @@ mod tests {
 
     #[test]
     fn test_add_large_small_large() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
         let mut new_version = version;
@@ -384,14 +384,14 @@ mod tests {
 
     #[test]
     fn test_add_small_large_large_reverse() {
-        let page_config = DbConfig {
-            block_size: 4096,
-            page_size: 4092,
-            block_sanity_size: 4,
-            compressor_type: crate::compressor::CompressorType::None,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
-        };
+        let page_config = DbConfig::builder()
+            .block_size(4096)
+            .page_size(4092)
+            .block_sanity_size(4)
+            .compressor_type(crate::compressor::CompressorType::None)
+            .leaf_page_blk_exp(0)
+            .dir_page_blk_exp(0)
+            .build();
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
         tree_leaf_page.set_version(version + 1);
