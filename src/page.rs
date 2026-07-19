@@ -95,7 +95,7 @@ impl Page {
     pub fn new(block_size: usize, page_size: usize) -> Self {
         Page {
             bytes: vec![0u8; block_size],
-            page_size: page_size,
+            page_size,
         }
     }
 
