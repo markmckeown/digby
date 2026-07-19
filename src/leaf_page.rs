@@ -114,21 +114,19 @@ impl LeafPage {
     const SLOT_SIZE: usize = 5; // 2 (offset) + 1 (key_len) + 2 (val_len)
 
     pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
-        LeafPage::new(
-            page_config.block_size,
-            page_config.page_size,
-            page_number,
-            version,
-        )
-    }
-
-    fn new(block_size: usize, page_size: usize, page_number: PageNo, version: u64) -> Self {
-        let mut page = Page::new(block_size, page_size);
+        if page_number.get_blk_offset() != 0 {
+            assert!(
+                page_number.get_blk_cnt() == page_config.get_leaf_page_blk_cnt(),
+                "LeafPage page number has wrong block count."
+            );
+        }
+        let mut page = Page::create_new(page_config, page_config.get_leaf_page_blk_cnt());
         page.set_type(PageType::LeafPage);
         page.set_page_number(page_number);
         page.set_version(version);
         let mut leaf_page = LeafPage { page };
-        leaf_page.set_free_space(page_size as u16 - LeafPage::HEADER_SIZE as u16);
+        leaf_page
+            .set_free_space(leaf_page.page.get_pg_size() as u16 - LeafPage::HEADER_SIZE as u16);
         leaf_page.set_entries_size(0);
         leaf_page.clear_left_fence_key();
         leaf_page.clear_right_fence_key();
@@ -628,7 +626,11 @@ impl LeafPage {
         tuples
     }
 
-    fn split_page_1(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
+    fn split_page_1(
+        &self,
+        db_config: &DbConfig,
+        version: u64,
+    ) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         // First page - no left or right pages. This means no
         // prefix, no right fence key and no left fence key.
         // When split the page on the left will have not have a left fence but will
@@ -638,16 +640,11 @@ impl LeafPage {
             Self::get_key_prefix(&self.page).is_empty(),
             "BUG: Page has a prefix when splitting page with no fences."
         );
-        let mut left_page = LeafPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            self.page.get_page_number(),
-            version,
-        );
-        let mut right_page = LeafPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            PageNo::from_u64(0),
+        let page_no = self.page.get_page_number();
+        let mut left_page = LeafPage::create_new(db_config, page_no, version);
+        let mut right_page = LeafPage::create_new(
+            db_config,
+            PageNo::new(page_no.get_blk_cnt_exp(), 0),
             version,
         );
 
@@ -675,23 +672,22 @@ impl LeafPage {
         (left_page, right_page, Some(split_key))
     }
 
-    fn split_page_2(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
+    fn split_page_2(
+        &self,
+        db_config: &DbConfig,
+        version: u64,
+    ) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         // Left Page - has right fence but no left fence. This means no prefix
         // and a right fence key.
         assert!(
             Self::get_key_prefix(&self.page).is_empty(),
             "BUG: Page has a prefix when splitting page with only a right fence."
         );
-        let mut left_page = LeafPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            self.page.get_page_number(),
-            version,
-        );
-        let mut right_page = LeafPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            PageNo::from_u64(0),
+        let page_no = self.page.get_page_number();
+        let mut left_page = LeafPage::create_new(db_config, page_no, version);
+        let mut right_page = LeafPage::create_new(
+            db_config,
+            PageNo::new(page_no.get_blk_cnt_exp(), 0),
             version,
         );
 
@@ -727,19 +723,17 @@ impl LeafPage {
         (left_page, right_page, Some(split_key))
     }
 
-    fn split_page_3(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
+    fn split_page_3(
+        &self,
+        db_config: &DbConfig,
+        version: u64,
+    ) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         // Right Page - has left fence but no right fence. This means no prefix
         // and no right fence key.
-        let mut left_page = LeafPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            self.page.get_page_number(),
-            version,
-        );
-        let mut right_page = LeafPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            PageNo::from_u64(0),
+        let mut left_page = LeafPage::create_new(db_config, self.page.get_page_number(), version);
+        let mut right_page = LeafPage::create_new(
+            db_config,
+            PageNo::new(self.page.get_page_number().get_blk_cnt_exp(), 0),
             version,
         );
 
@@ -778,19 +772,17 @@ impl LeafPage {
         (left_page, right_page, Some(split_key))
     }
 
-    fn split_page_4(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
+    fn split_page_4(
+        &self,
+        db_config: &DbConfig,
+        version: u64,
+    ) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         // Center Page - has right and left fence and also a Prefix.
         // This means we need to calculate the new prefix length for the left and right pages after the split.
-        let mut left_page = LeafPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            self.page.get_page_number(),
-            version,
-        );
-        let mut right_page = LeafPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            PageNo::from_u64(0),
+        let mut left_page = LeafPage::create_new(db_config, self.page.get_page_number(), version);
+        let mut right_page = LeafPage::create_new(
+            db_config,
+            PageNo::new(self.page.get_page_number().get_blk_cnt_exp(), 0),
             version,
         );
 
@@ -836,17 +828,15 @@ impl LeafPage {
         (left_page, right_page, Some(split_key))
     }
 
-    fn split_page_low_entry_count(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
-        let mut left_page = LeafPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            self.page.get_page_number(),
-            version,
-        );
-        let mut right_page = LeafPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            PageNo::from_u64(0),
+    fn split_page_low_entry_count(
+        &self,
+        db_config: &DbConfig,
+        version: u64,
+    ) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
+        let mut left_page = LeafPage::create_new(db_config, self.page.get_page_number(), version);
+        let mut right_page = LeafPage::create_new(
+            db_config,
+            PageNo::new(self.page.get_page_number().get_blk_cnt_exp(), 0),
             version,
         );
 
@@ -870,13 +860,17 @@ impl LeafPage {
         (left_page, right_page, left_key)
     }
 
-    pub fn split_page(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
+    pub fn split_page(
+        &self,
+        db_config: &DbConfig,
+        version: u64,
+    ) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         let entries = Self::get_entries_size(&self.page);
         assert!(entries > 0, "Page must have at least one entry to split.");
 
         // Handle low entry count tables separately
         if entries <= 2 {
-            return self.split_page_low_entry_count(version);
+            return self.split_page_low_entry_count(db_config, version);
         }
 
         // First page - no left or right pages.
@@ -884,21 +878,21 @@ impl LeafPage {
             // There will be no prefix. When the page is split the
             // there will be a Left Page and a Right neither will
             // have a prefix.
-            return self.split_page_1(version);
+            return self.split_page_1(db_config, version);
         }
 
         // Left Page - has right fence but no left fence.
         if !Self::has_left_fence(&self.page) {
-            return self.split_page_2(version);
+            return self.split_page_2(db_config, version);
         }
 
         // Right Page - has left fence but no right fence.
         if !Self::has_right_fence(&self.page) {
-            return self.split_page_3(version);
+            return self.split_page_3(db_config, version);
         }
 
         // Center Page - has both left and right fences.
-        self.split_page_4(version)
+        self.split_page_4(db_config, version)
     }
 
     pub fn tail_compress_key(last_key: &[u8], mid_key: &[u8]) -> Vec<u8> {
@@ -1068,7 +1062,7 @@ mod tests {
         assert!(!LeafPage::has_right_fence(leaf_page.get_page()));
         assert!(!LeafPage::has_left_fence(leaf_page.get_page()));
 
-        let (mut left_page, mut right_page, _) = leaf_page.split_page(0);
+        let (mut left_page, mut right_page, _) = leaf_page.split_page(&page_config, 0);
         assert_eq!(LeafPage::get_entries_size(right_page.get_page()), 10);
         assert_eq!(LeafPage::get_entries_size(left_page.get_page()), 10);
         assert!(LeafPage::has_right_fence(left_page.get_page()));
@@ -1092,7 +1086,7 @@ mod tests {
             );
         }
 
-        let (mut left_page1, mut left_page2, _) = left_page.split_page(0);
+        let (mut left_page1, mut left_page2, _) = left_page.split_page(&page_config, 0);
         assert_eq!(LeafPage::get_entries_size(left_page1.get_page()), 5);
         assert_eq!(LeafPage::get_entries_size(left_page2.get_page()), 5);
         for i in 0..5 {
@@ -1111,7 +1105,7 @@ mod tests {
                     .equals(tuples.get(i).unwrap())
             );
         }
-        let (mut right_page1, mut right_page2, _) = right_page.split_page(0);
+        let (mut right_page1, mut right_page2, _) = right_page.split_page(&page_config, 0);
         assert_eq!(LeafPage::get_entries_size(right_page1.get_page()), 5);
         assert_eq!(LeafPage::get_entries_size(right_page2.get_page()), 5);
         for i in 10..15 {

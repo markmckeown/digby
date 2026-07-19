@@ -16,6 +16,10 @@ impl DbConfig {
     pub const fn builder() -> DbConfigBuilder {
         DbConfigBuilder::new()
     }
+
+    pub const fn get_leaf_page_blk_cnt(&self) -> u64 {
+        1 << self.leaf_page_blk_exp
+    }
 }
 
 #[derive(Clone, Debug)]

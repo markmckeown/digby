@@ -44,7 +44,7 @@ impl StoreTupleProcessor {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
-        _db_config: &DbConfig,
+        db_config: &DbConfig,
     ) -> u64 {
         // Special case if the first page is a leaf page.
         if first.get_type() == PageType::LeafPage {
@@ -56,6 +56,7 @@ impl StoreTupleProcessor {
                 free_page_tracker,
                 page_cache,
                 new_version,
+                db_config,
             );
         }
 
@@ -69,6 +70,7 @@ impl StoreTupleProcessor {
             free_page_tracker,
             page_cache,
             new_version,
+            db_config,
         )
     }
 
@@ -85,6 +87,7 @@ impl StoreTupleProcessor {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
+        db_config: &DbConfig,
     ) -> u64 {
         let mut dir_page = root_dir_page;
         // This is the stack for storing the tree dir as we descend into
@@ -115,7 +118,7 @@ impl StoreTupleProcessor {
         // Now have a leaf_page and a stack of dir pages.
         // Add to leaf page, remap leaf page or leaf pages if it split.
         // A leaf page can split into three depending on the size of tuples it holds.
-        let update_result = LeafPageHandler::add_tuple(leaf_page, tuple);
+        let update_result = LeafPageHandler::add_tuple(db_config, leaf_page, tuple);
 
         // Clean up any overflow pages that may bave now be dangling if a tuple
         // was overwritten. The method add_tuple will return any tuple that
@@ -272,9 +275,10 @@ impl StoreTupleProcessor {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
+        db_config: &DbConfig,
     ) -> u64 {
         // Add the tuple to the leaf page.
-        let mut update_result = LeafPageHandler::add_tuple(tree_root_single, tuple);
+        let mut update_result = LeafPageHandler::add_tuple(db_config, tree_root_single, tuple);
 
         // Clean up any overflow pages that may now be dangling if a tuple was overwritten
         OverflowPageHandler::delete_overflow_tuple_pages(

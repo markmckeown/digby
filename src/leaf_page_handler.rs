@@ -1,3 +1,4 @@
+use crate::db_config::DbConfig;
 use crate::free_page_tracker::FreePageTracker;
 use crate::leaf_page::LeafPage;
 use crate::page::PageTrait;
@@ -42,13 +43,13 @@ impl LeafPageHandler {
     // parent directory for the pages.
     //
     // This method is a wrapper around add_to_leaf_page.
-    pub fn add_tuple(page: LeafPage, tuple: Tuple) -> UpdateResult {
+    pub fn add_tuple(db_config: &DbConfig, page: LeafPage, tuple: Tuple) -> UpdateResult {
         let mut pages: Vec<(LeafPage, Option<Vec<u8>>)> = Vec::new();
         pages.push((page, None));
         // Pass in the page as an entry in a list, this allows the function
         // LeafPageHandler::add_to_leaf_page to be called recursively if
         // pages need to be split.
-        let deleted_tuple = LeafPageHandler::add_to_leaf_page(tuple, &mut pages);
+        let deleted_tuple = LeafPageHandler::add_to_leaf_page(db_config, tuple, &mut pages);
         UpdateResult {
             tree_leaf_pages: pages,
             deleted_tuple,
@@ -70,6 +71,7 @@ impl LeafPageHandler {
     //
     // If a tuple is replaced then the original tuple is returned.
     fn add_to_leaf_page(
+        db_config: &DbConfig,
         tuple: Tuple,
         leaf_page_stack: &mut Vec<(LeafPage, Option<Vec<u8>>)>,
     ) -> Option<Tuple> {
@@ -89,7 +91,7 @@ impl LeafPageHandler {
         // The optional_left_key is the left most key of the right_page, if the right_page
         // is empty then it will be None.
         // Pass in a version of '0' - this will be overwritten later.
-        let (mut left_page, mut right_page, optional_left_key) = page.split_page(0);
+        let (mut left_page, mut right_page, optional_left_key) = page.split_page(db_config, 0);
 
         // The original page is replaced with the left page, this will have the
         // left most key of the original page. On first call this left most key will be None
@@ -133,7 +135,8 @@ impl LeafPageHandler {
                 // as the last page it will be split again.
                 leaf_page_stack.push((right_page, Some(left_key)));
                 leaf_page_stack.push((left_page, copy_page_left_key));
-                let empty_tuple = LeafPageHandler::add_to_leaf_page(tuple, leaf_page_stack);
+                let empty_tuple =
+                    LeafPageHandler::add_to_leaf_page(db_config, tuple, leaf_page_stack);
                 assert!(
                     empty_tuple.is_none(),
                     "Second call to add tuple should not delete tuple"
@@ -153,7 +156,8 @@ impl LeafPageHandler {
                 // it will be split again.
                 leaf_page_stack.push((left_page, copy_page_left_key));
                 leaf_page_stack.push((right_page, Some(left_key)));
-                let empty_tuple = LeafPageHandler::add_to_leaf_page(tuple, leaf_page_stack);
+                let empty_tuple =
+                    LeafPageHandler::add_to_leaf_page(db_config, tuple, leaf_page_stack);
                 assert!(
                     empty_tuple.is_none(),
                     "Second call to add tuple should not delete tuple"
@@ -202,8 +206,6 @@ mod tests {
             .page_size(4092)
             .block_sanity_size(4)
             .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
         let version = 0;
 
@@ -224,7 +226,7 @@ mod tests {
                 new_version,
             );
 
-            pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
+            pages = LeafPageHandler::add_tuple(&page_config, tree_leaf_page, tuple);
             if pages.tree_leaf_pages.len() > 1 {
                 break;
             }
@@ -264,7 +266,7 @@ mod tests {
                 new_version,
             );
 
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
+            let mut pages = LeafPageHandler::add_tuple(&page_config, tree_leaf_page, tuple);
             tree_leaf_page_count = pages.tree_leaf_pages.len();
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap().0;
         }
@@ -298,7 +300,7 @@ mod tests {
                 new_version,
             );
 
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
+            let mut pages = LeafPageHandler::add_tuple(&page_config, tree_leaf_page, tuple);
             tree_leaf_page_count = pages.tree_leaf_pages.len();
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap().0;
         }
@@ -312,8 +314,6 @@ mod tests {
             .page_size(4092)
             .block_sanity_size(4)
             .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
         let version = 0;
         let mut tree_leaf_page: LeafPage = LeafPage::create_new(&page_config, PageNo::new(0, 0), 0);
@@ -337,7 +337,7 @@ mod tests {
                 value.as_ref(),
                 new_version,
             );
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
+            let mut pages = LeafPageHandler::add_tuple(&page_config, tree_leaf_page, tuple);
             tree_leaf_page_count = pages.tree_leaf_pages.len();
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap().0;
         }
@@ -375,7 +375,7 @@ mod tests {
                 new_version,
             );
 
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
+            let mut pages = LeafPageHandler::add_tuple(&page_config, tree_leaf_page, tuple);
             tree_leaf_page_count = pages.tree_leaf_pages.len();
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap().0;
         }
@@ -415,7 +415,7 @@ mod tests {
                 value.as_ref(),
                 new_version,
             );
-            let mut pages = LeafPageHandler::add_tuple(tree_leaf_page, tuple);
+            let mut pages = LeafPageHandler::add_tuple(&page_config, tree_leaf_page, tuple);
             tree_leaf_page_count = pages.tree_leaf_pages.len();
             tree_leaf_page = pages.tree_leaf_pages.pop().unwrap().0;
         }

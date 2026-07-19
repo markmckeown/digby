@@ -50,6 +50,10 @@ impl PageNo {
         1 << (self.0 >> 56)
     }
 
+    pub fn get_blk_cnt_exp(&self) -> u8 {
+        (self.0 >> 56) as u8
+    }
+
     pub fn get_pg_blk_size(&self, block_size: usize) -> usize {
         block_size * self.get_blk_cnt() as usize
     }
