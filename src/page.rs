@@ -52,21 +52,21 @@ pub trait PageTrait {
 
 // | Page No (u64) | VersionHolder (8 bytes) | Body | )
 pub struct Page {
-    bytes: Vec<u8>,
+    pg_ctr_bytes: Vec<u8>,
     page_size: usize,
 }
 
 impl PageTrait for Page {
     fn get_page_bytes(&self) -> &[u8] {
-        &self.bytes[0..self.page_size]
+        &self.pg_ctr_bytes[0..self.page_size]
     }
 
     fn get_page_number(&self) -> PageNo {
-        PageNo::from_bytes(&self.bytes[0..8])
+        PageNo::from_bytes(&self.pg_ctr_bytes[0..8])
     }
 
     fn set_page_number(&mut self, page_no: PageNo) {
-        self.bytes[0..8].copy_from_slice(page_no.get_bytes().as_slice());
+        self.pg_ctr_bytes[0..8].copy_from_slice(page_no.get_bytes().as_slice());
     }
 
     fn get_page(&mut self) -> &mut Page {
@@ -74,13 +74,13 @@ impl PageTrait for Page {
     }
 
     fn get_version(&self) -> u64 {
-        VersionHolder::from_bytes(&self.bytes[8..8 + 8]).get_version()
+        VersionHolder::from_bytes(&self.pg_ctr_bytes[8..8 + 8]).get_version()
     }
 
     fn set_version(&mut self, version: u64) {
-        let mut version_holder = VersionHolder::from_bytes(&self.bytes[8..8 + 8]);
+        let mut version_holder = VersionHolder::from_bytes(&self.pg_ctr_bytes[8..8 + 8]);
         version_holder.set_version(version);
-        self.bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
+        self.pg_ctr_bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
     }
 }
 
@@ -88,42 +88,43 @@ impl Page {
     pub fn create_new(page_meta: &DbConfig, blk_cnt: u64) -> Self {
         let buffer_size = page_meta.block_size * blk_cnt as usize;
         Page {
-            bytes: vec![0u8; buffer_size],
+            pg_ctr_bytes: vec![0u8; buffer_size],
             page_size: buffer_size - page_meta.block_sanity_size,
         }
     }
 
     pub fn new(block_size: usize, page_size: usize) -> Self {
         Page {
-            bytes: vec![0u8; block_size],
+            pg_ctr_bytes: vec![0u8; block_size],
             page_size,
         }
     }
 
     pub fn get_page_bytes_mut(&mut self) -> &mut [u8] {
-        &mut self.bytes[0..self.page_size]
+        &mut self.pg_ctr_bytes[0..self.page_size]
     }
 
-    pub fn get_block_bytes(&self) -> &[u8] {
-        &self.bytes
+    pub fn get_pg_ctr_bytes(&self) -> &[u8] {
+        &self.pg_ctr_bytes
     }
 
-    pub fn get_block_bytes_mut(&mut self) -> &mut [u8] {
-        &mut self.bytes
+    pub fn get_pg_ctr_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.pg_ctr_bytes
     }
 
     pub fn get_type(&self) -> PageType {
-        PageType::try_from(VersionHolder::from_bytes(&self.bytes[8..8 + 8]).get_flags()).unwrap()
+        PageType::try_from(VersionHolder::from_bytes(&self.pg_ctr_bytes[8..8 + 8]).get_flags())
+            .unwrap()
     }
 
     pub fn set_type(&mut self, page_type: PageType) {
-        let mut version_holder = VersionHolder::from_bytes(&self.bytes[8..8 + 8]);
+        let mut version_holder = VersionHolder::from_bytes(&self.pg_ctr_bytes[8..8 + 8]);
         version_holder.set_flags(page_type as u8);
-        self.bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
+        self.pg_ctr_bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
     }
 
     pub fn replace_bytes(&mut self, new_bytes: Vec<u8>) {
-        self.bytes = new_bytes;
+        self.pg_ctr_bytes = new_bytes;
     }
 }
 

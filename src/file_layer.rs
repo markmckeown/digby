@@ -41,7 +41,7 @@ impl FileLayer {
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for append_new_page");
         self.file
-            .write_all(page.get_block_bytes())
+            .write_all(page.get_pg_ctr_bytes())
             .expect("Failed to write for append_new_page");
         self.block_count += pg_blk_count;
     }
@@ -55,7 +55,7 @@ impl FileLayer {
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for write_page_to_disk");
         self.file
-            .write_all(page.get_block_bytes())
+            .write_all(page.get_pg_ctr_bytes())
             .expect("Failed to write for write_page_to_disk");
         Ok(())
     }
@@ -75,7 +75,7 @@ impl FileLayer {
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for read");
         self.file
-            .read_exact(page.get_block_bytes_mut())
+            .read_exact(page.get_pg_ctr_bytes_mut())
             .expect("Failed to read");
         Ok(())
     }
@@ -110,7 +110,7 @@ mod tests {
             .take(BLOCK_SIZE)
             .map(char::from)
             .collect();
-        page.get_block_bytes_mut()
+        page.get_pg_ctr_bytes_mut()
             .copy_from_slice(test_data.as_bytes()); // Fill the page with test data
 
         // Write the page to disk
@@ -125,7 +125,7 @@ mod tests {
             .expect("Failed to read page");
 
         // Verify that the read data matches the written data
-        assert_eq!(page.get_block_bytes(), read_page.get_block_bytes());
+        assert_eq!(page.get_pg_ctr_bytes(), read_page.get_pg_ctr_bytes());
     }
 
     #[test]
@@ -140,7 +140,7 @@ mod tests {
             .take(BLOCK_SIZE)
             .map(char::from)
             .collect();
-        page.get_block_bytes_mut()
+        page.get_pg_ctr_bytes_mut()
             .copy_from_slice(test_data.as_bytes()); // Fill the page with test data
 
         // Write the page to disk

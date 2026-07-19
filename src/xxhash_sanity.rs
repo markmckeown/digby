@@ -10,8 +10,8 @@ pub struct XxHashSanity {}
 impl XxHashSanity {
     pub fn set_checksum(page: &mut Page) {
         let checksum = xxh32(&page.get_page_bytes()[0..], 0);
-        let offset = page.get_block_bytes().len() as u64 - 4;
-        let mut cursor = Cursor::new(page.get_block_bytes_mut());
+        let offset = page.get_pg_ctr_bytes().len() as u64 - 4;
+        let mut cursor = Cursor::new(page.get_pg_ctr_bytes_mut());
         cursor.set_position(offset);
         cursor
             .write_u32::<LittleEndian>(checksum)
@@ -20,8 +20,8 @@ impl XxHashSanity {
 
     pub fn verify_checksum(page: &Page) {
         let calculated_checksum = xxh32(&page.get_page_bytes()[0..], 0);
-        let offset = page.get_block_bytes().len() as u64 - 4;
-        let mut cursor = std::io::Cursor::new(page.get_block_bytes());
+        let offset = page.get_pg_ctr_bytes().len() as u64 - 4;
+        let mut cursor = std::io::Cursor::new(page.get_pg_ctr_bytes());
         cursor.set_position(offset);
         let stored_checksum = cursor.read_u32::<LittleEndian>().unwrap();
         assert!(

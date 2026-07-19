@@ -708,13 +708,13 @@ impl DirPage {
         // When split the new page on the right will have a left fence
         // but no right fence. Both pages will have no prefix.
         let mut left_page = DirPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             PageNo::from_u64(0),
             version,
@@ -757,13 +757,13 @@ impl DirPage {
         // New page to the right will have a left fence which is the mid key and the right of the
         // current page. The new right page will have a prefix.
         let mut left_page = DirPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             PageNo::from_u64(0),
             version,
@@ -814,13 +814,13 @@ impl DirPage {
         // New page to the left will have a left fence and right fence with a prefix.
         // New page to the right will have a left fence and no right fence and no prefix.
         let mut left_page = DirPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             PageNo::from_u64(0),
             version,
@@ -869,13 +869,13 @@ impl DirPage {
         // Center Page - has right and left fence and also a prefix.
         // This means we need to calculate the new prefix length for the left and right pages after the split.
         let mut left_page = DirPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = DirPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             PageNo::from_u64(0),
             version,

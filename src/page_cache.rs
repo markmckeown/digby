@@ -45,8 +45,8 @@ impl PageCache {
                 let mut page_copy =
                     Page::create_new(self.get_page_config(), page_number.get_blk_cnt());
                 page_copy
-                    .get_block_bytes_mut()
-                    .copy_from_slice(page.get_block_bytes());
+                    .get_pg_ctr_bytes_mut()
+                    .copy_from_slice(page.get_pg_ctr_bytes());
                 page_copy
             }
             None => {
@@ -54,8 +54,8 @@ impl PageCache {
                 let mut page_for_cache =
                     Page::create_new(self.get_page_config(), page_number.get_blk_cnt());
                 page_for_cache
-                    .get_block_bytes_mut()
-                    .copy_from_slice(page.get_block_bytes());
+                    .get_pg_ctr_bytes_mut()
+                    .copy_from_slice(page.get_pg_ctr_bytes());
                 self.add_page_to_cache(page_number, page_for_cache);
                 page
             }
@@ -92,8 +92,8 @@ impl PageCache {
         let mut page_for_cache =
             Page::create_new(self.get_page_config(), page.get_page_number().get_blk_cnt());
         page_for_cache
-            .get_block_bytes_mut()
-            .copy_from_slice(page.get_block_bytes());
+            .get_pg_ctr_bytes_mut()
+            .copy_from_slice(page.get_pg_ctr_bytes());
         self.block_layer.write_page(page, page_no);
         self.add_page_to_cache(page_no, page_for_cache);
     }

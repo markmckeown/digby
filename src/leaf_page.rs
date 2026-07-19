@@ -639,13 +639,13 @@ impl LeafPage {
             "BUG: Page has a prefix when splitting page with no fences."
         );
         let mut left_page = LeafPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             PageNo::from_u64(0),
             version,
@@ -683,13 +683,13 @@ impl LeafPage {
             "BUG: Page has a prefix when splitting page with only a right fence."
         );
         let mut left_page = LeafPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             PageNo::from_u64(0),
             version,
@@ -731,13 +731,13 @@ impl LeafPage {
         // Right Page - has left fence but no right fence. This means no prefix
         // and no right fence key.
         let mut left_page = LeafPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             PageNo::from_u64(0),
             version,
@@ -782,13 +782,13 @@ impl LeafPage {
         // Center Page - has right and left fence and also a Prefix.
         // This means we need to calculate the new prefix length for the left and right pages after the split.
         let mut left_page = LeafPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             PageNo::from_u64(0),
             version,
@@ -838,13 +838,13 @@ impl LeafPage {
 
     fn split_page_low_entry_count(&self, version: u64) -> (LeafPage, LeafPage, Option<Vec<u8>>) {
         let mut left_page = LeafPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             self.page.get_page_number(),
             version,
         );
         let mut right_page = LeafPage::new(
-            self.page.get_block_bytes().len(),
+            self.page.get_pg_ctr_bytes().len(),
             self.get_pg_size(),
             PageNo::from_u64(0),
             version,

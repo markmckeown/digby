@@ -20,7 +20,7 @@ pub struct Aes128GcmSanity {}
 impl Aes128GcmSanity {
     pub fn encrypt_page(page: &mut Page, input_key: &Vec<u8>) {
         assert!(input_key.len() == 16, "Key is incorrect size");
-        let block_size = page.get_block_bytes().len();
+        let block_size = page.get_pg_ctr_bytes().len();
         let key: &Key<Aes128Gcm> = input_key.as_slice().into();
         let cipher = Aes128Gcm::new(key);
         let nonce = Aes128Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per run.
@@ -29,20 +29,20 @@ impl Aes128GcmSanity {
             .encrypt(&nonce, page.get_page_bytes())
             .expect("Failed to encrypt page");
         // Copy the encrypted bytes back into the page followed by the nonce.
-        page.get_block_bytes_mut()[0..block_size - 12].copy_from_slice(&encrypted_page_bytes);
-        page.get_block_bytes_mut()[block_size - 12..block_size].copy_from_slice(&nonce);
+        page.get_pg_ctr_bytes_mut()[0..block_size - 12].copy_from_slice(&encrypted_page_bytes);
+        page.get_pg_ctr_bytes_mut()[block_size - 12..block_size].copy_from_slice(&nonce);
     }
 
     pub fn decrypt_page(page: &mut Page, input_key: &Vec<u8>) {
         assert!(input_key.len() == 16, "Key is incorrect size");
-        let block_size = page.get_block_bytes().len();
+        let block_size = page.get_pg_ctr_bytes().len();
         let key: &Key<Aes128Gcm> = input_key.as_slice().into();
         let cipher = Aes128Gcm::new(key);
-        let nonce: &Nonce<U12> = (&page.get_block_bytes()[block_size - 12..block_size]).into();
-        let plaintext = cipher.decrypt(nonce, &page.get_block_bytes()[0..block_size - 12]);
+        let nonce: &Nonce<U12> = (&page.get_pg_ctr_bytes()[block_size - 12..block_size]).into();
+        let plaintext = cipher.decrypt(nonce, &page.get_pg_ctr_bytes()[0..block_size - 12]);
         let mut plaintext = plaintext.expect("Failed to decrypt page");
         // Pad the plaintext to the block size if necessary
-        plaintext.resize(page.get_block_bytes().len(), 0);
+        plaintext.resize(page.get_pg_ctr_bytes().len(), 0);
         // Copy the unencrypted bytes back into the page.
         page.replace_bytes(plaintext);
     }
