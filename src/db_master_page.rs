@@ -47,17 +47,13 @@ impl DbMasterPage {
             page_number.get_blk_offset() == 1 || page_number.get_blk_offset() == 2,
             "DbMasterPage must have page number 1 or 2"
         );
-        DbMasterPage::new(
-            page_config.block_size,
-            page_config.page_size,
-            page_number,
-            version,
-        )
-    }
+        assert!(
+            page_number.get_blk_cnt() == 1,
+            "DbMasterPage block count must be 1."
+        );
 
-    fn new(block_size: usize, page_size: usize, page_number: PageNo, version: u64) -> Self {
         let mut head_page = DbMasterPage {
-            page: Page::new(block_size, page_size),
+            page: Page::create_new(page_config, 1),
         };
         head_page.page.set_type(PageType::DbMaster);
         head_page.page.set_page_number(page_number);
@@ -123,9 +119,16 @@ impl DbMasterPage {
 mod tests {
     use super::*;
 
+    const DB_CONFIG: DbConfig = DbConfig::builder()
+        .block_size(4096)
+        .compressor_type(crate::compressor::CompressorType::None)
+        .leaf_page_blk_exp(0)
+        .dir_page_blk_exp(0)
+        .build();
+
     #[test]
     fn test_head_page() {
-        let mut master_page = DbMasterPage::new(4096, 4092, PageNo::from_u64(0), 1);
+        let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::from_u64(1), 1);
         assert_eq!(master_page.get_version(), 1);
         master_page.set_version(2);
         assert_eq!(master_page.get_version(), 2);
@@ -206,7 +209,7 @@ mod tests {
 
     #[test]
     fn test_flip_page_number() {
-        let mut master_page = DbMasterPage::new(4096, 4092, PageNo::from_u64(1), 1);
+        let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::from_u64(1), 1);
         master_page.flip_page_number();
         assert_eq!(master_page.get_page_number().get_blk_offset(), 2);
 
