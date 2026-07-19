@@ -44,17 +44,8 @@ impl OverflowPage {
     const HEADER_SIZE: usize = 26;
 
     pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
-        OverflowPage::new(
-            page_config.block_size,
-            page_config.page_size,
-            page_number,
-            version,
-        )
-    }
-
-    fn new(block_size: usize, page_size: usize, page_number: PageNo, version: u64) -> Self {
         let mut overflow_page = OverflowPage {
-            page: Page::new(block_size, page_size),
+            page: Page::create_new(page_config, page_number.get_blk_cnt()),
         };
         overflow_page.page.set_type(crate::page::PageType::Overflow);
         overflow_page.page.set_page_number(page_number);
@@ -121,10 +112,14 @@ impl OverflowPage {
 mod tests {
     use super::*;
 
+    const DB_CONFIG: DbConfig = DbConfig::builder()
+        .block_size(4096)
+        .compressor_type(crate::compressor::CompressorType::None)
+        .build();
+
     #[test]
     fn test_adding_bytes() {
-        let page_size = 4096;
-        let mut page = OverflowPage::new(page_size, page_size, PageNo::from_u64(334), 34);
+        let mut page = OverflowPage::create_new(&DB_CONFIG, PageNo::from_u64(334), 34);
         let buffer = b"This is a big buffer".to_vec();
 
         page.add_bytes(buffer[0..4].as_ref(), 4);
@@ -142,7 +137,7 @@ mod tests {
     #[should_panic(expected = "Invalid page type for OverflowPage")]
     #[test]
     fn test_invalid_page_type() {
-        let mut page = Page::new(4096, 4092);
+        let mut page = Page::create_new(&DB_CONFIG, 1);
         page.set_type(crate::page::PageType::DbMaster);
         OverflowPage::from_page(page);
     }
