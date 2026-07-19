@@ -74,17 +74,13 @@ impl PageTrait for FreeDirPage {
 impl FreeDirPage {
     const HEADER_SIZE: usize = 34;
     pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
-        FreeDirPage::new(
-            page_config.block_size,
-            page_config.page_size,
-            page_number,
-            version,
-        )
-    }
+        assert!(
+            page_number.get_blk_cnt() == 1,
+            "FreeDirPage block count must be 1."
+        );
 
-    fn new(block_size: usize, page_size: usize, page_number: PageNo, version: u64) -> Self {
         let mut free_page_dir = FreeDirPage {
-            page: Page::new(block_size, page_size),
+            page: Page::create_new(page_config, 1),
         };
         free_page_dir.page.set_type(crate::page::PageType::FreeDir);
         free_page_dir.page.set_page_number(page_number);
@@ -178,9 +174,14 @@ impl FreeDirPage {
 mod tests {
     use super::*;
 
+    const DB_CONFIG: DbConfig = DbConfig::builder()
+        .block_size(4096)
+        .compressor_type(crate::compressor::CompressorType::None)
+        .build();
+
     #[test]
     fn test_adding_entries() {
-        let mut free_page_dir = FreeDirPage::new(4096, 4092, PageNo::new(0, 34), 4564);
+        let mut free_page_dir = FreeDirPage::create_new(&DB_CONFIG, PageNo::new(0, 34), 4564);
         assert!(!free_page_dir.has_free_pages());
         free_page_dir.add_free_page(PageNo::new(0, 73));
         free_page_dir.add_free_page(PageNo::new(0, 103));
@@ -193,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_fill_free_page_dir() {
-        let mut free_page_dir = FreeDirPage::new(4096, 4092, PageNo::new(0, 34), 657);
+        let mut free_page_dir = FreeDirPage::create_new(&DB_CONFIG, PageNo::new(0, 34), 657);
         let mut count = 0;
         for number in 1..=1020 {
             if !free_page_dir.is_full() {
@@ -209,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_invalid_type() {
-        let mut free_page_dir = FreeDirPage::new(4096, 4092, PageNo::new(0, 34), 657);
+        let mut free_page_dir = FreeDirPage::create_new(&DB_CONFIG, PageNo::new(0, 34), 657);
         free_page_dir.page.set_type(crate::page::PageType::DbMaster);
         let result = std::panic::catch_unwind(|| FreeDirPage::from_page(free_page_dir.page));
         assert!(result.is_err());

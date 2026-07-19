@@ -39,8 +39,8 @@ impl DbConfigBuilder {
     pub const fn new() -> Self {
         Self {
             block_size: 4096,
-            page_size: 4096,
-            block_sanity_size: 0,
+            page_size: 4092,
+            block_sanity_size: 4,
             compressor_type: CompressorType::LZ4,
             block_sanity: BlockSanity::XxH32Checksum,
             leaf_page_blk_exp: 0,
