@@ -1,5 +1,5 @@
-use crate::compressor::CompressorType;
 use crate::block_sanity::BlockSanity;
+use crate::compressor::CompressorType;
 
 #[derive(Copy, Clone, Debug)]
 pub struct DbConfig {

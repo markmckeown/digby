@@ -20,7 +20,7 @@ pub struct Aes128GcmSanity {}
 impl Aes128GcmSanity {
     pub fn encrypt_page(page: &mut Page, input_key: &Vec<u8>) {
         assert!(input_key.len() == 16, "Key is incorrect size");
-        let block_size = page.block_size;
+        let block_size = page.get_block_bytes().len();
         let key: &Key<Aes128Gcm> = input_key.as_slice().into();
         let cipher = Aes128Gcm::new(key);
         let nonce = Aes128Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per run.
@@ -35,7 +35,7 @@ impl Aes128GcmSanity {
 
     pub fn decrypt_page(page: &mut Page, input_key: &Vec<u8>) {
         assert!(input_key.len() == 16, "Key is incorrect size");
-        let block_size = page.block_size;
+        let block_size = page.get_block_bytes().len();
         let key: &Key<Aes128Gcm> = input_key.as_slice().into();
         let cipher = Aes128Gcm::new(key);
         let nonce: &Nonce<U12> = (&page.get_block_bytes()[block_size - 12..block_size]).into();

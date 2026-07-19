@@ -54,7 +54,6 @@ pub trait PageTrait {
 pub struct Page {
     bytes: Vec<u8>,
     page_size: usize,
-    pub block_size: usize,
 }
 
 impl PageTrait for Page {
@@ -89,7 +88,6 @@ impl Page {
     pub fn create_new(page_meta: &DbConfig) -> Self {
         Page {
             bytes: vec![0u8; page_meta.block_size],
-            block_size: page_meta.block_size,
             page_size: page_meta.page_size,
         }
     }
@@ -97,8 +95,7 @@ impl Page {
     pub fn new(block_size: usize, page_size: usize) -> Self {
         Page {
             bytes: vec![0u8; block_size],
-            block_size,
-            page_size,
+            page_size: page_size,
         }
     }
 

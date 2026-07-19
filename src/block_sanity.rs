@@ -11,7 +11,7 @@ pub enum BlockSanity {
     XxH32Checksum = 0,
     Aes128Gcm = 1,
 }
-    
+
 impl TryFrom<u8> for BlockSanity {
     type Error = ();
 

@@ -30,13 +30,12 @@ pub struct Db {
     db_config: DbConfig,
 }
 
-
 // TODO - initial db layout.
 // Control Pages
 // block 0, size 1 block - DB root page.
 // block 1, size 1 block - master page 1
 // block 2, size 1 block - master page 2
-// 
+//
 // Free Page Directories
 // block 3, size 1 block - free page directory, blk_exp 0 (4096 bytes)
 // block 4, size 1 block - free page directory, blk_exp 1 (8192 bytes)
@@ -53,7 +52,7 @@ pub struct Db {
 // Table Directory Tree Leaf Page
 // block ?, size ? blocks.
 //
-// TODO allocate 12 blocks. 
+// TODO allocate 12 blocks.
 // Init blocks 3 to 11 as free page directories.
 // Allocate Leaf Page for global tree root with leaf page block size
 // Init Global Tree Leaf Page
@@ -237,9 +236,9 @@ impl Db {
         // using the SHA256 of the key.
         if !TupleProcessor::is_oversized_key(key) {
             // Not oversized so look up key.
-            if let Some(tuple) =
-                StoreTupleProcessor::get_tuple(key, tree_page_no, &mut self.page_cache)
             {
+                let tuple =
+                    StoreTupleProcessor::get_tuple(key, tree_page_no, &mut self.page_cache)?;
                 // Found tuple, but it may be an overflow tuple (ie it has
                 // a small key but a large value). Need to get overflow tuple
                 // from the overflow pages.
@@ -247,8 +246,6 @@ impl Db {
                     return self.get_overflow_tuple_value(key, &tuple);
                 }
                 return Some(self.get_tuple_value(&tuple));
-            } else {
-                return None;
             }
         }
 
