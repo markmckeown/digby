@@ -30,6 +30,40 @@ pub struct Db {
     db_config: DbConfig,
 }
 
+
+// TODO - initial db layout.
+// Control Pages
+// block 0, size 1 block - DB root page.
+// block 1, size 1 block - master page 1
+// block 2, size 1 block - master page 2
+// 
+// Free Page Directories
+// block 3, size 1 block - free page directory, blk_exp 0 (4096 bytes)
+// block 4, size 1 block - free page directory, blk_exp 1 (8192 bytes)
+// block 5, size 1 block - free page directory, blk_exp 2 (16384 bytes)
+// block 6, size 1 block - free page directory, blk_exp 3 (32768 bytes)
+// block 7, size 1 block - free page directory, blk_exp 4 (65536 bytes)
+// block 8, size 1 block - free page directory, blk_exp 5 (131072 bytes)
+// block 9, size 1 block - free page directory, blk_exp 6 (262144 bytes)
+// block 10, size 1 block - free page directory, blk_exp 7 (524288 bytes)
+// block 11, size 1 block - free page directory, blk_exp 8 (1048576 bytes)
+//
+// Global Tree Leaf Page
+// block 12, size ? blocks.
+// Table Directory Tree Leaf Page
+// block ?, size ? blocks.
+//
+// TODO allocate 12 blocks. 
+// Init blocks 3 to 11 as free page directories.
+// Allocate Leaf Page for global tree root with leaf page block size
+// Init Global Tree Leaf Page
+// Allocate Leaf Page for table directory tree root leaf page block size
+// Init Table Directory Tree Leaf Page
+// Write master page 1
+// Write master page 2
+// Sync file.
+// Write root page.
+// Sync file.
 impl Db {
     // Default block size, the page size is a function of the block size
     // depending on what block checksum is used or if encryption is being
@@ -104,10 +138,8 @@ impl Db {
             page_config = DbConfig::builder()
                 .block_size(block_size)
                 .page_size(block_size - sanity_bytes_used)
-                .block_sanity_size(sanity_bytes_used)
                 .compressor_type(compressor_type)
-                .leaf_page_blk_exp(0)
-                .dir_page_blk_exp(0)
+                .block_sanity(sanity_type)
                 .build();
             block_layer = PageContainerLayer::new_with_key(file_layer, page_config, k);
         } else {
@@ -116,10 +148,8 @@ impl Db {
             page_config = DbConfig::builder()
                 .block_size(block_size)
                 .page_size(block_size - sanity_bytes_used)
-                .block_sanity_size(sanity_bytes_used)
                 .compressor_type(compressor_type)
-                .leaf_page_blk_exp(0)
-                .dir_page_blk_exp(0)
+                .block_sanity(sanity_type)
                 .build();
             block_layer = PageContainerLayer::new(file_layer, page_config);
         }
@@ -207,9 +237,9 @@ impl Db {
         // using the SHA256 of the key.
         if !TupleProcessor::is_oversized_key(key) {
             // Not oversized so look up key.
+            if let Some(tuple) =
+                StoreTupleProcessor::get_tuple(key, tree_page_no, &mut self.page_cache)
             {
-                let tuple =
-                    StoreTupleProcessor::get_tuple(key, tree_page_no, &mut self.page_cache)?;
                 // Found tuple, but it may be an overflow tuple (ie it has
                 // a small key but a large value). Need to get overflow tuple
                 // from the overflow pages.
@@ -217,6 +247,8 @@ impl Db {
                     return self.get_overflow_tuple_value(key, &tuple);
                 }
                 return Some(self.get_tuple_value(&tuple));
+            } else {
+                return None;
             }
         }
 

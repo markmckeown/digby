@@ -1,4 +1,5 @@
 use crate::compressor::CompressorType;
+use crate::block_sanity::BlockSanity;
 
 #[derive(Copy, Clone, Debug)]
 pub struct DbConfig {
@@ -6,6 +7,7 @@ pub struct DbConfig {
     pub page_size: usize,
     pub block_sanity_size: usize,
     pub compressor_type: CompressorType,
+    pub block_sanity: BlockSanity,
     pub leaf_page_blk_exp: u8,
     pub dir_page_blk_exp: u8,
 }
@@ -22,6 +24,7 @@ pub struct DbConfigBuilder {
     page_size: usize,
     block_sanity_size: usize,
     compressor_type: CompressorType,
+    block_sanity: BlockSanity,
     leaf_page_blk_exp: u8,
     dir_page_blk_exp: u8,
 }
@@ -39,6 +42,7 @@ impl DbConfigBuilder {
             page_size: 4096,
             block_sanity_size: 0,
             compressor_type: CompressorType::LZ4,
+            block_sanity: BlockSanity::XxH32Checksum,
             leaf_page_blk_exp: 0,
             dir_page_blk_exp: 0,
         }
@@ -51,6 +55,12 @@ impl DbConfigBuilder {
 
     pub const fn page_size(mut self, page_size: usize) -> Self {
         self.page_size = page_size;
+        self
+    }
+
+    pub const fn block_sanity(mut self, block_sanity: BlockSanity) -> Self {
+        self.block_sanity = block_sanity;
+        self.block_sanity_size = BlockSanity::get_bytes_used(block_sanity);
         self
     }
 
@@ -80,6 +90,7 @@ impl DbConfigBuilder {
             page_size: self.page_size,
             block_sanity_size: self.block_sanity_size,
             compressor_type: self.compressor_type,
+            block_sanity: self.block_sanity,
             leaf_page_blk_exp: self.leaf_page_blk_exp,
             dir_page_blk_exp: self.dir_page_blk_exp,
         }

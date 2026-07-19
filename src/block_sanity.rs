@@ -6,12 +6,12 @@ use crate::{Aes128GcmSanity, Page, XxHashSanity};
 // or encrypting the page in the block.
 // Two approaches are supported at present, xxhash_32
 // as a checksum or AES-128-GCM encryption of the block.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum BlockSanity {
     XxH32Checksum = 0,
     Aes128Gcm = 1,
 }
-
+    
 impl TryFrom<u8> for BlockSanity {
     type Error = ();
 
@@ -34,7 +34,7 @@ impl From<BlockSanity> for u8 {
 }
 
 impl BlockSanity {
-    pub fn get_bytes_used(block_sanity_type: BlockSanity) -> usize {
+    pub const fn get_bytes_used(block_sanity_type: BlockSanity) -> usize {
         match block_sanity_type {
             BlockSanity::XxH32Checksum => 4,
             BlockSanity::Aes128Gcm => 28,
