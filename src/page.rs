@@ -85,10 +85,11 @@ impl PageTrait for Page {
 }
 
 impl Page {
-    pub fn create_new(page_meta: &DbConfig) -> Self {
+    pub fn create_new(page_meta: &DbConfig, blk_cnt: u64) -> Self {
+        let buffer_size = page_meta.block_size * blk_cnt as usize;
         Page {
-            bytes: vec![0u8; page_meta.block_size],
-            page_size: page_meta.page_size,
+            bytes: vec![0u8; buffer_size],
+            page_size: buffer_size - page_meta.block_sanity_size,
         }
     }
 

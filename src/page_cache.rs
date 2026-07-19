@@ -42,7 +42,8 @@ impl PageCache {
     pub fn get_page(&mut self, page_number: PageNo) -> Page {
         match self.page_map.get(&page_number) {
             Some(page) => {
-                let mut page_copy = Page::create_new(self.get_page_config());
+                let mut page_copy =
+                    Page::create_new(self.get_page_config(), page_number.get_blk_cnt());
                 page_copy
                     .get_block_bytes_mut()
                     .copy_from_slice(page.get_block_bytes());
@@ -50,7 +51,8 @@ impl PageCache {
             }
             None => {
                 let page = self.block_layer.read_page(page_number);
-                let mut page_for_cache = Page::create_new(self.get_page_config());
+                let mut page_for_cache =
+                    Page::create_new(self.get_page_config(), page_number.get_blk_cnt());
                 page_for_cache
                     .get_block_bytes_mut()
                     .copy_from_slice(page.get_block_bytes());
@@ -87,7 +89,8 @@ impl PageCache {
         // Take a copy of the page before the block_layer processes it,
         // the block layer might encrypt it.
         // TODO - block_layer.write_page should return the page to us to avoid need to copy.
-        let mut page_for_cache = Page::create_new(self.get_page_config());
+        let mut page_for_cache =
+            Page::create_new(self.get_page_config(), page.get_page_number().get_blk_cnt());
         page_for_cache
             .get_block_bytes_mut()
             .copy_from_slice(page.get_block_bytes());
@@ -136,7 +139,7 @@ mod tests {
         let page_number = 0;
 
         // Write a page to the cache
-        let mut page = Page::create_new(page_cache.get_page_config());
+        let mut page = Page::create_new(page_cache.get_page_config(), 1);
         page_cache.generate_free_pages(10, 0);
         page.set_page_number(PageNo::from_u64(page_number));
         page.set_type(page::PageType::Free);

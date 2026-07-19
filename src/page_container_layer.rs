@@ -79,7 +79,7 @@ impl PageContainerLayer {
     }
 
     pub fn read_page(&mut self, page_no: PageNo) -> Page {
-        let mut page = Page::create_new(&self.page_config);
+        let mut page = Page::create_new(&self.page_config, page_no.get_blk_cnt());
         self.file_layer
             .read_page_from_disk(&mut page, &page_no)
             .expect("Failed to read page");
@@ -176,7 +176,7 @@ mod tests {
         let mut block_layer = PageContainerLayer::new(file_layer, PAGE_CONFIG);
         let page_number = 0;
         block_layer.generate_free_pages(10, 0);
-        let mut page = Page::create_new(block_layer.get_page_config());
+        let mut page = Page::create_new(block_layer.get_page_config(), 1);
         page.set_page_number(PageNo::from_u64(page_number));
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
@@ -205,7 +205,7 @@ mod tests {
         );
         let page_number = 0;
         block_layer.generate_free_pages(10, 0);
-        let mut page = Page::create_new(block_layer.get_page_config());
+        let mut page = Page::create_new(block_layer.get_page_config(), 1);
         page.set_page_number(PageNo::from_u64(page_number));
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
@@ -234,7 +234,7 @@ mod tests {
         );
         let page_number = 0;
         block_layer.generate_free_pages(10, 0);
-        let mut page = Page::create_new(block_layer.get_page_config());
+        let mut page = Page::create_new(block_layer.get_page_config(), 1);
         page.set_page_number(PageNo::from_u64(page_number));
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
@@ -249,7 +249,7 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, PAGE_CONFIG.block_size);
         let mut block_layer = PageContainerLayer::new(file_layer, PAGE_CONFIG);
-        let mut page = Page::create_new(block_layer.get_page_config());
+        let mut page = Page::create_new(block_layer.get_page_config(), 1);
         page.set_page_number(PageNo::from_u64(4));
         page.set_type(PageType::Free);
         // This should panic as out of range of file.
