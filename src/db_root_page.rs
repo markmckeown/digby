@@ -51,12 +51,8 @@ impl DbRootPage {
     const VERSION_MINOR: u16 = 1;
 
     pub fn create_new(page_config: &DbConfig) -> Self {
-        DbRootPage::new(page_config.block_size, page_config.page_size)
-    }
-
-    fn new(block_size: usize, page_size: usize) -> Self {
         let mut db_root_page = DbRootPage {
-            page: Page::new(block_size, page_size),
+            page: Page::create_new(page_config, 1),
         };
         db_root_page.page.set_type(PageType::DbRoot);
         db_root_page.page.set_page_number(PageNo::new(0, 0));
