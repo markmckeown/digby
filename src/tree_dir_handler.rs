@@ -1,7 +1,7 @@
 use crate::dir_page::DirPage;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
-use crate::{FreePageTracker, TreeDirEntry};
+use crate::{FreePageTracker, TreeDirEntry, db_config};
 
 pub struct TreeDirHandler {}
 
@@ -12,6 +12,7 @@ pub struct DirPageRef {
 
 impl TreeDirHandler {
     pub fn handle_tree_leaf_store(
+        db_config: &db_config::DbConfig,
         mut dir_page: DirPage,
         entries: Vec<TreeDirEntry>,
     ) -> Vec<DirPageRef> {
@@ -26,7 +27,7 @@ impl TreeDirHandler {
             return tree_dir_pages;
         }
 
-        let (mut left_dir, mut right_dir, new_left_key) = dir_page.split_page(0);
+        let (mut left_dir, mut right_dir, new_left_key) = dir_page.split_page(db_config, 0);
 
         if entries.first().unwrap().get_key() < new_left_key.as_slice() {
             // Use original page to add entries. Note if the first is less than the left key in the
@@ -66,6 +67,7 @@ impl TreeDirHandler {
     }
 
     pub fn handle_tree_dir_store(
+        db_config: &db_config::DbConfig,
         mut parent_dir_page: DirPage,
         entries: Vec<TreeDirEntry>,
     ) -> Vec<DirPageRef> {
@@ -81,7 +83,7 @@ impl TreeDirHandler {
         }
 
         // Need to split the parent dir page.
-        let (mut left_dir, mut right_dir, new_left_key) = parent_dir_page.split_page(0);
+        let (mut left_dir, mut right_dir, new_left_key) = parent_dir_page.split_page(&db_config, 0);
 
         if entries.first().unwrap().get_key() < new_left_key.as_slice() {
             // Add entries to original page.
@@ -143,7 +145,8 @@ mod tests {
 
         let mut tree_dir_page = DirPage::create_new(&page_config, PageNo::from_u64(0), 0);
 
-        let mut new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, entries);
+        let mut new_pages =
+            TreeDirHandler::handle_tree_leaf_store(&page_config, tree_dir_page, entries);
         assert_eq!(new_pages.len(), 1);
         tree_dir_page = new_pages.pop().unwrap().page;
         assert_eq!(tree_dir_page.get_page_to_left(), PageNo::from_u64(21));
@@ -164,7 +167,7 @@ mod tests {
             entries.push(tree_dir_entry);
         }
 
-        new_pages = TreeDirHandler::handle_tree_leaf_store(tree_dir_page, entries);
+        new_pages = TreeDirHandler::handle_tree_leaf_store(&page_config, tree_dir_page, entries);
         assert_eq!(new_pages.len(), 1);
         tree_dir_page = new_pages.pop().unwrap().page;
         assert_eq!(tree_dir_page.get_page_to_left(), PageNo::from_u64(79));

@@ -699,7 +699,7 @@ impl DirPage {
         key_values
     }
 
-    fn split_page_1(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
+    fn split_page_1(&self, _db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // First page - no left or right pages. This means no
         // prefix, no right fence key and no left fence key.
         // When split the page on the left will have no left fence but will
@@ -749,7 +749,7 @@ impl DirPage {
         (left_page, right_page, mid_key.to_vec())
     }
 
-    fn split_page_2(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
+    fn split_page_2(&self, _db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // Left Page. Has right fence but no left fence. There is no prefix
         // and a right fence key.
         // New page to the left will have no left fence and the right fence will be the mid key, it
@@ -808,7 +808,7 @@ impl DirPage {
         (left_page, right_page, mid_key.to_vec())
     }
 
-    fn split_page_3(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
+    fn split_page_3(&self, _db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // Right Page - has left fence but no right fence. This means no prefix
         // and no right fence key.
         // New page to the left will have a left fence and right fence with a prefix.
@@ -865,7 +865,7 @@ impl DirPage {
         (left_page, right_page, mid_key.to_vec())
     }
 
-    fn split_page_4(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
+    fn split_page_4(&self, _db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // Center Page - has right and left fence and also a prefix.
         // This means we need to calculate the new prefix length for the left and right pages after the split.
         let mut left_page = DirPage::new(
@@ -933,7 +933,7 @@ impl DirPage {
         (left_page, right_page, mid_key)
     }
 
-    pub fn split_page(&self, version: u64) -> (DirPage, DirPage, Vec<u8>) {
+    pub fn split_page(&self, db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         assert!(
             self.get_entries_size() > 2,
             "Cannot split a page with fewer than 3 entries."
@@ -947,21 +947,21 @@ impl DirPage {
             // There will be no prefix. When the page is split the
             // there will be a Left Page and a Right neither will
             // have a prefix.
-            return self.split_page_1(version);
+            return self.split_page_1(db_config, version);
         }
 
         // Left Page - has right fence but no left fence.
         if !self.has_left_fence() {
-            return self.split_page_2(version);
+            return self.split_page_2(db_config, version);
         }
 
         // Right Page - has left fence but no right fence.
         if !self.has_right_fence() {
-            return self.split_page_3(version);
+            return self.split_page_3(db_config, version);
         }
 
         // Center Page - has both left and right fences.
-        self.split_page_4(version)
+        self.split_page_4(db_config, version)
     }
 
     /**
@@ -1285,7 +1285,7 @@ mod tests {
             dir_page.get_all_child_pages(),
             vec![PageNo::from_u64(2), PageNo::from_u64(3)]
         );
-        dir_page.split_page(45);
+        dir_page.split_page(&page_config, 45);
     }
 
     #[test]
@@ -1614,7 +1614,7 @@ mod tests {
             let key = (i as u64).to_le_bytes().to_vec();
             dir_page.add_child_page(&key, i as u64);
         }
-        let (left_page, right_page, _) = dir_page.split_page(0);
+        let (left_page, right_page, _) = dir_page.split_page(&page_config, 0);
         assert_eq!(left_page.get_entries_size(), 10);
         assert_eq!(right_page.get_entries_size(), 9);
         for i in 1..10 {

@@ -150,7 +150,8 @@ impl StoreTupleProcessor {
         // handles this and returns a set of TreeDirEntryRefs that are added
         // to the parent node.
         // There could be more than one TreeDirEntryRef if the dir page had to split.
-        let mut dir_refs = TreeDirHandler::handle_tree_leaf_store(dir_page, leaf_dir_entries);
+        let mut dir_refs =
+            TreeDirHandler::handle_tree_leaf_store(db_config, dir_page, leaf_dir_entries);
         // Write the dir entries out to disk and get back a set of directory entries back
         // - for the parent node of the lead node this will mean returning its old
         // page number and getting a new one; for new split dir pages they will get
@@ -169,7 +170,7 @@ impl StoreTupleProcessor {
         // pages now.
         while !dir_pages.is_empty() {
             dir_page = dir_pages.pop().unwrap();
-            dir_refs = TreeDirHandler::handle_tree_dir_store(dir_page, dir_entries);
+            dir_refs = TreeDirHandler::handle_tree_dir_store(db_config, dir_page, dir_entries);
             dir_entries = StoreTupleProcessor::write_tree_dir_pages(
                 dir_refs,
                 free_page_tracker,
@@ -190,7 +191,7 @@ impl StoreTupleProcessor {
         let new_tree_dir_page =
             DirPage::create_new(page_cache.get_page_config(), PageNo::from_u64(0), 0);
         // Add the entries to the new root page.
-        dir_refs = TreeDirHandler::handle_tree_dir_store(new_tree_dir_page, dir_entries);
+        dir_refs = TreeDirHandler::handle_tree_dir_store(db_config, new_tree_dir_page, dir_entries);
         // The new root page cannot split - so there should only be one page in the dir_refs now.
         dir_entries = StoreTupleProcessor::write_tree_dir_pages(
             dir_refs,
@@ -321,7 +322,8 @@ impl StoreTupleProcessor {
         let new_tree_dir_page =
             DirPage::create_new(page_cache.get_page_config(), PageNo::from_u64(0), 0);
         // Add the entries to the new root page.
-        let dir_refs = TreeDirHandler::handle_tree_leaf_store(new_tree_dir_page, entries);
+        let dir_refs =
+            TreeDirHandler::handle_tree_leaf_store(db_config, new_tree_dir_page, entries);
         // The new root page cannot split - there can be a most three entries added to it.
         assert!(dir_refs.len() == 1);
         let dir_entries = StoreTupleProcessor::write_tree_dir_pages(
