@@ -83,7 +83,7 @@ impl TreeDirHandler {
         }
 
         // Need to split the parent dir page.
-        let (mut left_dir, mut right_dir, new_left_key) = parent_dir_page.split_page(&db_config, 0);
+        let (mut left_dir, mut right_dir, new_left_key) = parent_dir_page.split_page(db_config, 0);
 
         if entries.first().unwrap().get_key() < new_left_key.as_slice() {
             // Add entries to original page.

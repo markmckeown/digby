@@ -105,20 +105,17 @@ impl DirPage {
     const SLOT_SIZE: usize = 3; // 2 (offset) + 1 (key_len)
 
     pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
-        DirPage::new(
-            page_config.block_size,
-            page_config.page_size,
-            page_number,
-            version,
-        )
-    }
-
-    fn new(block_size: usize, page_size: usize, page_number: PageNo, version: u64) -> Self {
-        let mut page = Page::new(block_size, page_size);
+        if page_number.get_blk_offset() != 0 {
+            assert!(
+                page_number.get_blk_cnt() == page_config.get_dir_page_blk_cnt(),
+                "DirPage page number has wrong block count."
+            );
+        }
+        let mut page = Page::create_new(page_config, page_config.get_dir_page_blk_cnt());
         page.set_type(PageType::DirPage);
         page.set_page_number(page_number);
         let mut dir_page = DirPage { page };
-        dir_page.set_free_space(page_size as u16 - DirPage::HEADER_SIZE as u16);
+        dir_page.set_free_space(dir_page.page.get_pg_size() as u16 - DirPage::HEADER_SIZE as u16);
         dir_page.set_version(version);
         dir_page.set_page_to_left(PageNo::from_u64(0));
         dir_page.set_prefix_length(0);
@@ -699,7 +696,7 @@ impl DirPage {
         key_values
     }
 
-    fn split_page_1(&self, _db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
+    fn split_page_1(&self, db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // First page - no left or right pages. This means no
         // prefix, no right fence key and no left fence key.
         // When split the page on the left will have no left fence but will
@@ -707,16 +704,10 @@ impl DirPage {
         // The current page has no prefix.
         // When split the new page on the right will have a left fence
         // but no right fence. Both pages will have no prefix.
-        let mut left_page = DirPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            self.page.get_page_number(),
-            version,
-        );
-        let mut right_page = DirPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            PageNo::from_u64(0),
+        let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
+        let mut right_page = DirPage::create_new(
+            db_config,
+            PageNo::new(db_config.dir_page_blk_exp, 0),
             version,
         );
 
@@ -749,23 +740,17 @@ impl DirPage {
         (left_page, right_page, mid_key.to_vec())
     }
 
-    fn split_page_2(&self, _db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
+    fn split_page_2(&self, db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // Left Page. Has right fence but no left fence. There is no prefix
         // and a right fence key.
         // New page to the left will have no left fence and the right fence will be the mid key, it
         // will have no prefix.
         // New page to the right will have a left fence which is the mid key and the right of the
         // current page. The new right page will have a prefix.
-        let mut left_page = DirPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            self.page.get_page_number(),
-            version,
-        );
-        let mut right_page = DirPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            PageNo::from_u64(0),
+        let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
+        let mut right_page = DirPage::create_new(
+            db_config,
+            PageNo::new(db_config.dir_page_blk_exp, 0),
             version,
         );
 
@@ -808,21 +793,15 @@ impl DirPage {
         (left_page, right_page, mid_key.to_vec())
     }
 
-    fn split_page_3(&self, _db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
+    fn split_page_3(&self, db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // Right Page - has left fence but no right fence. This means no prefix
         // and no right fence key.
         // New page to the left will have a left fence and right fence with a prefix.
         // New page to the right will have a left fence and no right fence and no prefix.
-        let mut left_page = DirPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            self.page.get_page_number(),
-            version,
-        );
-        let mut right_page = DirPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            PageNo::from_u64(0),
+        let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
+        let mut right_page = DirPage::create_new(
+            db_config,
+            PageNo::new(db_config.dir_page_blk_exp, 0),
             version,
         );
 
@@ -865,19 +844,13 @@ impl DirPage {
         (left_page, right_page, mid_key.to_vec())
     }
 
-    fn split_page_4(&self, _db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
+    fn split_page_4(&self, db_config: &DbConfig, version: u64) -> (DirPage, DirPage, Vec<u8>) {
         // Center Page - has right and left fence and also a prefix.
         // This means we need to calculate the new prefix length for the left and right pages after the split.
-        let mut left_page = DirPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            self.page.get_page_number(),
-            version,
-        );
-        let mut right_page = DirPage::new(
-            self.page.get_pg_ctr_bytes().len(),
-            self.get_pg_size(),
-            PageNo::from_u64(0),
+        let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
+        let mut right_page = DirPage::create_new(
+            db_config,
+            PageNo::new(db_config.dir_page_blk_exp, 0),
             version,
         );
 
@@ -1179,11 +1152,7 @@ mod tests {
     fn test_create_new() {
         let page_config = DbConfig::builder()
             .block_size(1024)
-            .page_size(1024)
             .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
         let dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_number().get_blk_offset(), 1);
@@ -1205,11 +1174,7 @@ mod tests {
     fn test_invalid_page() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .page_size(1024)
-            .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
+            .block_sanity_size(4)
             .build();
         let mut leaf_page = Page::new(page_config.block_size, page_config.page_size);
         leaf_page.set_type(PageType::LeafPage);
@@ -1221,11 +1186,7 @@ mod tests {
     fn test_cannot_set_left_fence_after_adding_entries() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .page_size(1024)
-            .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
+            .block_sanity_size(4)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1242,11 +1203,7 @@ mod tests {
     fn test_cannot_set_right_fence_after_adding_entries() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .page_size(1024)
-            .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
+            .block_sanity_size(4)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1265,11 +1222,7 @@ mod tests {
     fn test_cannot_split_page_with_less_than_3_entries() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .page_size(1024)
-            .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
+            .block_sanity_size(4)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1293,11 +1246,7 @@ mod tests {
     fn test_cannot_set_right_prefix_after_adding_entries() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .page_size(1024)
-            .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
+            .block_sanity_size(4)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1314,11 +1263,7 @@ mod tests {
     fn test_prefix_larger_than_right_fence() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .page_size(1024)
-            .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
+            .block_sanity_size(4)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1331,14 +1276,7 @@ mod tests {
 
     #[test]
     fn test_add_child_page() {
-        let page_config = DbConfig::builder()
-            .block_size(1028)
-            .page_size(1024)
-            .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
-            .build();
+        let page_config = DbConfig::builder().block_size(1028).build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
@@ -1362,14 +1300,7 @@ mod tests {
 
     #[test]
     fn test_add_child_page_reset_right_fence() {
-        let page_config = DbConfig::builder()
-            .block_size(1024)
-            .page_size(1024)
-            .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
-            .build();
+        let page_config = DbConfig::builder().block_size(1024).build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"key1";
         let key2 = b"key2";
@@ -1398,14 +1329,7 @@ mod tests {
 
     #[test]
     fn test_add_child_page_reset_left_fence() {
-        let page_config = DbConfig::builder()
-            .block_size(1024)
-            .page_size(1024)
-            .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
-            .build();
+        let page_config = DbConfig::builder().block_size(1024).build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"key2";
         let key2 = b"key3";
@@ -1437,11 +1361,7 @@ mod tests {
     fn test_reset_left_fence_full() {
         let page_config = DbConfig::builder()
             .block_size(160)
-            .page_size(112)
             .block_sanity_size(160 - 112)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1466,11 +1386,7 @@ mod tests {
     fn test_add_left_fence_full() {
         let page_config = DbConfig::builder()
             .block_size(160)
-            .page_size(112)
             .block_sanity_size(160 - 112)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1495,11 +1411,7 @@ mod tests {
     fn test_reset_right_fence_full() {
         let page_config = DbConfig::builder()
             .block_size(160)
-            .page_size(112)
             .block_sanity_size(160 - 112)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1524,11 +1436,7 @@ mod tests {
     fn test_add_right_fence_full() {
         let page_config = DbConfig::builder()
             .block_size(160)
-            .page_size(112)
             .block_sanity_size(160 - 112)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
@@ -1553,11 +1461,7 @@ mod tests {
     fn test_get_next_page() {
         let page_config = DbConfig::builder()
             .block_size(1024)
-            .page_size(1024)
             .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
 
@@ -1603,11 +1507,7 @@ mod tests {
     fn test_split_page() {
         let page_config = DbConfig::builder()
             .block_size(1024)
-            .page_size(1024)
             .block_sanity_size(0)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         for i in 0..20 {

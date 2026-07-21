@@ -20,6 +20,10 @@ impl DbConfig {
     pub const fn get_leaf_page_blk_cnt(&self) -> u64 {
         1 << self.leaf_page_blk_exp
     }
+
+    pub const fn get_dir_page_blk_cnt(&self) -> u64 {
+        1 << self.dir_page_blk_exp
+    }
 }
 
 #[derive(Clone, Debug)]
