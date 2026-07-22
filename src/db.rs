@@ -348,7 +348,7 @@ impl Db {
         let old_version = master_page.get_version();
         let new_version = old_version + 1;
         // Find the free page directory that has the free page numbers.
-        let free_page_dir_page_no = master_page.get_free_page_dir_page_no();
+        let free_page_dir_page_no = master_page.get_free_page_dir_page_no(0);
         let free_page_tracker = FreePageTracker::new(
             self.page_cache.get_page(free_page_dir_page_no),
             new_version,
@@ -457,7 +457,7 @@ impl Db {
         //   - The table directory tree.
         //   - The free page directory.
         //   - The new version.
-        master_page.set_free_page_dir_page_no(first_free_dir_page);
+        master_page.set_free_page_dir_page_no(0, first_free_dir_page);
         master_page.set_global_tree_root_page_no(new_root_page_no);
         master_page.set_table_dir_page_no(new_table_tree_root_no);
         master_page.set_version(new_version);
@@ -807,7 +807,7 @@ impl Db {
         };
         let current_version = current_master.get_version();
         // Check the free_dir_page is sane.
-        let free_dir_page_no = current_master.get_free_page_dir_page_no();
+        let free_dir_page_no = current_master.get_free_page_dir_page_no(0);
         let free_dir_page = FreeDirPage::from_page(self.page_cache.get_page(free_dir_page_no));
         assert!(free_dir_page.get_version() <= current_version);
 
@@ -851,7 +851,7 @@ impl Db {
         // Tell the first master page where the free page directory page is,
         // where the table directory root page is and where the global
         // tree root is.
-        master_page1.set_free_page_dir_page_no(PageNo::from_u64(3));
+        master_page1.set_free_page_dir_page_no(0, PageNo::from_u64(3));
         master_page1.set_table_dir_page_no(PageNo::from_u64(4));
         master_page1.set_global_tree_root_page_no(PageNo::from_u64(5));
         self.page_cache.put_page(master_page1.get_page());
@@ -862,7 +862,7 @@ impl Db {
             DbMasterPage::create_new(self.page_cache.get_page_config(), PageNo::new(0, 2), 1);
         // remove from free page list
         free_pages.retain(|&x| x.get_blk_offset() != 2);
-        master_page2.set_free_page_dir_page_no(PageNo::from_u64(3));
+        master_page2.set_free_page_dir_page_no(0, PageNo::from_u64(3));
         master_page2.set_table_dir_page_no(PageNo::from_u64(4));
         master_page2.set_global_tree_root_page_no(PageNo::from_u64(5));
         self.page_cache.put_page(master_page2.get_page());
@@ -972,7 +972,7 @@ mod tests {
             );
             let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::from_u64(1)));
             let head_page2 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::from_u64(2)));
-            let free_page_dir_page_no = head_page2.get_free_page_dir_page_no();
+            let free_page_dir_page_no = head_page2.get_free_page_dir_page_no(0);
             let free_page_dir_page =
                 FreeDirPage::from_page(db.page_cache.get_page(free_page_dir_page_no));
             assert!(free_page_dir_page.get_entries() == 4);
