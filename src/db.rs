@@ -823,8 +823,8 @@ impl Db {
         // Provides a list of free pages that can be modified or added
         // to the free page directory if not used in the init process -
         // the init process will generate some unused pages.
-        let mut free_pages: Vec<PageNo> = self.page_cache.generate_free_pages(10, 0);
-        assert!(free_pages.len() == 10);
+        let mut free_pages: Vec<PageNo> = self.page_cache.generate_free_pages(18, 0);
+        assert!(free_pages.len() == 18, "There should be 18 free pages");
 
         // Write the global tree root page at page number 5.
         // The first page in a tree is a leaf page.
@@ -889,7 +889,7 @@ impl Db {
         db_root_page.set_compression_type(self.compressor.compressor_type.into());
         self.page_cache.put_page(db_root_page.get_page());
 
-        assert!(free_pages.len() == 4, "There should be 4 free pages");
+        assert!(free_pages.len() == 12, "There should be 12 free pages");
 
         self.page_cache.sync_data();
         Ok(())
@@ -975,7 +975,7 @@ mod tests {
             let free_page_dir_page_no = head_page2.get_free_page_dir_page_no(0);
             let free_page_dir_page =
                 FreeDirPage::from_page(db.page_cache.get_page(free_page_dir_page_no));
-            assert!(free_page_dir_page.get_entries() == 4);
+            assert!(free_page_dir_page.get_entries() == 12);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
