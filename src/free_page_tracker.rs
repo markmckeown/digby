@@ -90,7 +90,9 @@ impl FreePageTracker {
         new_free_page
     }
 
-    pub fn get_return_pages(&self) -> Vec<PageNo> {
+    // Only used for testing - returns the list of page numbers that have been returned
+    #[cfg(test)]
+    fn get_return_pages(&self) -> Vec<PageNo> {
         self.returned_pages.clone()
     }
 

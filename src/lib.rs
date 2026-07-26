@@ -59,3 +59,5 @@ pub mod tx_ctx;
 pub use tx_ctx::TxCtx;
 pub mod page_no;
 pub use page_no::PageNo;
+pub mod free_page_manager;
+pub use free_page_manager::FreePageManager;
