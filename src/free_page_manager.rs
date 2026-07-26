@@ -12,10 +12,15 @@ pub struct FreePageManager {
 
 impl FreePageManager {
     pub fn new(
-        og_free_pg_dir_pg_nos: Vec<PageNo>,
+        db_master_page: &DbMasterPage,
         version: u64,
         db_config: crate::db_config::DbConfig,
     ) -> Self {
+        let mut og_free_pg_dir_pg_nos: Vec<PageNo> = Vec::new();
+        for i in 0..9 {
+            og_free_pg_dir_pg_nos.push(db_master_page.get_free_page_dir_page_no(i));
+        }
+
         FreePageManager {
             free_pg_trackers: HashMap::new(),
             og_free_pg_dir_pg_nos,
