@@ -107,8 +107,8 @@ impl TreeDeleteHandler {
             free_page_tracker,
             page_cache,
             new_version,
-            new_leaf_page_no.to_u64(),
-            old_leaf_page_no.to_u64(),
+            new_leaf_page_no,
+            old_leaf_page_no,
         );
         (new_root_page_no, true)
     }
@@ -119,19 +119,19 @@ impl TreeDeleteHandler {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
-        new_leaf_page_no: u64,
-        old_leaf_page_no: u64,
+        new_leaf_page_no: PageNo,
+        old_leaf_page_no: PageNo,
     ) -> PageNo {
-        // if new_leaf_page_no is not 0 then we just need to rewrite the dir pages, none of them
+        // if new_leaf_page_no offset is not 0 then we just need to rewrite the dir pages, none of them
         // the leaf page still exists and we do not rebalance.
-        if new_leaf_page_no != 0 {
+        if new_leaf_page_no.get_blk_offset() != 0 {
             return TreeDeleteHandler::fix_stack_no_page_del(
                 key,
                 dir_pages,
                 free_page_tracker,
                 page_cache,
                 new_version,
-                PageNo::from_u64(new_leaf_page_no),
+                new_leaf_page_no,
             );
         }
 
@@ -152,7 +152,7 @@ impl TreeDeleteHandler {
         free_page_tracker: &mut FreePageTracker,
         page_cache: &mut PageCache,
         new_version: u64,
-        old_leaf_page_no: u64,
+        old_leaf_page_no: PageNo,
     ) -> PageNo {
         let mut page_to_delete = old_leaf_page_no;
         loop {
@@ -164,8 +164,8 @@ impl TreeDeleteHandler {
             let mut dir_page = dir_page_wrapped.unwrap();
             dir_page.remove_key_page(key, page_to_delete);
             if dir_page.is_empty() {
-                page_to_delete = dir_page.get_page_number().to_u64();
-                free_page_tracker.return_free_page_no(PageNo::from_u64(page_to_delete));
+                page_to_delete = dir_page.get_page_number();
+                free_page_tracker.return_free_page_no(page_to_delete);
             } else {
                 // This dir page is not empty - push back on stack for
                 // remapping.

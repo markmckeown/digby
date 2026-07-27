@@ -1053,29 +1053,26 @@ impl DirPage {
         }
     }
 
-    pub fn remove_key_page(&mut self, key: &[u8], page_no: u64) {
+    pub fn remove_key_page(&mut self, key: &[u8], page_no: PageNo) {
         let entries = self.get_entries_size();
 
         // There should only be the left most page.
         if entries == 0 {
-            assert!(PageNo::from_u64(page_no) == self.get_page_to_left());
+            assert!(page_no == self.get_page_to_left());
             self.set_page_to_left(PageNo::new(0, 0));
             return;
         }
 
         if self.has_right_fence() && key > self.get_right_fence_key() {
             let index = entries - 1;
-            assert_eq!(
-                PageNo::from_u64(page_no),
-                self.get_page_no_at_index(index as usize)
-            );
+            assert_eq!(page_no, self.get_page_no_at_index(index as usize));
             self.remove_key_value_at_index(index as usize);
             return;
         }
 
         // If removing the left most page need to move the next page into its place.
         // There is a next page as entries > 0 from above.
-        if PageNo::from_u64(page_no) == self.get_page_to_left() {
+        if page_no == self.get_page_to_left() {
             let slot = self.get_slot_at_index(0);
             let new_left_most_page = PageNo::from_bytes(self.get_value_at_slot(&slot));
             // TODO should just copy bytes instead of uwrapping and rewrapping the page number.
@@ -1090,7 +1087,7 @@ impl DirPage {
         let slot = self.get_slot_at_index(0);
         let first_key = self.get_key_at_slot(&slot);
         if key_suffix < first_key {
-            assert_eq!(PageNo::from_u64(page_no), self.get_page_no_at_index(0));
+            assert_eq!(page_no, self.get_page_no_at_index(0));
             self.remove_key_value_at_index(0);
             return;
         }
@@ -1098,12 +1095,12 @@ impl DirPage {
         // Now get the index for the key and remove the entry.
         let (found, index) = self.get_index_for_key(key_suffix);
         if found {
-            assert_eq!(PageNo::from_u64(page_no), self.get_page_no_at_index(index));
+            assert_eq!(page_no, self.get_page_no_at_index(index));
             self.remove_key_value_at_index(index);
         } else {
             assert!(
                 index > 0,
-                "Not found. Index should be positive. key {:?}, page_no {}, entries in page {},
+                "Not found. Index should be positive. key {:?}, page_no {:?}, entries in page {},
             left_fence {:?}, right_fence {:?}, prefix_length {:?}",
                 key,
                 page_no,
@@ -1113,9 +1110,9 @@ impl DirPage {
                 self.get_prefix_length()
             );
             assert_eq!(
-                PageNo::from_u64(page_no),
+                page_no,
                 self.get_page_no_at_index(index - 1),
-                "Removing key {:?}, page_no {} but expected page_no {:?} at index {}",
+                "Removing key {:?}, page_no {:?} but expected page_no {:?} at index {}",
                 key,
                 page_no,
                 self.get_page_no_at_index(index - 1),
@@ -1493,13 +1490,13 @@ mod tests {
         assert_eq!(dir_page.get_next(b"key8"), PageNo::from_u64(8));
         assert_eq!(dir_page.get_next(b"key9"), PageNo::from_u64(8));
 
-        dir_page.remove_key_page(b"key0", 1);
+        dir_page.remove_key_page(b"key0", PageNo::from_u64(1));
         assert_eq!(dir_page.get_page_to_left(), PageNo::from_u64(2));
 
-        dir_page.remove_key_page(b"key6", 5);
+        dir_page.remove_key_page(b"key6", PageNo::from_u64(5));
         assert_eq!(dir_page.get_next(b"key6"), PageNo::from_u64(2));
 
-        dir_page.remove_key_page(b"key9", 8);
+        dir_page.remove_key_page(b"key9", PageNo::from_u64(8));
         assert_eq!(dir_page.get_next(b"key8"), PageNo::from_u64(7));
     }
 
