@@ -352,9 +352,9 @@ impl Db {
         let free_page_tracker = FreePageTracker::new(
             self.page_cache.get_page(free_page_dir_page_no),
             new_version,
-            *self.page_cache.get_page_config(),
+            self.db_config,
         );
-        TxCtx::new(master_page, new_version, free_page_tracker)
+        TxCtx::new(master_page, new_version, free_page_tracker, self.db_config)
     }
 
     // Create a new table in the DB. A table is another b+ tree in the
