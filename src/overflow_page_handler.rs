@@ -45,15 +45,18 @@ impl OverflowPageHandler {
         next_page
     }
 
-    pub fn get_overflow_tuple(overflow_page_no: u64, page_cache: &mut PageCache) -> OverflowTuple {
+    pub fn get_overflow_tuple(
+        overflow_page_no: PageNo,
+        page_cache: &mut PageCache,
+    ) -> OverflowTuple {
         let mut buffer: Vec<u8> = Vec::new();
 
         let mut page_no = overflow_page_no;
         loop {
-            let page = OverflowPage::from_page(page_cache.get_page(PageNo::from_u64(page_no)));
+            let page = OverflowPage::from_page(page_cache.get_page(page_no));
             buffer.append(&mut page.get_tuple_bytes());
             page_no = page.get_next_page();
-            if page_no == 0 {
+            if page_no.get_blk_offset() == 0 {
                 break;
             }
         }
@@ -73,25 +76,25 @@ impl OverflowPageHandler {
             return 0;
         }
         // A tuple has been deleted that points to a overflow page.
-        let page_no = u64::from_le_bytes(tuple.get_value().to_vec().try_into().unwrap());
+        let page_no = PageNo::from_bytes(tuple.get_value());
         OverflowPageHandler::delete_overflow_pages(page_no, page_cache, free_page_tracker)
     }
 
     pub fn delete_overflow_pages(
-        first_page: u64,
+        first_page: PageNo,
         page_cache: &mut PageCache,
         free_page_tracker: &mut FreePageTracker,
     ) -> u32 {
-        free_page_tracker.return_free_page_no(PageNo::from_u64(first_page));
+        free_page_tracker.return_free_page_no(first_page);
         let mut page_no = first_page;
         let mut count: u32 = 1;
         loop {
-            let page = OverflowPage::from_page(page_cache.get_page(PageNo::from_u64(page_no)));
+            let page = OverflowPage::from_page(page_cache.get_page(page_no));
             page_no = page.get_next_page();
-            if page_no == 0 {
+            if page_no.get_blk_offset() == 0 {
                 break;
             }
-            free_page_tracker.return_free_page_no(PageNo::from_u64(page_no));
+            free_page_tracker.return_free_page_no(page_no);
             count += 1;
         }
 
@@ -156,10 +159,8 @@ mod tests {
             new_version,
         );
 
-        let reloaded_tuple = OverflowPageHandler::get_overflow_tuple(
-            overflow_tuple_page_no.to_u64(),
-            &mut page_cache,
-        );
+        let reloaded_tuple =
+            OverflowPageHandler::get_overflow_tuple(overflow_tuple_page_no, &mut page_cache);
         assert_eq!(reloaded_tuple.get_version(), 90);
         assert_eq!(reloaded_tuple.get_key(), key);
         assert_eq!(reloaded_tuple.get_value(), value);

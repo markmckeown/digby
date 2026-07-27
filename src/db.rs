@@ -267,7 +267,7 @@ impl Db {
     fn get_overflow_tuple_value(&mut self, key: &[u8], tuple: &Tuple) -> Option<Vec<u8>> {
         assert!(tuple.get_overflow() != Overflow::None);
         // Tuple exists, the value will be a page number for the overflow page.
-        let overflow_page_no = u64::from_le_bytes(tuple.get_value()[0..8].try_into().unwrap());
+        let overflow_page_no = PageNo::from_bytes(&tuple.get_value()[0..8]);
         let overflow_tuple: OverflowTuple =
             OverflowPageHandler::get_overflow_tuple(overflow_page_no, &mut self.page_cache);
         // Confirm the key is the same - would require a SHA256 clash to fail

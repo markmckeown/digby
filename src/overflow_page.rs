@@ -2,7 +2,7 @@ use crate::db_config::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page_no::PageNo;
-use byteorder::{ReadBytesExt, WriteBytesExt};
+use byteorder::WriteBytesExt;
 
 // From Page Header - size 26
 // | Page No (8bytes) | VersionHolder (8 bytes) | Next Overflow Page (8 bytes) | SizeUsed (u16) |
@@ -61,10 +61,8 @@ impl OverflowPage {
         OverflowPage { page }
     }
 
-    pub fn get_next_page(&self) -> u64 {
-        let mut cursor = std::io::Cursor::new(self.page.get_page_bytes());
-        cursor.set_position(16);
-        cursor.read_u64::<byteorder::LittleEndian>().unwrap()
+    pub fn get_next_page(&self) -> PageNo {
+        PageNo::from_bytes(&self.page.get_page_bytes()[16..16 + 8])
     }
 
     pub fn set_next_page(&mut self, page_number: u64) {
@@ -127,7 +125,7 @@ mod tests {
         assert_eq!(out.len(), 4);
         assert_eq!(buffer[0..4], *out);
         assert_eq!(page.get_version(), 34);
-        assert_eq!(page.get_next_page(), 0);
+        assert_eq!(page.get_next_page(), PageNo::from_u64(0));
         assert_eq!(page.get_used_size(), 4);
         assert_eq!(page.get_page_number().to_u64(), 334);
         page.set_page_number(PageNo::from_u64(457));
