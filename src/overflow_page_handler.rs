@@ -29,7 +29,7 @@ impl OverflowPageHandler {
             next_page = free_page_tracker.get_free_page(page_cache);
             let mut page =
                 OverflowPage::create_new(page_cache.get_page_config(), next_page, version);
-            page.set_next_page(previous.to_u64());
+            page.set_next_page(previous);
 
             let free_space = page.get_free_space();
             let bytes_to_write: usize = if end < free_space { end } else { free_space };

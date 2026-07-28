@@ -65,12 +65,8 @@ impl OverflowPage {
         PageNo::from_bytes(&self.page.get_page_bytes()[16..16 + 8])
     }
 
-    pub fn set_next_page(&mut self, page_number: u64) {
-        let mut cursor = std::io::Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
-        cursor.set_position(16);
-        cursor
-            .write_u64::<byteorder::LittleEndian>(page_number)
-            .expect("Failed to write next overflow page number");
+    pub fn set_next_page(&mut self, page_number: PageNo) {
+        self.page.get_page_bytes_mut()[16..16 + 8].copy_from_slice(&page_number.get_bytes());
     }
 
     pub fn get_used_size(&self) -> u16 {
