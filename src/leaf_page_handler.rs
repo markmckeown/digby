@@ -1,5 +1,5 @@
 use crate::db_config::DbConfig;
-use crate::free_page_tracker::FreePageTracker;
+use crate::free_page_manager::FreePageManager;
 use crate::leaf_page::LeafPage;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
@@ -177,16 +177,16 @@ impl LeafPageHandler {
     // page number.
     pub fn map_pages(
         leaf_page_refs: &mut Vec<(LeafPage, Option<Vec<u8>>)>,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         version: u64,
     ) {
         for (page, _) in leaf_page_refs {
             let old_page_no = page.get_page_number();
-            if old_page_no.to_u64() != 0 {
-                free_page_tracker.return_free_page_no(old_page_no);
+            if old_page_no.get_blk_offset() != 0 {
+                free_pg_mgr.return_free_page_no(page_cache, old_page_no);
             }
-            let new_page_no = free_page_tracker.get_free_page(page_cache);
+            let new_page_no = free_pg_mgr.get_free_page(page_cache, old_page_no.get_blk_cnt_exp());
             page.set_page_number(new_page_no);
             page.set_version(version);
         }

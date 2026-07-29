@@ -2,7 +2,7 @@ use crate::LeafPage;
 use crate::PageNo;
 use crate::db_config::DbConfig;
 use crate::dir_page::DirPage;
-use crate::free_page_tracker::FreePageTracker;
+use crate::free_page_manager::FreePageManager;
 use crate::overflow_page_handler::OverflowPageHandler;
 use crate::page::Page;
 use crate::page::PageTrait;
@@ -28,10 +28,10 @@ pub struct ClearHandler {
 impl ClearHandler {
     pub fn clear_tree(
         first: Page,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
-        _db_config: &DbConfig,
+        db_config: &DbConfig,
     ) -> PageNo {
         // If the root of the page is a leaf page, ie
         // only page in the tree then special case it.
@@ -39,15 +39,16 @@ impl ClearHandler {
             let root_leaf_page = LeafPage::from_page(first);
             return ClearHandler::clear_root_leaf_page(
                 root_leaf_page,
-                free_page_tracker,
+                free_pg_mgr,
                 page_cache,
                 new_version,
+                db_config,
             );
         }
 
         let root_dir_page = DirPage::from_page(first);
-        ClearHandler::clear_tree_dir_pages(root_dir_page, free_page_tracker, page_cache);
-        ClearHandler::create_new_root_page(free_page_tracker, page_cache, new_version)
+        ClearHandler::clear_tree_dir_pages(root_dir_page, free_pg_mgr, page_cache);
+        ClearHandler::create_new_root_page(free_pg_mgr, page_cache, new_version, db_config)
     }
 
     // Walk the tree recursively until hit leaf pages, clear
@@ -55,37 +56,30 @@ impl ClearHandler {
     // dir pages when they are empty to free pages.
     pub fn clear_tree_dir_pages(
         dir_page: DirPage,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
     ) {
-        free_page_tracker.return_free_page_no(dir_page.get_page_number());
+        free_pg_mgr.return_free_page_no(page_cache, dir_page.get_page_number());
 
         let dir_entries = dir_page.get_all_child_pages();
         for dir_entry in dir_entries {
             let page = page_cache.get_page(dir_entry);
             if page.get_type() == PageType::LeafPage {
-                ClearHandler::clear_leaf_page(
-                    LeafPage::from_page(page),
-                    free_page_tracker,
-                    page_cache,
-                );
+                ClearHandler::clear_leaf_page(LeafPage::from_page(page), free_pg_mgr, page_cache);
                 continue;
             }
             // Recursion. May not be best approach here.
-            ClearHandler::clear_tree_dir_pages(
-                DirPage::from_page(page),
-                free_page_tracker,
-                page_cache,
-            );
+            ClearHandler::clear_tree_dir_pages(DirPage::from_page(page), free_pg_mgr, page_cache);
         }
     }
 
     pub fn create_new_root_page(
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
+        db_config: &DbConfig,
     ) -> PageNo {
-        let new_root_page_no = free_page_tracker.get_free_page(page_cache);
+        let new_root_page_no = free_pg_mgr.get_free_page(page_cache, db_config.leaf_page_blk_exp);
         let mut new_root_page =
             LeafPage::create_new(page_cache.get_page_config(), new_root_page_no, new_version);
         page_cache.put_page(new_root_page.get_page());
@@ -94,19 +88,20 @@ impl ClearHandler {
 
     pub fn clear_root_leaf_page(
         root_page: LeafPage,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
+        db_config: &DbConfig,
     ) -> PageNo {
-        ClearHandler::clear_leaf_page(root_page, free_page_tracker, page_cache);
-        ClearHandler::create_new_root_page(free_page_tracker, page_cache, new_version)
+        ClearHandler::clear_leaf_page(root_page, free_pg_mgr, page_cache);
+        ClearHandler::create_new_root_page(free_pg_mgr, page_cache, new_version, db_config)
     }
 
     // Clear a leaf page - cannot simply return the leaf page as free page
     // as it may hold references to tuples in the overflow pages.
     pub fn clear_leaf_page(
         page: LeafPage,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
     ) {
         let tuples = page.get_all_tuples();
@@ -115,10 +110,10 @@ impl ClearHandler {
                 OverflowPageHandler::delete_overflow_tuple_pages(
                     Some(tuple),
                     page_cache,
-                    free_page_tracker,
+                    free_pg_mgr,
                 );
             }
         }
-        free_page_tracker.return_free_page_no(page.get_page_number());
+        free_pg_mgr.return_free_page_no(page_cache, page.get_page_number());
     }
 }

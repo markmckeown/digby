@@ -1,8 +1,9 @@
+use crate::FreePageManager;
 use crate::compressor::Compressor;
 use crate::compressor::CompressorType;
 use crate::db_config::DbConfig;
 use crate::{
-    FreePageTracker, OverflowPageHandler, OverflowTuple, PageCache,
+    OverflowPageHandler, OverflowTuple, PageCache,
     tuple::{Overflow, Tuple},
 };
 use sha2::{Digest, Sha256};
@@ -21,7 +22,7 @@ impl TupleProcessor {
         key: &[u8],
         value: &[u8],
         page_cache: &mut PageCache,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         version: u64,
         compressor: &Compressor,
         _db_config: &DbConfig,
@@ -77,7 +78,7 @@ impl TupleProcessor {
         let overflow_page_no = OverflowPageHandler::store_overflow_tuple(
             overflow_tuple,
             page_cache,
-            free_page_tracker,
+            free_pg_mgr,
             version,
         );
 
@@ -123,6 +124,7 @@ mod tests {
     use crate::page::PageTrait;
     use crate::page_container_layer::PageContainerLayer;
     use crate::tuple::TupleTrait;
+    use crate::{DbMasterPage, PageNo};
     use tempfile::NamedTempFile;
 
     use crate::db_config::DbConfig;
@@ -168,18 +170,16 @@ mod tests {
         let block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache = PageCache::new(block_layer);
         let version = 0;
-        let new_version = 1;
 
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
-        let mut free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_dir_page_no),
-            new_version,
-            *page_cache.get_page_config(),
-        );
 
+        let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
+        master_page.set_free_page_dir_page_no(0, free_dir_page_no);
+
+        let mut free_pg_mgr = FreePageManager::new(&master_page, version + 1, DB_CONFIG);
         let compressor_none = Compressor::new(CompressorType::None);
 
         let small_key = vec![1u8; 10];
@@ -188,7 +188,7 @@ mod tests {
             &small_key,
             &small_value,
             &mut page_cache,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
             1,
             &compressor_none,
             &DB_CONFIG,
@@ -201,7 +201,7 @@ mod tests {
             &small_key,
             &compressible_value,
             &mut page_cache,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
             1,
             &compressor_lz4,
             &DB_CONFIG,
@@ -213,7 +213,7 @@ mod tests {
             &small_key,
             &large_value,
             &mut page_cache,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
             1,
             &compressor_none,
             &DB_CONFIG,
@@ -225,7 +225,7 @@ mod tests {
             &large_key,
             &small_value,
             &mut page_cache,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
             1,
             &compressor_none,
             &DB_CONFIG,
@@ -236,7 +236,7 @@ mod tests {
             &large_key,
             &large_value,
             &mut page_cache,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
             1,
             &compressor_none,
             &DB_CONFIG,
@@ -247,7 +247,7 @@ mod tests {
             &large_key,
             &large_value,
             &mut page_cache,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
             1,
             &compressor_lz4,
             &DB_CONFIG,

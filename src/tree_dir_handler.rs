@@ -1,7 +1,7 @@
 use crate::dir_page::DirPage;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
-use crate::{FreePageTracker, TreeDirEntry, db_config};
+use crate::{FreePageManager, TreeDirEntry, db_config};
 
 pub struct TreeDirHandler {}
 
@@ -51,16 +51,16 @@ impl TreeDirHandler {
 
     pub fn map_dir_pages(
         page_refs: &mut Vec<DirPageRef>,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         version: u64,
     ) {
         for page_ref in page_refs {
             let old_page_no = page_ref.page.get_page_number();
             if old_page_no.to_u64() != 0 {
-                free_page_tracker.return_free_page_no(old_page_no);
+                free_pg_mgr.return_free_page_no(page_cache, old_page_no);
             }
-            let new_page_no = free_page_tracker.get_free_page(page_cache);
+            let new_page_no = free_pg_mgr.get_free_page(page_cache, old_page_no.get_blk_cnt_exp());
             page_ref.page.set_page_number(new_page_no);
             page_ref.page.set_version(version);
         }

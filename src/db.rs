@@ -4,7 +4,6 @@ use crate::db_config::DbConfig;
 use crate::db_master_page::DbMasterPage;
 use crate::db_root_page::DbRootPage;
 use crate::file_layer::FileLayer;
-use crate::free_page_tracker::FreePageTracker;
 use crate::overflow_tuple::OverflowTuple;
 use crate::page::PageTrait;
 use crate::page_cache::PageCache;
@@ -13,8 +12,8 @@ use crate::page_no::PageNo;
 use crate::tuple::{Overflow, Tuple, TupleTrait};
 use crate::tx_ctx::TxCtx;
 use crate::{
-    ClearHandler, Compressor, FreeDirPage, LeafPage, OverflowPageHandler, StoreTupleProcessor,
-    TreeDeleteHandler, TupleProcessor,
+    ClearHandler, Compressor, FreeDirPage, FreePageManager, LeafPage, OverflowPageHandler,
+    StoreTupleProcessor, TreeDeleteHandler, TupleProcessor,
 };
 
 // Layers in the Db are:
@@ -201,7 +200,7 @@ impl Db {
             &key_to_use,
             root_page,
             &mut self.page_cache,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             tx_ctx.new_version,
             &self.db_config,
         );
@@ -295,7 +294,7 @@ impl Db {
             key,
             value,
             &mut self.page_cache,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             tx_ctx.new_version,
             &self.compressor,
             &self.db_config,
@@ -310,7 +309,7 @@ impl Db {
         let new_tree_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             page,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             &mut self.page_cache,
             tx_ctx.new_version,
             &self.db_config,
@@ -336,7 +335,7 @@ impl Db {
         // will now be a leaf page.
         tx_ctx.global_root_page_no = ClearHandler::clear_tree(
             page,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             &mut self.page_cache,
             tx_ctx.new_version,
             &self.db_config,
@@ -347,14 +346,7 @@ impl Db {
         let master_page = self.get_master_page();
         let old_version = master_page.get_version();
         let new_version = old_version + 1;
-        // Find the free page directory that has the free page numbers.
-        let free_page_dir_page_no = master_page.get_free_page_dir_page_no(0);
-        let free_page_tracker = FreePageTracker::new(
-            self.page_cache.get_page(free_page_dir_page_no),
-            new_version,
-            self.db_config,
-        );
-        TxCtx::new(master_page, new_version, free_page_tracker, self.db_config)
+        TxCtx::new(master_page, new_version, self.db_config)
     }
 
     // Create a new table in the DB. A table is another b+ tree in the
@@ -377,7 +369,9 @@ impl Db {
 
         // Need to create a root page for the new table tree, the first page
         // in the tree will be a leaf page.
-        let new_table_root_page_no = tx_ctx.free_page_tracker.get_free_page(&mut self.page_cache);
+        let new_table_root_page_no = tx_ctx
+            .free_pg_mgr
+            .get_free_page(&mut self.page_cache, self.db_config.leaf_page_blk_exp);
         let mut new_table_root_page = LeafPage::create_new(
             self.page_cache.get_page_config(),
             new_table_root_page_no,
@@ -394,7 +388,7 @@ impl Db {
             name,
             &new_table_root_page_no.get_bytes(),
             &mut self.page_cache,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             tx_ctx.new_version,
             &self.compressor,
             &self.db_config,
@@ -408,7 +402,7 @@ impl Db {
         tx_ctx.tree_dir_root_page_no = PageNo::from_u64(StoreTupleProcessor::store_tuple(
             tuple,
             page,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             &mut self.page_cache,
             tx_ctx.new_version,
             &self.db_config,
@@ -421,7 +415,7 @@ impl Db {
             tx_ctx.new_version,
             tx_ctx.global_root_page_no,
             tx_ctx.tree_dir_root_page_no,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
         );
     }
 
@@ -441,23 +435,18 @@ impl Db {
         new_version: u64,
         new_root_page_no: PageNo,
         new_table_tree_root_no: PageNo,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
     ) {
         // Write out the free pages.
         // Write the new free page directory back through the page cache.
-        let mut free_dir_pages = free_page_tracker.get_free_dir_pages(&mut self.page_cache);
-        assert!(!free_dir_pages.is_empty());
-        let first_free_dir_page = free_dir_pages.last().unwrap().get_page_number();
-        while let Some(mut free_dir_page) = free_dir_pages.pop() {
-            self.page_cache.put_page(free_dir_page.get_page());
-        }
+        // Update the master page with all the new free dir pages.
+        free_pg_mgr.flush_free_page_trackers(master_page, &mut self.page_cache);
 
         // Now need to update the master - update the following:
         //   - The global tree root page.
         //   - The table directory tree.
         //   - The free page directory.
         //   - The new version.
-        master_page.set_free_page_dir_page_no(0, first_free_dir_page);
         master_page.set_global_tree_root_page_no(new_root_page_no);
         master_page.set_table_dir_page_no(new_table_tree_root_no);
         master_page.set_version(new_version);
@@ -535,7 +524,7 @@ impl Db {
             key,
             value,
             &mut self.page_cache,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             tx_ctx.new_version,
             &self.compressor,
             &self.db_config,
@@ -547,7 +536,7 @@ impl Db {
         let new_table_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             table_root_page,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             &mut self.page_cache,
             tx_ctx.new_version,
             &self.db_config,
@@ -559,7 +548,7 @@ impl Db {
             table_name,
             &new_table_root_page_no.to_le_bytes(),
             &mut self.page_cache,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             tx_ctx.new_version,
             &self.compressor,
             &self.db_config,
@@ -571,7 +560,7 @@ impl Db {
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
             table_dir_root_page,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             &mut self.page_cache,
             tx_ctx.new_version,
             &self.db_config,
@@ -621,7 +610,7 @@ impl Db {
         let table_root_page = self.page_cache.get_page(table_root_page);
         let new_table_root_page_no = ClearHandler::clear_tree(
             table_root_page,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             &mut self.page_cache,
             tx_ctx.new_version,
             &self.db_config,
@@ -635,13 +624,13 @@ impl Db {
         // from the table directory tree.
         let new_table_dir_root_page_no: PageNo = if delete {
             tx_ctx
-                .free_page_tracker
-                .return_free_page_no(new_table_root_page_no);
+                .free_pg_mgr
+                .return_free_page_no(&mut self.page_cache, new_table_root_page_no);
             let (new_page, _is_deleted) = TreeDeleteHandler::delete_key(
                 table_name,
                 table_dir_root_page,
                 &mut self.page_cache,
-                &mut tx_ctx.free_page_tracker,
+                &mut tx_ctx.free_pg_mgr,
                 tx_ctx.new_version,
                 &self.db_config,
             );
@@ -656,7 +645,7 @@ impl Db {
                 table_name,
                 &new_table_root_page_no.get_bytes(),
                 &mut self.page_cache,
-                &mut tx_ctx.free_page_tracker,
+                &mut tx_ctx.free_pg_mgr,
                 tx_ctx.new_version,
                 &self.compressor,
                 &self.db_config,
@@ -666,7 +655,7 @@ impl Db {
             PageNo::from_u64(StoreTupleProcessor::store_tuple(
                 table_tuple,
                 table_dir_root_page,
-                &mut tx_ctx.free_page_tracker,
+                &mut tx_ctx.free_pg_mgr,
                 &mut self.page_cache,
                 tx_ctx.new_version,
                 &self.db_config,
@@ -740,7 +729,7 @@ impl Db {
             &key_to_use,
             root_page,
             &mut self.page_cache,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             tx_ctx.new_version,
             &self.db_config,
         );
@@ -756,7 +745,7 @@ impl Db {
             table_name,
             &new_tree_free_page_no.get_bytes(),
             &mut self.page_cache,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             tx_ctx.new_version,
             &self.compressor,
             &self.db_config,
@@ -769,7 +758,7 @@ impl Db {
         let new_table_dir_root_page_no = StoreTupleProcessor::store_tuple(
             table_tuple,
             table_dir_root_page,
-            &mut tx_ctx.free_page_tracker,
+            &mut tx_ctx.free_pg_mgr,
             &mut self.page_cache,
             tx_ctx.new_version,
             &self.db_config,

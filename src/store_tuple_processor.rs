@@ -1,8 +1,8 @@
+use crate::FreePageManager;
 use crate::OverflowPageHandler;
 use crate::PageNo;
 use crate::db_config::DbConfig;
 use crate::dir_page::DirPage;
-use crate::free_page_tracker::FreePageTracker;
 use crate::leaf_page::LeafPage;
 use crate::leaf_page_handler::LeafPageHandler;
 use crate::page::{Page, PageTrait, PageType};
@@ -41,7 +41,7 @@ impl StoreTupleProcessor {
     pub fn store_tuple(
         tuple: Tuple,
         first: Page,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
         db_config: &DbConfig,
@@ -53,7 +53,7 @@ impl StoreTupleProcessor {
             return StoreTupleProcessor::store_tuple_tree_root_single(
                 tuple,
                 tree_root_single,
-                free_page_tracker,
+                free_pg_mgr,
                 page_cache,
                 new_version,
                 db_config,
@@ -67,7 +67,7 @@ impl StoreTupleProcessor {
         StoreTupleProcessor::store_tuple_tree(
             tuple,
             root_dir_page,
-            free_page_tracker,
+            free_pg_mgr,
             page_cache,
             new_version,
             db_config,
@@ -84,7 +84,7 @@ impl StoreTupleProcessor {
     fn store_tuple_tree(
         tuple: Tuple,
         root_dir_page: DirPage,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
         db_config: &DbConfig,
@@ -127,7 +127,7 @@ impl StoreTupleProcessor {
         OverflowPageHandler::delete_overflow_tuple_pages(
             update_result.deleted_tuple,
             page_cache,
-            free_page_tracker,
+            free_pg_mgr,
         );
 
         // Remap leaf page, or pages if it split and write to disk - get a set of
@@ -135,7 +135,7 @@ impl StoreTupleProcessor {
         // the leaf pages parent node.
         let leaf_dir_entries = StoreTupleProcessor::write_leaf_pages(
             update_result.tree_leaf_pages,
-            free_page_tracker,
+            free_pg_mgr,
             page_cache,
             new_version,
         );
@@ -158,7 +158,7 @@ impl StoreTupleProcessor {
         // new page numbers.
         let mut dir_entries = StoreTupleProcessor::write_tree_dir_pages(
             dir_refs,
-            free_page_tracker,
+            free_pg_mgr,
             page_cache,
             new_version,
         );
@@ -173,7 +173,7 @@ impl StoreTupleProcessor {
             dir_refs = TreeDirHandler::handle_tree_dir_store(db_config, dir_page, dir_entries);
             dir_entries = StoreTupleProcessor::write_tree_dir_pages(
                 dir_refs,
-                free_page_tracker,
+                free_pg_mgr,
                 page_cache,
                 new_version,
             );
@@ -195,7 +195,7 @@ impl StoreTupleProcessor {
         // The new root page cannot split - so there should only be one page in the dir_refs now.
         dir_entries = StoreTupleProcessor::write_tree_dir_pages(
             dir_refs,
-            free_page_tracker,
+            free_pg_mgr,
             page_cache,
             new_version,
         );
@@ -208,13 +208,13 @@ impl StoreTupleProcessor {
     // for the page - note this is not explicitly stored in the page.
     fn write_tree_dir_pages(
         mut dir_pages: Vec<DirPageRef>,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
     ) -> Vec<TreeDirEntry> {
         // Change the page numbers to free pages and return the old page numbers to
         // be recycled in future commits.
-        TreeDirHandler::map_dir_pages(&mut dir_pages, free_page_tracker, page_cache, new_version);
+        TreeDirHandler::map_dir_pages(&mut dir_pages, free_pg_mgr, page_cache, new_version);
         // We want to generate a set of tree dir entries
         let mut entries: Vec<TreeDirEntry> = Vec::new();
         for mut dir_page in dir_pages {
@@ -242,14 +242,14 @@ impl StoreTupleProcessor {
     // for the pages and set their versions.
     fn write_leaf_pages(
         mut leaf_pages: Vec<(LeafPage, Option<Vec<u8>>)>,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
     ) -> Vec<TreeDirEntry> {
         // Get new page numbers for the leaf pages and set the version. For the
         // the original page its version number will be returned to the
         // free page tracker.
-        LeafPageHandler::map_pages(&mut leaf_pages, free_page_tracker, page_cache, new_version);
+        LeafPageHandler::map_pages(&mut leaf_pages, free_pg_mgr, page_cache, new_version);
         // We return a set dir entries for the next phase, these are used to update
         // the parent directory node for the pages.
         let mut entries: Vec<TreeDirEntry> = Vec::new();
@@ -273,7 +273,7 @@ impl StoreTupleProcessor {
     fn store_tuple_tree_root_single(
         tuple: Tuple,
         tree_root_single: LeafPage,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
         db_config: &DbConfig,
@@ -285,13 +285,13 @@ impl StoreTupleProcessor {
         OverflowPageHandler::delete_overflow_tuple_pages(
             update_result.deleted_tuple,
             page_cache,
-            free_page_tracker,
+            free_pg_mgr,
         );
 
         // Update the leaf page numbers so they write over free pages and also set the version.
         LeafPageHandler::map_pages(
             &mut update_result.tree_leaf_pages,
-            free_page_tracker,
+            free_pg_mgr,
             page_cache,
             new_version,
         );
@@ -328,7 +328,7 @@ impl StoreTupleProcessor {
         assert!(dir_refs.len() == 1);
         let dir_entries = StoreTupleProcessor::write_tree_dir_pages(
             dir_refs,
-            free_page_tracker,
+            free_pg_mgr,
             page_cache,
             new_version,
         );
@@ -341,7 +341,7 @@ impl StoreTupleProcessor {
 mod tests {
     use super::*;
     use crate::db_config::DbConfig;
-    use crate::page_no;
+    use crate::{DbMasterPage, page_no};
 
     const DB_CONFIG: DbConfig = DbConfig::builder()
         .block_size(4096)
@@ -379,11 +379,9 @@ mod tests {
             LeafPage::create_new(page_cache.get_page_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
 
-        let mut free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_dir_page_no),
-            version + 1,
-            *page_cache.get_page_config(),
-        );
+        let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
+        master_page.set_free_page_dir_page_no(0, free_dir_page_no);
+        let mut free_pg_mgr = FreePageManager::new(&master_page, version + 1, DB_CONFIG);
 
         let reloaded_page = page_cache.get_page(root_tree_page_no);
 
@@ -395,7 +393,7 @@ mod tests {
         let new_root_tree_no = StoreTupleProcessor::store_tuple(
             tuple,
             reloaded_page,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
             &mut page_cache,
             version + 1,
             &DB_CONFIG,
@@ -436,11 +434,10 @@ mod tests {
         for i in 0u32..4000 {
             j = i;
             version += 1;
-            let mut free_page_tracker = FreePageTracker::new(
-                page_cache.get_page(free_dir_page_no),
-                version,
-                *page_cache.get_page_config(),
-            );
+            let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
+            master_page.set_free_page_dir_page_no(0, free_dir_page_no);
+            let mut free_pg_mgr = FreePageManager::new(&master_page, version, DB_CONFIG);
+
             let reloaded_page = page_cache.get_page(root_tree_page_no);
             let tuple = Tuple::new(
                 i.to_be_bytes().to_vec().as_ref(),
@@ -450,16 +447,14 @@ mod tests {
             root_tree_page_no = page_no::PageNo(StoreTupleProcessor::store_tuple(
                 tuple,
                 reloaded_page,
-                &mut free_page_tracker,
+                &mut free_pg_mgr,
                 &mut page_cache,
                 version + 1,
                 &DB_CONFIG,
             ));
-            let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
-            free_dir_page_no = free_pages.last().unwrap().get_page_number();
-            for mut free_page in free_pages {
-                page_cache.put_page(free_page.get_page());
-            }
+
+            free_pg_mgr.flush_free_page_trackers(&mut master_page, &mut page_cache);
+            free_dir_page_no = master_page.get_free_page_dir_page_no(0);
             if page_cache.get_page(root_tree_page_no).get_type() != PageType::LeafPage {
                 break;
             }
@@ -501,11 +496,10 @@ mod tests {
 
         for i in 0u64..20000 {
             version += 1;
-            let mut free_page_tracker = FreePageTracker::new(
-                page_cache.get_page(free_dir_page_no),
-                version,
-                *page_cache.get_page_config(),
-            );
+            let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
+            master_page.set_free_page_dir_page_no(0, free_dir_page_no);
+            let mut free_pg_mgr = FreePageManager::new(&master_page, version, DB_CONFIG);
+
             let reloaded_page = page_cache.get_page(root_tree_page_no);
             let tuple = Tuple::new(
                 i.to_be_bytes().to_vec().as_ref(),
@@ -515,16 +509,14 @@ mod tests {
             root_tree_page_no = page_no::PageNo(StoreTupleProcessor::store_tuple(
                 tuple,
                 reloaded_page,
-                &mut free_page_tracker,
+                &mut free_pg_mgr,
                 &mut page_cache,
                 version + 1,
                 &DB_CONFIG,
             ));
-            let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
-            free_dir_page_no = free_pages.last().unwrap().get_page_number();
-            for mut free_page in free_pages {
-                page_cache.put_page(free_page.get_page());
-            }
+            free_pg_mgr.flush_free_page_trackers(&mut master_page, &mut page_cache);
+            free_dir_page_no = master_page.get_free_page_dir_page_no(0);
+
             page_cache.sync_data();
         }
 

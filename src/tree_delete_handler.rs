@@ -3,7 +3,7 @@ use crate::db_config::DbConfig;
 use crate::dir_page::DirPage;
 use crate::page::{PageTrait, PageType};
 use crate::tuple::{Overflow, TupleTrait};
-use crate::{FreePageTracker, LeafPage, OverflowPageHandler, Page, PageCache, TreeDirEntry};
+use crate::{FreePageManager, LeafPage, OverflowPageHandler, Page, PageCache, TreeDirEntry};
 
 pub struct TreeDeleteHandler {}
 
@@ -15,7 +15,7 @@ impl TreeDeleteHandler {
         key: &[u8],
         root_page: Page,
         page_cache: &mut PageCache,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         new_version: u64,
         _db_config: &DbConfig,
     ) -> (PageNo, bool) {
@@ -27,7 +27,7 @@ impl TreeDeleteHandler {
                 key,
                 &mut tree_root_single,
                 page_cache,
-                free_page_tracker,
+                free_pg_mgr,
                 new_version,
             );
         }
@@ -39,7 +39,7 @@ impl TreeDeleteHandler {
             key,
             root_dir_page,
             page_cache,
-            free_page_tracker,
+            free_pg_mgr,
             new_version,
         )
     }
@@ -48,7 +48,7 @@ impl TreeDeleteHandler {
         key: &[u8],
         root_dir_page: DirPage,
         page_cache: &mut PageCache,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         new_version: u64,
     ) -> (PageNo, bool) {
         let root_page_no = root_dir_page.get_page_number();
@@ -83,7 +83,7 @@ impl TreeDeleteHandler {
             OverflowPageHandler::delete_overflow_tuple_pages(
                 Some(tuple_unwrapped),
                 page_cache,
-                free_page_tracker,
+                free_pg_mgr,
             );
         }
 
@@ -91,9 +91,10 @@ impl TreeDeleteHandler {
         let mut new_leaf_page_no = PageNo::from_u64(0);
         // we always return the leaf page number to be recycled.
         let old_leaf_page_no = leaf_page.get_page_number();
-        free_page_tracker.return_free_page_no(old_leaf_page_no);
+        free_pg_mgr.return_free_page_no(page_cache, old_leaf_page_no);
         if !leaf_page.is_empty() {
-            new_leaf_page_no = free_page_tracker.get_free_page(page_cache);
+            new_leaf_page_no =
+                free_pg_mgr.get_free_page(page_cache, old_leaf_page_no.get_blk_cnt_exp());
             leaf_page.set_page_number(new_leaf_page_no);
             leaf_page.set_version(new_version);
             page_cache.put_page(leaf_page.get_page());
@@ -104,7 +105,7 @@ impl TreeDeleteHandler {
         let new_root_page_no = TreeDeleteHandler::fix_stack(
             key,
             &mut dir_pages,
-            free_page_tracker,
+            free_pg_mgr,
             page_cache,
             new_version,
             new_leaf_page_no,
@@ -116,7 +117,7 @@ impl TreeDeleteHandler {
     fn fix_stack(
         key: &[u8],
         dir_pages: &mut Vec<DirPage>,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
         new_leaf_page_no: PageNo,
@@ -128,7 +129,7 @@ impl TreeDeleteHandler {
             return TreeDeleteHandler::fix_stack_no_page_del(
                 key,
                 dir_pages,
-                free_page_tracker,
+                free_pg_mgr,
                 page_cache,
                 new_version,
                 new_leaf_page_no,
@@ -139,7 +140,7 @@ impl TreeDeleteHandler {
         TreeDeleteHandler::fix_stack_page_del(
             key,
             dir_pages,
-            free_page_tracker,
+            free_pg_mgr,
             page_cache,
             new_version,
             old_leaf_page_no,
@@ -149,7 +150,7 @@ impl TreeDeleteHandler {
     fn fix_stack_page_del(
         key: &[u8],
         dir_pages: &mut Vec<DirPage>,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
         old_leaf_page_no: PageNo,
@@ -165,7 +166,7 @@ impl TreeDeleteHandler {
             dir_page.remove_key_page(key, page_to_delete);
             if dir_page.is_empty() {
                 page_to_delete = dir_page.get_page_number();
-                free_page_tracker.return_free_page_no(page_to_delete);
+                free_pg_mgr.return_free_page_no(page_cache, page_to_delete);
             } else {
                 // This dir page is not empty - push back on stack for
                 // remapping.
@@ -176,7 +177,8 @@ impl TreeDeleteHandler {
 
         // We have nuked the root of the tree - need to create a TreeLeaf to replace it.
         if dir_pages.is_empty() {
-            let new_root_page_no = free_page_tracker.get_free_page(page_cache);
+            let new_root_page_no = free_pg_mgr
+                .get_free_page(page_cache, page_cache.get_page_config().leaf_page_blk_exp);
             let mut new_root =
                 LeafPage::create_new(page_cache.get_page_config(), new_root_page_no, new_version);
             page_cache.put_page(new_root.get_page());
@@ -184,17 +186,18 @@ impl TreeDeleteHandler {
         }
 
         // There are a stack of dir pages to rewrite
-        TreeDeleteHandler::fix_dir_stack(key, dir_pages, free_page_tracker, page_cache, new_version)
+        TreeDeleteHandler::fix_dir_stack(key, dir_pages, free_pg_mgr, page_cache, new_version)
     }
 
     fn fix_dir_stack(
         key: &[u8],
         dir_pages: &mut Vec<DirPage>,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
     ) -> PageNo {
-        let mut new_page_no = PageNo::from_u64(0);
+        let dir_page_blk_exp = page_cache.get_page_config().dir_page_blk_exp;
+        let mut new_page_no = PageNo::new(dir_page_blk_exp, 0);
         loop {
             // Note there has to be at least one
             let dir_page_wrapped = dir_pages.pop();
@@ -203,13 +206,13 @@ impl TreeDeleteHandler {
             }
             let mut dir_page = dir_page_wrapped.unwrap();
             let old_page_no = dir_page.get_page_number();
-            free_page_tracker.return_free_page_no(old_page_no);
+            free_pg_mgr.return_free_page_no(page_cache, old_page_no);
             // The first dir_page we pop does not need its directory entries changed.
             if new_page_no.get_blk_offset() != 0 {
                 let tree_dir_entry = TreeDirEntry::new(key.to_owned(), new_page_no.to_u64());
                 dir_page.store_child_pages(vec![tree_dir_entry].as_ref());
             }
-            new_page_no = free_page_tracker.get_free_page(page_cache);
+            new_page_no = free_pg_mgr.get_free_page(page_cache, dir_page_blk_exp);
             dir_page.set_page_number(new_page_no);
             dir_page.set_version(new_version);
             page_cache.put_page(dir_page.get_page());
@@ -221,7 +224,7 @@ impl TreeDeleteHandler {
     fn fix_stack_no_page_del(
         key: &[u8],
         dir_pages: &mut Vec<DirPage>,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         page_cache: &mut PageCache,
         new_version: u64,
         new_leaf_page_no: PageNo,
@@ -237,8 +240,9 @@ impl TreeDeleteHandler {
             let tree_dir_entry = TreeDirEntry::new(key.to_owned(), page_no_to_update.to_u64());
             dir_page.store_child_pages(vec![tree_dir_entry].as_ref());
             let dir_old_page_no = dir_page.get_page_number();
-            free_page_tracker.return_free_page_no(dir_old_page_no);
-            page_no_to_update = free_page_tracker.get_free_page(page_cache);
+            free_pg_mgr.return_free_page_no(page_cache, dir_old_page_no);
+            page_no_to_update =
+                free_pg_mgr.get_free_page(page_cache, dir_old_page_no.get_blk_cnt_exp());
             dir_page.set_page_number(page_no_to_update);
             dir_page.set_version(new_version);
             page_cache.put_page(dir_page.get_page());
@@ -252,7 +256,7 @@ impl TreeDeleteHandler {
         key: &[u8],
         root_page: &mut LeafPage,
         page_cache: &mut PageCache,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         new_version: u64,
     ) -> (PageNo, bool) {
         let root_page_no = root_page.get_page_number();
@@ -277,16 +281,17 @@ impl TreeDeleteHandler {
             OverflowPageHandler::delete_overflow_tuple_pages(
                 Some(tuple_unwrapped),
                 page_cache,
-                free_page_tracker,
+                free_pg_mgr,
             );
         }
 
         // Store the root page back into the page cache.
         // Return the old page number for reuse.
-        free_page_tracker.return_free_page_no(root_page_no);
+        free_pg_mgr.return_free_page_no(page_cache, root_page_no);
 
         // Get a new page number for root page.
-        let new_root_page_no = free_page_tracker.get_free_page(page_cache);
+        let new_root_page_no =
+            free_pg_mgr.get_free_page(page_cache, root_page_no.get_blk_cnt_exp());
 
         // Set the page number and version and write to disk.
         root_page.set_page_number(new_root_page_no);

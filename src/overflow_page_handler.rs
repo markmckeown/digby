@@ -1,4 +1,4 @@
-use crate::FreePageTracker;
+use crate::FreePageManager;
 use crate::OverflowPage;
 use crate::OverflowTuple;
 use crate::PageCache;
@@ -14,7 +14,7 @@ impl OverflowPageHandler {
     pub fn store_overflow_tuple(
         tuple: OverflowTuple,
         page_cache: &mut PageCache,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
         version: u64,
     ) -> PageNo {
         // We write the buffer backwards as we want to create a linked list
@@ -26,7 +26,8 @@ impl OverflowPageHandler {
         let mut previous = PageNo::from_u64(0);
         let mut next_page: PageNo;
         loop {
-            next_page = free_page_tracker.get_free_page(page_cache);
+            // TODO - pick block size
+            next_page = free_pg_mgr.get_free_page(page_cache, 0);
             let mut page =
                 OverflowPage::create_new(page_cache.get_page_config(), next_page, version);
             page.set_next_page(previous);
@@ -66,7 +67,7 @@ impl OverflowPageHandler {
     pub fn delete_overflow_tuple_pages(
         tuple_option: Option<Tuple>,
         page_cache: &mut PageCache,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
     ) -> u32 {
         if tuple_option.is_none() {
             return 0;
@@ -77,15 +78,15 @@ impl OverflowPageHandler {
         }
         // A tuple has been deleted that points to a overflow page.
         let page_no = PageNo::from_bytes(tuple.get_value());
-        OverflowPageHandler::delete_overflow_pages(page_no, page_cache, free_page_tracker)
+        OverflowPageHandler::delete_overflow_pages(page_no, page_cache, free_pg_mgr)
     }
 
     pub fn delete_overflow_pages(
         first_page: PageNo,
         page_cache: &mut PageCache,
-        free_page_tracker: &mut FreePageTracker,
+        free_pg_mgr: &mut FreePageManager,
     ) -> u32 {
-        free_page_tracker.return_free_page_no(first_page);
+        free_pg_mgr.return_free_page_no(page_cache, first_page);
         let mut page_no = first_page;
         let mut count: u32 = 1;
         loop {
@@ -94,7 +95,7 @@ impl OverflowPageHandler {
             if page_no.get_blk_offset() == 0 {
                 break;
             }
-            free_page_tracker.return_free_page_no(page_no);
+            free_pg_mgr.return_free_page_no(page_cache, page_no);
             count += 1;
         }
 
@@ -105,7 +106,7 @@ impl OverflowPageHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db_config::DbConfig;
+    use crate::{DbMasterPage, db_config::DbConfig};
 
     const PAGE_CONFIG: DbConfig = DbConfig::builder()
         .block_size(4096)
@@ -142,11 +143,10 @@ mod tests {
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
-        let mut free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_dir_page_no),
-            new_version,
-            *page_cache.get_page_config(),
-        );
+
+        let mut master_page = DbMasterPage::create_new(&PAGE_CONFIG, PageNo::new(0, 1), version);
+        master_page.set_free_page_dir_page_no(0, free_dir_page_no);
+        let mut free_pg_mgr = FreePageManager::new(&master_page, new_version, PAGE_CONFIG);
 
         let key: Vec<u8> = vec![111u8; 8192];
         let value: Vec<u8> = vec![56u8; 18192];
@@ -155,7 +155,7 @@ mod tests {
         let overflow_tuple_page_no = OverflowPageHandler::store_overflow_tuple(
             tuple,
             &mut page_cache,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
             new_version,
         );
 
@@ -169,13 +169,13 @@ mod tests {
         let count = OverflowPageHandler::delete_overflow_tuple_pages(
             None,
             &mut page_cache,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
         );
         assert_eq!(count, 0);
         let count = OverflowPageHandler::delete_overflow_tuple_pages(
             Some(tuple_no_overflow.clone()),
             &mut page_cache,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
         );
         assert_eq!(count, 0);
 
@@ -185,15 +185,12 @@ mod tests {
         let count = OverflowPageHandler::delete_overflow_tuple_pages(
             Some(overflow_tuple_val.clone()),
             &mut page_cache,
-            &mut free_page_tracker,
+            &mut free_pg_mgr,
         );
         assert!(count > 0);
 
         // Flush the free pages.
-        let free_pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
-        for mut free_page in free_pages {
-            page_cache.put_page(free_page.get_page());
-        }
+        free_pg_mgr.flush_free_page_trackers(&mut master_page, &mut page_cache);
 
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
