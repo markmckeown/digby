@@ -6,16 +6,11 @@ pub struct FreePageManager {
     free_pg_trackers: HashMap<u8, FreePageTracker>,
     og_free_pg_dir_pg_nos: Vec<PageNo>,
     version: u64,
-    db_config: crate::db_config::DbConfig,
     flushed: bool,
 }
 
 impl FreePageManager {
-    pub fn new(
-        db_master_page: &DbMasterPage,
-        version: u64,
-        db_config: crate::db_config::DbConfig,
-    ) -> Self {
+    pub fn new(db_master_page: &DbMasterPage, version: u64) -> Self {
         let mut og_free_pg_dir_pg_nos: Vec<PageNo> = Vec::new();
         for i in 0..9 {
             og_free_pg_dir_pg_nos.push(db_master_page.get_free_page_dir_page_no(i));
@@ -25,7 +20,6 @@ impl FreePageManager {
             free_pg_trackers: HashMap::new(),
             og_free_pg_dir_pg_nos,
             version,
-            db_config,
             flushed: false,
         }
     }
@@ -93,7 +87,8 @@ impl FreePageManager {
         );
         let page_no = self.og_free_pg_dir_pg_nos.get(blk_exp as usize).unwrap();
         let page = page_cache.get_page(*page_no);
-        let free_pg_tracker = FreePageTracker::new(page, self.version, self.db_config);
+        let free_pg_tracker =
+            FreePageTracker::new(page, self.version, *page_cache.get_page_config());
         self.free_pg_trackers.insert(blk_exp, free_pg_tracker);
         self.free_pg_trackers.get_mut(&blk_exp).unwrap()
     }

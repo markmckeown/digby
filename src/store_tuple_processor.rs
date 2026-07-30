@@ -381,7 +381,7 @@ mod tests {
 
         let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
         master_page.set_free_page_dir_page_no(0, free_dir_page_no);
-        let mut free_pg_mgr = FreePageManager::new(&master_page, version + 1, DB_CONFIG);
+        let mut free_pg_mgr = FreePageManager::new(&master_page, version + 1);
 
         let reloaded_page = page_cache.get_page(root_tree_page_no);
 
@@ -436,7 +436,7 @@ mod tests {
             version += 1;
             let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
             master_page.set_free_page_dir_page_no(0, free_dir_page_no);
-            let mut free_pg_mgr = FreePageManager::new(&master_page, version, DB_CONFIG);
+            let mut free_pg_mgr = FreePageManager::new(&master_page, version);
 
             let reloaded_page = page_cache.get_page(root_tree_page_no);
             let tuple = Tuple::new(
@@ -498,7 +498,7 @@ mod tests {
             version += 1;
             let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
             master_page.set_free_page_dir_page_no(0, free_dir_page_no);
-            let mut free_pg_mgr = FreePageManager::new(&master_page, version, DB_CONFIG);
+            let mut free_pg_mgr = FreePageManager::new(&master_page, version);
 
             let reloaded_page = page_cache.get_page(root_tree_page_no);
             let tuple = Tuple::new(

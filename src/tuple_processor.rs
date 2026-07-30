@@ -179,7 +179,7 @@ mod tests {
         let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
         master_page.set_free_page_dir_page_no(0, free_dir_page_no);
 
-        let mut free_pg_mgr = FreePageManager::new(&master_page, version + 1, DB_CONFIG);
+        let mut free_pg_mgr = FreePageManager::new(&master_page, version + 1);
         let compressor_none = Compressor::new(CompressorType::None);
 
         let small_key = vec![1u8; 10];

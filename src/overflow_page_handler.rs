@@ -146,7 +146,7 @@ mod tests {
 
         let mut master_page = DbMasterPage::create_new(&PAGE_CONFIG, PageNo::new(0, 1), version);
         master_page.set_free_page_dir_page_no(0, free_dir_page_no);
-        let mut free_pg_mgr = FreePageManager::new(&master_page, new_version, PAGE_CONFIG);
+        let mut free_pg_mgr = FreePageManager::new(&master_page, new_version);
 
         let key: Vec<u8> = vec![111u8; 8192];
         let value: Vec<u8> = vec![56u8; 18192];

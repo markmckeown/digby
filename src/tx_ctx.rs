@@ -1,5 +1,4 @@
 use crate::FreePageManager;
-use crate::db_config::DbConfig;
 use crate::db_master_page::DbMasterPage;
 use crate::page_no::PageNo;
 
@@ -12,10 +11,10 @@ pub struct TxCtx {
 }
 
 impl TxCtx {
-    pub fn new(master_page: DbMasterPage, new_version: u64, db_config: DbConfig) -> Self {
+    pub fn new(master_page: DbMasterPage, new_version: u64) -> Self {
         let global_root_page_no = master_page.get_global_tree_root_page_no();
         let tree_dir_root_page_no = master_page.get_table_dir_page_no();
-        let free_pg_mgr = FreePageManager::new(&master_page, new_version, db_config);
+        let free_pg_mgr = FreePageManager::new(&master_page, new_version);
         Self {
             master_page,
             new_version,
