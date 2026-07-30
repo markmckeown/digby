@@ -1169,9 +1169,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Page type is not DirPage")]
     fn test_invalid_page() {
-        let page_config = DbConfig::builder()
-            .block_size(1028)
-            .build();
+        let page_config = DbConfig::builder().block_size(1028).build();
         let mut leaf_page = Page::new(page_config.block_size, page_config.page_size);
         leaf_page.set_type(PageType::LeafPage);
         let _dir_page = DirPage::from_page(leaf_page);
@@ -1180,9 +1178,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set left fence key on a page that already has entries.")]
     fn test_cannot_set_left_fence_after_adding_entries() {
-        let page_config = DbConfig::builder()
-            .block_size(1028)
-            .build();
+        let page_config = DbConfig::builder().block_size(1028).build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
@@ -1196,9 +1192,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set right fence key on a page that already has entries.")]
     fn test_cannot_set_right_fence_after_adding_entries() {
-        let page_config = DbConfig::builder()
-            .block_size(1028)
-            .build();
+        let page_config = DbConfig::builder().block_size(1028).build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         assert_eq!(dir_page.get_all_child_pages(), vec![]);
@@ -1214,9 +1208,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot split a page with fewer than 3 entries.")]
     fn test_cannot_split_page_with_less_than_3_entries() {
-        let page_config = DbConfig::builder()
-            .block_size(1028)
-            .build();
+        let page_config = DbConfig::builder().block_size(1028).build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
@@ -1237,9 +1229,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
     fn test_cannot_set_right_prefix_after_adding_entries() {
-        let page_config = DbConfig::builder()
-            .block_size(1028)
-            .build();
+        let page_config = DbConfig::builder().block_size(1028).build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
@@ -1253,9 +1243,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Prefix length cannot be larger than the right fence key size.")]
     fn test_prefix_larger_than_right_fence() {
-        let page_config = DbConfig::builder()
-            .block_size(1028)
-            .build();
+        let page_config = DbConfig::builder().block_size(1028).build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
@@ -1450,9 +1438,7 @@ mod tests {
 
     #[test]
     fn test_get_next_page() {
-        let page_config = DbConfig::builder()
-            .block_size(1028)
-            .build();
+        let page_config = DbConfig::builder().block_size(1028).build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
 
         // Add left page.
@@ -1495,9 +1481,7 @@ mod tests {
 
     #[test]
     fn test_split_page() {
-        let page_config = DbConfig::builder()
-            .block_size(1028)
-            .build();
+        let page_config = DbConfig::builder().block_size(1028).build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         for i in 0..20 {
             let key = (i as u64).to_le_bytes().to_vec();
