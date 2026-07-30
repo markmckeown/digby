@@ -29,7 +29,6 @@ impl DbConfig {
 #[derive(Clone, Debug)]
 pub struct DbConfigBuilder {
     block_size: usize,
-    page_size: usize,
     block_sanity_size: usize,
     compressor_type: CompressorType,
     block_sanity: BlockSanity,
@@ -47,7 +46,6 @@ impl DbConfigBuilder {
     pub const fn new() -> Self {
         Self {
             block_size: 4096,
-            page_size: 4092,
             block_sanity_size: 4,
             compressor_type: CompressorType::LZ4,
             block_sanity: BlockSanity::XxH32Checksum,
@@ -58,11 +56,6 @@ impl DbConfigBuilder {
 
     pub const fn block_size(mut self, block_size: usize) -> Self {
         self.block_size = block_size;
-        self
-    }
-
-    pub const fn page_size(mut self, page_size: usize) -> Self {
-        self.page_size = page_size;
         self
     }
 
@@ -95,7 +88,7 @@ impl DbConfigBuilder {
     pub const fn build(self) -> DbConfig {
         DbConfig {
             block_size: self.block_size,
-            page_size: self.page_size,
+            page_size: self.block_size - self.block_sanity_size,
             block_sanity_size: self.block_sanity_size,
             compressor_type: self.compressor_type,
             block_sanity: self.block_sanity,
@@ -113,7 +106,6 @@ mod tests {
     fn test_db_config_builder() {
         let config = DbConfig::builder()
             .block_size(8192)
-            .page_size(8188)
             .block_sanity_size(4)
             .compressor_type(CompressorType::LZ4)
             .leaf_page_blk_exp(1)

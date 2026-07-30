@@ -1019,11 +1019,8 @@ mod tests {
     fn test_not_leaf_page() {
         let page_config = DbConfig::builder()
             .block_size(4096)
-            .page_size(4000)
             .block_sanity_size(96)
             .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
         let mut dir_page = Page::new(page_config.block_size, page_config.page_size);
         dir_page.set_type(PageType::DirPage);

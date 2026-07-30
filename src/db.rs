@@ -132,20 +132,16 @@ impl Db {
         let page_config: DbConfig;
         if let Some(k) = key {
             sanity_type = BlockSanity::Aes128Gcm;
-            let sanity_bytes_used = BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm);
             page_config = DbConfig::builder()
                 .block_size(block_size)
-                .page_size(block_size - sanity_bytes_used)
                 .compressor_type(compressor_type)
                 .block_sanity(sanity_type)
                 .build();
             block_layer = PageContainerLayer::new_with_key(file_layer, page_config, k);
         } else {
             sanity_type = BlockSanity::XxH32Checksum;
-            let sanity_bytes_used = BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum);
             page_config = DbConfig::builder()
                 .block_size(block_size)
-                .page_size(block_size - sanity_bytes_used)
                 .compressor_type(compressor_type)
                 .block_sanity(sanity_type)
                 .build();
