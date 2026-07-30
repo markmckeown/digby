@@ -127,9 +127,7 @@ mod tests {
 
     const DB_CONFIG: DbConfig = DbConfig::builder()
         .block_size(4096)
-        .compressor_type(crate::compressor::CompressorType::None)
-        .leaf_page_blk_exp(0)
-        .dir_page_blk_exp(0)
+        .block_sanity_size(4)
         .build();
 
     #[test]

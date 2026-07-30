@@ -65,15 +65,11 @@ mod tests {
 
     #[test]
     fn test_create_new() {
-        let page_config = DbConfig::builder()
+        let db_config = DbConfig::builder()
             .block_size(4096)
-            .page_size(4092)
             .block_sanity_size(4)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
-        let free_page = FreePage::create_new(&page_config, 42);
+        let free_page = FreePage::create_new(&db_config, 42);
 
         assert_eq!(free_page.get_page_number().to_u64(), 42);
         // We can access `page` through the trait method
@@ -101,15 +97,11 @@ mod tests {
 
     #[test]
     fn test_page_trait_methods() {
-        let page_config = DbConfig::builder()
+        let db_config = DbConfig::builder()
             .block_size(4096)
-            .page_size(4092)
             .block_sanity_size(4)
-            .compressor_type(crate::compressor::CompressorType::None)
-            .leaf_page_blk_exp(0)
-            .dir_page_blk_exp(0)
             .build();
-        let mut free_page = FreePage::create_new(&page_config, 1);
+        let mut free_page = FreePage::create_new(&db_config, 1);
 
         free_page.set_version(5);
         assert_eq!(free_page.get_version(), 5);
