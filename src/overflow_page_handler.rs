@@ -108,13 +108,11 @@ mod tests {
     use super::*;
     use crate::{DbMasterPage, db_config::DbConfig};
 
-    const PAGE_CONFIG: DbConfig = DbConfig::builder()
+    const DB_CONFIG: DbConfig = DbConfig::builder()
         .block_size(4096)
         .page_size(4092)
         .block_sanity_size(4)
         .compressor_type(crate::compressor::CompressorType::None)
-        .leaf_page_blk_exp(0)
-        .dir_page_blk_exp(0)
         .build();
 
     #[test]
@@ -133,9 +131,9 @@ mod tests {
         let new_version: u64 = 90;
 
         // Set up the page_cache
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, PAGE_CONFIG.block_size);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, PAGE_CONFIG);
+            crate::PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         // Setup the free page infrastructure
@@ -144,7 +142,7 @@ mod tests {
             crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
-        let mut master_page = DbMasterPage::create_new(&PAGE_CONFIG, PageNo::new(0, 1), version);
+        let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
         master_page.set_free_page_dir_page_no(0, free_dir_page_no);
         let mut free_pg_mgr = FreePageManager::new(&master_page, new_version);
 

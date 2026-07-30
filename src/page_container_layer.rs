@@ -160,7 +160,7 @@ mod tests {
     use crate::page::{Page, PageType};
     use tempfile::tempfile;
 
-    const PAGE_CONFIG: DbConfig = DbConfig::builder()
+    const DB_CONFIG: DbConfig = DbConfig::builder()
         .block_size(4096)
         .page_size(4092)
         .block_sanity_size(4)
@@ -172,8 +172,8 @@ mod tests {
     #[test]
     fn test_block_layer_put_get() {
         let temp_file = tempfile().expect("Failed to create temp file");
-        let file_layer = FileLayer::new(temp_file, PAGE_CONFIG.block_size);
-        let mut block_layer = PageContainerLayer::new(file_layer, PAGE_CONFIG);
+        let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
+        let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
         let page_number = 0;
         block_layer.generate_free_pages(10, 0);
         let mut page = Page::create_new(block_layer.get_page_config(), 1);
@@ -188,7 +188,7 @@ mod tests {
     #[test]
     fn test_block_layer_put_get_encrypted() {
         let temp_file = tempfile().expect("Failed to create temp file");
-        let file_layer = FileLayer::new(temp_file, PAGE_CONFIG.block_size);
+        let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
         // Use oversized key to test that only the first 16 bytes are used for AES-128-GCM
         let key = [0u8; 32].to_vec(); // Key for AES-128-GCM
         let mut block_layer = PageContainerLayer::new_with_key(
@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn test_block_layer_put_get_encrypted_small_key() {
         let temp_file = tempfile().expect("Failed to create temp file");
-        let file_layer = FileLayer::new(temp_file, PAGE_CONFIG.block_size);
+        let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
         // Use undersized key to test that only the first 16 bytes are used for AES-128-GCM
         let key = [0u8; 8].to_vec(); // Key for AES-128-GCM
         let mut block_layer = PageContainerLayer::new_with_key(
@@ -247,8 +247,8 @@ mod tests {
     #[should_panic(expected = "Writing page outside the file.")]
     fn test_block_out_side_page_range() {
         let temp_file = tempfile().expect("Failed to create temp file");
-        let file_layer = FileLayer::new(temp_file, PAGE_CONFIG.block_size);
-        let mut block_layer = PageContainerLayer::new(file_layer, PAGE_CONFIG);
+        let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
+        let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page = Page::create_new(block_layer.get_page_config(), 1);
         page.set_page_number(PageNo::from_u64(4));
         page.set_type(PageType::Free);
@@ -259,8 +259,8 @@ mod tests {
     #[test]
     fn test_create_new_pages() {
         let temp_file = tempfile().expect("Failed to create temp file");
-        let file_layer = FileLayer::new(temp_file, PAGE_CONFIG.block_size);
-        let mut block_layer = PageContainerLayer::new(file_layer, PAGE_CONFIG);
+        let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
+        let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut free_pages = block_layer.generate_free_pages(1, 0);
         assert!(free_pages.len() == 1);
         free_pages = block_layer.generate_free_pages(2, 0);
@@ -272,8 +272,8 @@ mod tests {
     #[test]
     fn test_create_root_page() {
         let temp_file = tempfile().expect("Failed to create temp file");
-        let file_layer = FileLayer::new(temp_file, PAGE_CONFIG.block_size);
-        let mut block_layer = PageContainerLayer::new(file_layer, PAGE_CONFIG);
+        let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
+        let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page = DbRootPage::create_new(block_layer.get_page_config());
         block_layer.generate_free_pages(1, 0);
         block_layer.write_page(page.get_page(), PageNo::from_u64(0));
