@@ -1148,8 +1148,8 @@ mod tests {
     #[test]
     fn test_create_new() {
         let page_config = DbConfig::builder()
-            .block_size(1024)
-            .block_sanity_size(0)
+            .block_size(1028)
+            .block_sanity_size(4)
             .build();
         let dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_number().get_blk_offset(), 1);
@@ -1171,7 +1171,6 @@ mod tests {
     fn test_invalid_page() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .block_sanity_size(4)
             .build();
         let mut leaf_page = Page::new(page_config.block_size, page_config.page_size);
         leaf_page.set_type(PageType::LeafPage);
@@ -1183,7 +1182,6 @@ mod tests {
     fn test_cannot_set_left_fence_after_adding_entries() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .block_sanity_size(4)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1200,7 +1198,6 @@ mod tests {
     fn test_cannot_set_right_fence_after_adding_entries() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .block_sanity_size(4)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1219,7 +1216,6 @@ mod tests {
     fn test_cannot_split_page_with_less_than_3_entries() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .block_sanity_size(4)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1243,7 +1239,6 @@ mod tests {
     fn test_cannot_set_right_prefix_after_adding_entries() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .block_sanity_size(4)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1260,7 +1255,6 @@ mod tests {
     fn test_prefix_larger_than_right_fence() {
         let page_config = DbConfig::builder()
             .block_size(1028)
-            .block_sanity_size(4)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
@@ -1457,8 +1451,7 @@ mod tests {
     #[test]
     fn test_get_next_page() {
         let page_config = DbConfig::builder()
-            .block_size(1024)
-            .block_sanity_size(0)
+            .block_size(1028)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
 
@@ -1503,8 +1496,7 @@ mod tests {
     #[test]
     fn test_split_page() {
         let page_config = DbConfig::builder()
-            .block_size(1024)
-            .block_sanity_size(0)
+            .block_size(1028)
             .build();
         let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
         for i in 0..20 {
