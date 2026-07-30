@@ -87,8 +87,7 @@ impl FreePageManager {
         );
         let page_no = self.og_free_pg_dir_pg_nos.get(blk_exp as usize).unwrap();
         let page = page_cache.get_page(*page_no);
-        let free_pg_tracker =
-            FreePageTracker::new(page, self.version, *page_cache.get_page_config());
+        let free_pg_tracker = FreePageTracker::new(page, self.version);
         self.free_pg_trackers.insert(blk_exp, free_pg_tracker);
         self.free_pg_trackers.get_mut(&blk_exp).unwrap()
     }

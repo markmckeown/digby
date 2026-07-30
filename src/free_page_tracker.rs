@@ -1,4 +1,3 @@
-use crate::db_config::DbConfig;
 use crate::free_dir_page::FreeDirPage;
 use crate::page::Page;
 use crate::page::PageTrait;
@@ -22,7 +21,6 @@ pub struct FreePageTracker {
     free_dir_page_list: Vec<FreeDirPage>,
     returned_pages: Vec<PageNo>,
     new_version: u64,
-    page_config: DbConfig,
 }
 
 impl FreePageTracker {
@@ -32,7 +30,7 @@ impl FreePageTracker {
     // that need to be written back.
     //
     // page is the head of the free page directory.
-    pub fn new(page: Page, new_version: u64, page_config: DbConfig) -> Self {
+    pub fn new(page: Page, new_version: u64) -> Self {
         let free_dir_page = FreeDirPage::from_page(page);
         assert!(free_dir_page.get_version() < new_version);
         // We store free_dir_page, the head of the free page directory
@@ -43,7 +41,6 @@ impl FreePageTracker {
             free_dir_page_list: vec![free_dir_page],
             returned_pages: Vec::new(), // Page numbers that have been returned.
             new_version,
-            page_config,
         }
     }
 
@@ -133,8 +130,11 @@ impl FreePageTracker {
             // We create a new free page for the new free_page_dir page we need - we do not want to use a returned page no
             // as that could cause corruption. Returned pages are still in use until the commit is complete.
             let next_free_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-            let mut next_free_dir_page =
-                FreeDirPage::create_new(&self.page_config, next_free_page_no, self.new_version);
+            let mut next_free_dir_page = FreeDirPage::create_new(
+                page_cache.get_page_config(),
+                next_free_page_no,
+                self.new_version,
+            );
             next_free_dir_page.set_nxt_free_dir_pg(&last.get_page_number());
             last.set_prev_free_dir_pg(&next_free_dir_page.get_page_number());
             while let Some(page_no) = self.returned_pages.pop() {
@@ -159,7 +159,7 @@ impl FreePageTracker {
 mod tests {
     use super::*;
 
-    const PAGE_CONFIG: DbConfig = DbConfig::builder()
+    const DB_CONFIG: crate::db_config::DbConfig = crate::db_config::DbConfig::builder()
         .block_size(4096)
         .page_size(4092)
         .block_sanity_size(4)
@@ -180,9 +180,9 @@ mod tests {
             .expect("Failed to open or create DB file");
 
         let version = 0;
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, PAGE_CONFIG.block_size);
+        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, PAGE_CONFIG);
+            crate::PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache: PageCache = PageCache::new(block_layer);
 
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
@@ -190,11 +190,8 @@ mod tests {
             FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
-        let mut free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_dir_page_no),
-            version + 1,
-            *page_cache.get_page_config(),
-        );
+        let mut free_page_tracker =
+            FreePageTracker::new(page_cache.get_page(free_dir_page_no), version + 1);
 
         let new_free_page = free_page_tracker.get_free_page(&mut page_cache);
         assert!(new_free_page.get_blk_offset() == 1);
@@ -213,11 +210,8 @@ mod tests {
             page_cache.put_page(pages.pop().unwrap().get_page());
         }
 
-        free_page_tracker = FreePageTracker::new(
-            page_cache.get_page(free_page_dir_no),
-            version + 2,
-            *page_cache.get_page_config(),
-        );
+        free_page_tracker =
+            FreePageTracker::new(page_cache.get_page(free_page_dir_no), version + 2);
 
         // Thre are five pages of free page numbers - going to use 2100 of them
         for _number in 1u32..=2100 {
