@@ -7,16 +7,16 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 
 pub struct PageCache {
-    block_layer: PageContainerLayer,
+    pg_ctr_layer: PageContainerLayer,
     page_map: HashMap<PageNo, Page>,
     deque: VecDeque<PageNo>,
     cache_size_limit: usize,
 }
 
 impl PageCache {
-    pub fn new(block_layer: PageContainerLayer) -> Self {
+    pub fn new(pg_ctr_layer: PageContainerLayer) -> Self {
         PageCache {
-            block_layer,
+            pg_ctr_layer,
             page_map: HashMap::new(),
             deque: VecDeque::new(),
             cache_size_limit: 1024usize,
@@ -24,13 +24,13 @@ impl PageCache {
     }
 
     pub fn get_db_config(&self) -> &DbConfig {
-        self.block_layer.get_db_config()
+        self.pg_ctr_layer.get_db_config()
     }
 
     // Generate free pages on disk that can be written back to. Returns
     // a list of page numbers.
     pub fn generate_free_pages(&mut self, no_new_pages: u64, block_cnt_exp: u8) -> Vec<PageNo> {
-        self.block_layer
+        self.pg_ctr_layer
             .generate_free_pages(no_new_pages, block_cnt_exp)
     }
 
@@ -50,7 +50,7 @@ impl PageCache {
                 page_copy
             }
             None => {
-                let page = self.block_layer.read_page(page_number);
+                let page = self.pg_ctr_layer.read_page(page_number);
                 let mut page_for_cache =
                     Page::create_new(self.get_db_config(), page_number.get_blk_cnt());
                 page_for_cache
@@ -67,7 +67,7 @@ impl PageCache {
             return self.page_map.get(&page_number).unwrap();
         }
 
-        let new_page = self.block_layer.read_page(page_number);
+        let new_page = self.pg_ctr_layer.read_page(page_number);
         self.add_page_to_cache(page_number, new_page);
         self.page_map.get(&page_number).unwrap()
     }
@@ -94,20 +94,20 @@ impl PageCache {
         page_for_cache
             .get_pg_ctr_bytes_mut()
             .copy_from_slice(page.get_pg_ctr_bytes());
-        self.block_layer.write_page(page, page_no);
+        self.pg_ctr_layer.write_page(page, page_no);
         self.add_page_to_cache(page_no, page_for_cache);
     }
 
     pub fn get_total_page_count(&self) -> u64 {
-        self.block_layer.get_total_page_count()
+        self.pg_ctr_layer.get_total_page_count()
     }
 
     pub fn sync_data(&mut self) {
-        self.block_layer.sync_data()
+        self.pg_ctr_layer.sync_data()
     }
 
     pub fn sync_all(&mut self) {
-        self.block_layer.sync_all()
+        self.pg_ctr_layer.sync_all()
     }
 }
 
@@ -123,7 +123,6 @@ mod tests {
 
     const DB_CONFIG: DbConfig = DbConfig::builder()
         .block_size(4096)
-        .page_size(4092)
         .block_sanity_size(4)
         .compressor_type(crate::compressor::CompressorType::None)
         .build();
