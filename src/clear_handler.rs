@@ -81,7 +81,7 @@ impl ClearHandler {
     ) -> PageNo {
         let new_root_page_no = free_pg_mgr.get_free_page(page_cache, db_config.leaf_page_blk_exp);
         let mut new_root_page =
-            LeafPage::create_new(page_cache.get_page_config(), new_root_page_no, new_version);
+            LeafPage::create_new(page_cache.get_db_config(), new_root_page_no, new_version);
         page_cache.put_page(new_root_page.get_page());
         new_root_page_no
     }

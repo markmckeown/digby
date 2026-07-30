@@ -23,8 +23,8 @@ impl PageCache {
         }
     }
 
-    pub fn get_page_config(&self) -> &DbConfig {
-        self.block_layer.get_page_config()
+    pub fn get_db_config(&self) -> &DbConfig {
+        self.block_layer.get_db_config()
     }
 
     // Generate free pages on disk that can be written back to. Returns
@@ -43,7 +43,7 @@ impl PageCache {
         match self.page_map.get(&page_number) {
             Some(page) => {
                 let mut page_copy =
-                    Page::create_new(self.get_page_config(), page_number.get_blk_cnt());
+                    Page::create_new(self.get_db_config(), page_number.get_blk_cnt());
                 page_copy
                     .get_pg_ctr_bytes_mut()
                     .copy_from_slice(page.get_pg_ctr_bytes());
@@ -52,7 +52,7 @@ impl PageCache {
             None => {
                 let page = self.block_layer.read_page(page_number);
                 let mut page_for_cache =
-                    Page::create_new(self.get_page_config(), page_number.get_blk_cnt());
+                    Page::create_new(self.get_db_config(), page_number.get_blk_cnt());
                 page_for_cache
                     .get_pg_ctr_bytes_mut()
                     .copy_from_slice(page.get_pg_ctr_bytes());
@@ -90,7 +90,7 @@ impl PageCache {
         // the block layer might encrypt it.
         // TODO - block_layer.write_page should return the page to us to avoid need to copy.
         let mut page_for_cache =
-            Page::create_new(self.get_page_config(), page.get_page_number().get_blk_cnt());
+            Page::create_new(self.get_db_config(), page.get_page_number().get_blk_cnt());
         page_for_cache
             .get_pg_ctr_bytes_mut()
             .copy_from_slice(page.get_pg_ctr_bytes());
@@ -137,7 +137,7 @@ mod tests {
         let page_number = 0;
 
         // Write a page to the cache
-        let mut page = Page::create_new(page_cache.get_page_config(), 1);
+        let mut page = Page::create_new(page_cache.get_db_config(), 1);
         page_cache.generate_free_pages(10, 0);
         page.set_page_number(PageNo::from_u64(page_number));
         page.set_type(page::PageType::Free);

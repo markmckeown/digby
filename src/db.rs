@@ -373,7 +373,7 @@ impl Db {
             .free_pg_mgr
             .get_free_page(&mut self.page_cache, self.db_config.leaf_page_blk_exp);
         let mut new_table_root_page = LeafPage::create_new(
-            self.page_cache.get_page_config(),
+            self.page_cache.get_db_config(),
             new_table_root_page_no,
             tx_ctx.new_version,
         );
@@ -806,7 +806,7 @@ impl Db {
     fn write_free_dir_pages(&mut self, offset: u64) {
         for i in 0..9 {
             let mut free_dir_page = FreeDirPage::create_new(
-                self.page_cache.get_page_config(),
+                self.page_cache.get_db_config(),
                 PageNo::new(0, offset + i),
                 0,
             );
@@ -839,19 +839,19 @@ impl Db {
         // Write the global tree root page at page number 13.
         // The first page in a tree is a leaf page.
         let mut global_tree_root_page =
-            LeafPage::create_new(self.page_cache.get_page_config(), PageNo::from_u64(13), 0);
+            LeafPage::create_new(self.page_cache.get_db_config(), PageNo::from_u64(13), 0);
         // Write the global_tree_root_page to disk.
         self.page_cache.put_page(global_tree_root_page.get_page());
 
         // Write the table directory page at page number 12.
         // The first page in a tree is a leaf page.
         let mut table_dir_page =
-            LeafPage::create_new(self.page_cache.get_page_config(), PageNo::from_u64(12), 0);
+            LeafPage::create_new(self.page_cache.get_db_config(), PageNo::from_u64(12), 0);
         self.page_cache.put_page(table_dir_page.get_page());
 
         // Write first master page at page number 1.
         let mut master_page1: DbMasterPage =
-            DbMasterPage::create_new(self.page_cache.get_page_config(), PageNo::new(0, 1), 0);
+            DbMasterPage::create_new(self.page_cache.get_db_config(), PageNo::new(0, 1), 0);
         // Tell the first master page where the free page directory page is,
         // where the table directory root page is and where the global
         // tree root is.
@@ -863,7 +863,7 @@ impl Db {
         // Write second master page at page number 2, the version
         // is 1 - this makes master_page2 the current master page.
         let mut master_page2: DbMasterPage =
-            DbMasterPage::create_new(self.page_cache.get_page_config(), PageNo::new(0, 2), 1);
+            DbMasterPage::create_new(self.page_cache.get_db_config(), PageNo::new(0, 2), 1);
         Self::update_master_free_pg_dirs(&mut master_page2, 3);
         master_page2.set_table_dir_page_no(PageNo::from_u64(12));
         master_page2.set_global_tree_root_page_no(PageNo::from_u64(13));
@@ -871,7 +871,7 @@ impl Db {
 
         // Now write the free page directory at page 3.
         let mut free_dir_page =
-            FreeDirPage::create_new(self.page_cache.get_page_config(), PageNo::new(0, 3), 0);
+            FreeDirPage::create_new(self.page_cache.get_db_config(), PageNo::new(0, 3), 0);
 
         let free_pgs_blk_exp_0 = vec![
             PageNo::new(0, 14),
@@ -889,8 +889,7 @@ impl Db {
         // the DB is not sane until the next step.
 
         // Write the root page as last step to make the DB sane.
-        let mut db_root_page: DbRootPage =
-            DbRootPage::create_new(self.page_cache.get_page_config());
+        let mut db_root_page: DbRootPage = DbRootPage::create_new(self.page_cache.get_db_config());
         db_root_page.set_sanity_type(sanity_type);
         db_root_page.set_compression_type(self.compressor.compressor_type.into());
         self.page_cache.put_page(db_root_page.get_page());

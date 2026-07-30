@@ -131,7 +131,7 @@ impl FreePageTracker {
             // as that could cause corruption. Returned pages are still in use until the commit is complete.
             let next_free_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
             let mut next_free_dir_page = FreeDirPage::create_new(
-                page_cache.get_page_config(),
+                page_cache.get_db_config(),
                 next_free_page_no,
                 self.new_version,
             );
@@ -187,7 +187,7 @@ mod tests {
 
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
-            FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
+            FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
         let mut free_page_tracker =

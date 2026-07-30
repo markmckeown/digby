@@ -177,10 +177,10 @@ impl TreeDeleteHandler {
 
         // We have nuked the root of the tree - need to create a TreeLeaf to replace it.
         if dir_pages.is_empty() {
-            let new_root_page_no = free_pg_mgr
-                .get_free_page(page_cache, page_cache.get_page_config().leaf_page_blk_exp);
+            let new_root_page_no =
+                free_pg_mgr.get_free_page(page_cache, page_cache.get_db_config().leaf_page_blk_exp);
             let mut new_root =
-                LeafPage::create_new(page_cache.get_page_config(), new_root_page_no, new_version);
+                LeafPage::create_new(page_cache.get_db_config(), new_root_page_no, new_version);
             page_cache.put_page(new_root.get_page());
             return new_root_page_no;
         }
@@ -196,7 +196,7 @@ impl TreeDeleteHandler {
         page_cache: &mut PageCache,
         new_version: u64,
     ) -> PageNo {
-        let dir_page_blk_exp = page_cache.get_page_config().dir_page_blk_exp;
+        let dir_page_blk_exp = page_cache.get_db_config().dir_page_blk_exp;
         let mut new_page_no = PageNo::new(dir_page_blk_exp, 0);
         loop {
             // Note there has to be at least one

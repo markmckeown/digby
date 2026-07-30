@@ -173,7 +173,7 @@ mod tests {
 
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
-            crate::FreeDirPage::create_new(page_cache.get_page_config(), free_dir_page_no, version);
+            crate::FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
         let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);

@@ -42,22 +42,22 @@ use crate::page_no::PageNo;
 
 pub struct PageContainerLayer {
     file_layer: FileLayer,
-    page_config: DbConfig,
+    db_config: DbConfig,
     block_sanity: BlockSanity,
     key: Vec<u8>, // The encryption key if encryption is being used.
 }
 
 impl PageContainerLayer {
-    pub fn new(file_layer: FileLayer, page_config: DbConfig) -> Self {
+    pub fn new(file_layer: FileLayer, db_config: DbConfig) -> Self {
         PageContainerLayer {
             file_layer,
-            page_config,
+            db_config,
             block_sanity: BlockSanity::XxH32Checksum,
             key: Vec::new(),
         }
     }
 
-    pub fn new_with_key(file_layer: FileLayer, page_config: DbConfig, key: Vec<u8>) -> Self {
+    pub fn new_with_key(file_layer: FileLayer, db_config: DbConfig, key: Vec<u8>) -> Self {
         let mut enc_key = vec![0u8; 16];
         // Note we only use the first 16 bytes of the key for AES-128-GCM
         if key.len() >= 16 {
@@ -69,17 +69,17 @@ impl PageContainerLayer {
         PageContainerLayer {
             file_layer,
             block_sanity: BlockSanity::Aes128Gcm,
-            page_config,
+            db_config,
             key: enc_key,
         }
     }
 
-    pub fn get_page_config(&self) -> &DbConfig {
-        &self.page_config
+    pub fn get_db_config(&self) -> &DbConfig {
+        &self.db_config
     }
 
     pub fn read_page(&mut self, page_no: PageNo) -> Page {
-        let mut page = Page::create_new(&self.page_config, page_no.get_blk_cnt());
+        let mut page = Page::create_new(&self.db_config, page_no.get_blk_cnt());
         self.file_layer
             .read_page_from_disk(&mut page, &page_no)
             .expect("Failed to read page");
@@ -117,10 +117,10 @@ impl PageContainerLayer {
         let mut created_page_nos: Vec<PageNo> = Vec::new();
         for _ in 0..no_new_pages {
             let block_offset = self.file_layer.get_block_count();
-            let page_ctr_size = self.page_config.block_size * (1 << block_cnt_exp);
+            let page_ctr_size = self.db_config.block_size * (1 << block_cnt_exp);
             let mut page = Page::new(
                 page_ctr_size,
-                page_ctr_size - self.page_config.block_sanity_size,
+                page_ctr_size - self.db_config.block_sanity_size,
             );
             let new_page_no = PageNo::new(block_cnt_exp, block_offset);
             page.set_page_number(new_page_no);
@@ -165,8 +165,6 @@ mod tests {
         .page_size(4092)
         .block_sanity_size(4)
         .compressor_type(crate::compressor::CompressorType::None)
-        .leaf_page_blk_exp(0)
-        .dir_page_blk_exp(0)
         .build();
 
     #[test]
@@ -176,7 +174,7 @@ mod tests {
         let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
         let page_number = 0;
         block_layer.generate_free_pages(10, 0);
-        let mut page = Page::create_new(block_layer.get_page_config(), 1);
+        let mut page = Page::create_new(block_layer.get_db_config(), 1);
         page.set_page_number(PageNo::from_u64(page_number));
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
@@ -205,7 +203,7 @@ mod tests {
         );
         let page_number = 0;
         block_layer.generate_free_pages(10, 0);
-        let mut page = Page::create_new(block_layer.get_page_config(), 1);
+        let mut page = Page::create_new(block_layer.get_db_config(), 1);
         page.set_page_number(PageNo::from_u64(page_number));
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
@@ -234,7 +232,7 @@ mod tests {
         );
         let page_number = 0;
         block_layer.generate_free_pages(10, 0);
-        let mut page = Page::create_new(block_layer.get_page_config(), 1);
+        let mut page = Page::create_new(block_layer.get_db_config(), 1);
         page.set_page_number(PageNo::from_u64(page_number));
         page.set_type(PageType::Free);
         page.get_page_bytes_mut()[40..44].copy_from_slice(&[1, 2, 3, 4]); // Sample data
@@ -249,7 +247,7 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
         let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
-        let mut page = Page::create_new(block_layer.get_page_config(), 1);
+        let mut page = Page::create_new(block_layer.get_db_config(), 1);
         page.set_page_number(PageNo::from_u64(4));
         page.set_type(PageType::Free);
         // This should panic as out of range of file.
@@ -274,7 +272,7 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
         let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
-        let mut page = DbRootPage::create_new(block_layer.get_page_config());
+        let mut page = DbRootPage::create_new(block_layer.get_db_config());
         block_layer.generate_free_pages(1, 0);
         block_layer.write_page(page.get_page(), PageNo::from_u64(0));
     }
