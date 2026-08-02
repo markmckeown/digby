@@ -41,7 +41,7 @@ impl PageTrait for OverflowPage {
 }
 
 impl OverflowPage {
-    const HEADER_SIZE: usize = 26;
+    pub const HEADER_SIZE: usize = 26;
 
     pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
         let mut overflow_page = OverflowPage {

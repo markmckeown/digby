@@ -1,5 +1,7 @@
 use crate::block_sanity::BlockSanity;
 use crate::compressor::CompressorType;
+use crate::overflow_page::OverflowPage;
+
 
 #[derive(Copy, Clone, Debug)]
 pub struct DbConfig {
@@ -10,6 +12,7 @@ pub struct DbConfig {
     pub block_sanity: BlockSanity,
     pub leaf_page_blk_exp: u8,
     pub dir_page_blk_exp: u8,
+    pub overflow_pg_free_space: [usize; 9],
 }
 
 impl DbConfig {
@@ -24,6 +27,27 @@ impl DbConfig {
     pub const fn get_dir_page_blk_cnt(&self) -> u64 {
         1 << self.dir_page_blk_exp
     }
+
+    pub const fn get_max_overflow_pg_free_space(&self) -> usize {
+        self.overflow_pg_free_space[8]
+    }
+
+    pub const fn get_blk_exp_for_size(&self, size: usize) -> u8 {
+        let mut i = 0usize;
+        while i < self.overflow_pg_free_space.len() {
+            if size <= self.overflow_pg_free_space[i] {
+                return i as u8;
+            }
+            i += 1;
+        }
+        8
+    }
+
+    pub const fn get_max_overflow_exp_size(&self) -> u8 {
+        8
+    }
+
+
 }
 
 #[derive(Clone, Debug)]
@@ -34,6 +58,7 @@ pub struct DbConfigBuilder {
     block_sanity: BlockSanity,
     leaf_page_blk_exp: u8,
     dir_page_blk_exp: u8,
+    overflow_pg_free_space: [usize; 9],
 }
 
 impl Default for DbConfigBuilder {
@@ -51,6 +76,7 @@ impl DbConfigBuilder {
             block_sanity: BlockSanity::XxH32Checksum,
             leaf_page_blk_exp: 0,
             dir_page_blk_exp: 0,
+            overflow_pg_free_space: [0; 9],
         }
     }
 
@@ -86,7 +112,17 @@ impl DbConfigBuilder {
         self
     }
 
-    pub const fn build(self) -> DbConfig {
+    pub const fn build(mut self) -> DbConfig {
+        self.overflow_pg_free_space[0] = self.block_size - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[1] = (self.block_size * (1 << 1)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[2] = (self.block_size * (1 << 2)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[3] = (self.block_size * (1 << 3)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[4] = (self.block_size * (1 << 4)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[5] = (self.block_size * (1 << 5)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[6] = (self.block_size * (1 << 6)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[7] = (self.block_size * (1 << 7)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[8] = (self.block_size * (1 << 8)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        
         DbConfig {
             block_size: self.block_size,
             page_size: self.block_size - self.block_sanity_size,
@@ -95,6 +131,7 @@ impl DbConfigBuilder {
             block_sanity: self.block_sanity,
             leaf_page_blk_exp: self.leaf_page_blk_exp,
             dir_page_blk_exp: self.dir_page_blk_exp,
+            overflow_pg_free_space: self.overflow_pg_free_space,
         }
     }
 }

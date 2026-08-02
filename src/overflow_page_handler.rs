@@ -10,6 +10,7 @@ use crate::tuple::TupleTrait;
 
 pub struct OverflowPageHandler {}
 
+
 impl OverflowPageHandler {
     pub fn store_overflow_tuple(
         tuple: OverflowTuple,
@@ -44,6 +45,56 @@ impl OverflowPageHandler {
 
         next_page
     }
+
+    pub fn store_overflow_tuple2(
+        tuple: OverflowTuple,
+        page_cache: &mut PageCache,
+        free_pg_mgr: &mut FreePageManager,
+        version: u64,
+    ) -> PageNo {
+        // We write the buffer backwards as we want to create a linked list
+        // of pages. The last page we write will be the head of the list
+        // and contain the start of the OverflowTuple.
+        let buffer = tuple.get_serialized();
+        let mut end = tuple.get_byte_size();
+
+        let mut previous = PageNo::new(0, 0);
+        let mut next_page: PageNo = PageNo::new(0, 0);
+
+        let max_block_size = page_cache.get_db_config().get_max_overflow_pg_free_space();
+
+        let max_blocks = end / max_block_size;
+        let remainder = end % max_block_size;
+        
+        for _ in 0..max_blocks {
+            next_page = free_pg_mgr.get_free_page(page_cache, page_cache.get_db_config().get_max_overflow_exp_size());
+            let mut page = OverflowPage::create_new(page_cache.get_db_config(), next_page, version);
+            page.set_next_page(previous);
+
+            let bytes_to_write: usize = max_block_size;
+            page.add_bytes(&buffer[end - bytes_to_write..end], bytes_to_write);
+            page_cache.put_page(page.get_page());
+            end -= bytes_to_write;
+            previous = next_page;
+        }
+
+
+        if remainder > 0 {
+            let pg_exp = page_cache.get_db_config().get_blk_exp_for_size(remainder);
+            next_page = free_pg_mgr.get_free_page(page_cache, pg_exp);
+            let mut page = OverflowPage::create_new(page_cache.get_db_config(), next_page, version);
+            page.set_next_page(previous);
+
+            let bytes_to_write: usize = remainder;
+            page.add_bytes(&buffer[end - bytes_to_write..end], bytes_to_write);
+            page_cache.put_page(page.get_page());
+        }
+
+        next_page
+    }
+
+
+
 
     pub fn get_overflow_tuple(
         overflow_page_no: PageNo,
@@ -135,20 +186,27 @@ mod tests {
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         // Setup the free page infrastructure
-        let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-        let mut free_dir_page =
-            crate::FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
-        page_cache.put_page(free_dir_page.get_page());
-
+        let _ = page_cache.generate_free_pages(11, 0);
+        
         let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
-        master_page.set_free_page_dir_page_no(0, free_dir_page_no);
+        let offset = 2;
+        for i in 0..9 {
+            let mut free_dir_page = crate::FreeDirPage::create_new(
+                page_cache.get_db_config(),
+                PageNo::new(0, offset + i),
+                0,
+            );
+            page_cache.put_page(free_dir_page.get_page());
+            master_page.set_free_page_dir_page_no(i as u8, PageNo::new(0, offset + i as u64));
+        }
+
         let mut free_pg_mgr = FreePageManager::new(&master_page, &mut page_cache, new_version);
 
         let key: Vec<u8> = vec![111u8; 8192];
         let value: Vec<u8> = vec![56u8; 18192];
         let tuple = OverflowTuple::new(&key, &value, new_version, Overflow::KeyValueOverflow);
 
-        let overflow_tuple_page_no = OverflowPageHandler::store_overflow_tuple(
+        let overflow_tuple_page_no = OverflowPageHandler::store_overflow_tuple2(
             tuple,
             &mut page_cache,
             &mut free_pg_mgr,
