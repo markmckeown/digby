@@ -61,3 +61,5 @@ pub mod page_no;
 pub use page_no::PageNo;
 pub mod free_page_manager;
 pub use free_page_manager::FreePageManager;
+pub mod base_free_page_tracker;
+pub use base_free_page_tracker::BaseFreePageTracker;

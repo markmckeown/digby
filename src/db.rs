@@ -342,7 +342,7 @@ impl Db {
         let master_page = self.get_master_page();
         let old_version = master_page.get_version();
         let new_version = old_version + 1;
-        TxCtx::new(master_page, new_version)
+        TxCtx::new(master_page, &mut self.page_cache, new_version)
     }
 
     // Create a new table in the DB. A table is another b+ tree in the
