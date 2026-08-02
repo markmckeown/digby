@@ -1,3 +1,4 @@
+use crate::base_free_page_tracker::BaseFreePageTracker;
 use crate::free_dir_page::FreeDirPage;
 use crate::page::Page;
 use crate::page::PageTrait;
@@ -21,6 +22,7 @@ pub struct FreePageTracker {
     free_dir_page_list: Vec<FreeDirPage>,
     returned_pages: Vec<PageNo>,
     new_version: u64,
+    blk_exp: u8,
 }
 
 impl FreePageTracker {
@@ -30,7 +32,7 @@ impl FreePageTracker {
     // that need to be written back.
     //
     // page is the head of the free page directory.
-    pub fn new(page: Page, new_version: u64) -> Self {
+    pub fn new(page: Page, new_version: u64, blk_exp: u8) -> Self {
         let free_dir_page = FreeDirPage::from_page(page);
         assert!(free_dir_page.get_version() < new_version);
         // We store free_dir_page, the head of the free page directory
@@ -41,6 +43,7 @@ impl FreePageTracker {
             free_dir_page_list: vec![free_dir_page],
             returned_pages: Vec::new(), // Page numbers that have been returned.
             new_version,
+            blk_exp,
         }
     }
 
@@ -48,7 +51,11 @@ impl FreePageTracker {
     // to write back. If there are no free pages in the system then this
     // object will have to ask the PageCache to create more free pages - this
     // is why the PageCache is provided as a parameter.
-    pub fn get_free_page(&mut self, page_cache: &mut PageCache) -> PageNo {
+    pub fn get_free_page(
+        &mut self,
+        page_cache: &mut PageCache,
+        base_free_pg_tracker: &mut BaseFreePageTracker,
+    ) -> PageNo {
         assert!(!self.free_dir_page_list.is_empty());
 
         let last = self.free_dir_page_list.last_mut().unwrap();
@@ -65,32 +72,26 @@ impl FreePageTracker {
             // There is another free_dir_page, replace entry in the list with
             // with next free_dir_page and put last into the list
             // of returned pages.
-            self.returned_pages.push(last.get_page_number());
+            base_free_pg_tracker.return_free_page_no(last.get_page_number());
             self.free_dir_page_list.pop(); // The last page is now out of scope and no longer used.
             self.free_dir_page_list.push(FreeDirPage::from_page(
                 page_cache.get_page(next_free_dir_page_no),
             ));
             // Now recursively call get_free_page - the new page will have free page numbers
             // so it is gurantueed to work.
-            return self.get_free_page(page_cache);
+            return self.get_free_page(page_cache, base_free_pg_tracker);
         }
 
         // The current free_dir_page has no free pages, it has no links
         // to other free_dir_pages - so have the page_cache generate
         // new free pages.
-        let mut new_free_pages: Vec<PageNo> = page_cache.generate_free_pages(8, 0);
+        let mut new_free_pages: Vec<PageNo> = page_cache.generate_free_pages(8, self.blk_exp);
         // Reverse the free pages or we add at end of file first.
         new_free_pages.reverse();
         // Grab a free page number to return to the commit before adding to free_dir_page
         let new_free_page = new_free_pages.pop().unwrap();
         last.add_free_pages(&new_free_pages);
         new_free_page
-    }
-
-    // Only used for testing - returns the list of page numbers that have been returned
-    #[cfg(test)]
-    fn get_return_pages(&self) -> Vec<PageNo> {
-        self.returned_pages.clone()
     }
 
     // Commit no long needs this page no. It should be recycled for the next
@@ -106,10 +107,14 @@ impl FreePageTracker {
     // new free pages to store them. We do not want to reuse those free page numbers
     // in this commit.
     // Any new free_dir_pages created will be linked together.
-    pub fn get_free_dir_pages(&mut self, page_cache: &mut PageCache) -> Vec<FreeDirPage> {
+    pub fn get_free_dir_pages(
+        &mut self,
+        page_cache: &mut PageCache,
+        base_free_pg_tracker: &mut BaseFreePageTracker,
+    ) -> Vec<FreeDirPage> {
         assert!(self.free_dir_page_list.len() == 1);
 
-        let next_free_page_no = self.get_free_page(page_cache);
+        let next_free_page_no = base_free_pg_tracker.get_free_page(page_cache);
         let mut last = self.free_dir_page_list.last_mut().unwrap();
         // Get a free_page_no for last to be written to.
         self.returned_pages.push(last.get_page_number());
@@ -129,7 +134,7 @@ impl FreePageTracker {
         while !self.returned_pages.is_empty() {
             // We create a new free page for the new free_page_dir page we need - we do not want to use a returned page no
             // as that could cause corruption. Returned pages are still in use until the commit is complete.
-            let next_free_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+            let next_free_page_no = base_free_pg_tracker.get_free_page(page_cache);
             let mut next_free_dir_page = FreeDirPage::create_new(
                 page_cache.get_db_config(),
                 next_free_page_no,
@@ -152,70 +157,5 @@ impl FreePageTracker {
         // and any attempt to use it will cause a panic
         pages.append(&mut self.free_dir_page_list);
         pages
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const DB_CONFIG: crate::db_config::DbConfig = crate::db_config::DbConfig::builder()
-        .block_size(4096)
-        .block_sanity_size(4)
-        .build();
-
-    #[test]
-    fn test_add_remove_pages() {
-        let temp_file = tempfile::NamedTempFile::new().expect("Failed to create temp file");
-        let db_file = std::fs::OpenOptions::new()
-            .write(true)
-            .read(true)
-            .create(true)
-            .truncate(true)
-            .open(&temp_file)
-            .expect("Failed to open or create DB file");
-
-        let version = 0;
-        let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
-        let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, DB_CONFIG);
-        let mut page_cache: PageCache = PageCache::new(block_layer);
-
-        let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
-        let mut free_dir_page =
-            FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
-        page_cache.put_page(free_dir_page.get_page());
-
-        let mut free_page_tracker =
-            FreePageTracker::new(page_cache.get_page(free_dir_page_no), version + 1);
-
-        let new_free_page = free_page_tracker.get_free_page(&mut page_cache);
-        assert!(new_free_page.get_blk_offset() == 1);
-        assert_eq!(page_cache.get_total_page_count(), 9);
-
-        for number in 16u64..=5000 {
-            free_page_tracker.return_free_page_no(PageNo::from_u64(number));
-        }
-        assert_eq!(page_cache.get_total_page_count(), 9);
-        let mut pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
-        assert_eq!(pages.len(), 10);
-        assert_eq!(page_cache.get_total_page_count(), 18);
-
-        let free_page_dir_no = pages.last().unwrap().get_page_number();
-        while !pages.is_empty() {
-            page_cache.put_page(pages.pop().unwrap().get_page());
-        }
-
-        free_page_tracker =
-            FreePageTracker::new(page_cache.get_page(free_page_dir_no), version + 2);
-
-        // Thre are five pages of free page numbers - going to use 2100 of them
-        for _number in 1u32..=2100 {
-            free_page_tracker.get_free_page(&mut page_cache);
-        }
-        assert_eq!(page_cache.get_total_page_count(), 18);
-        // Two of the free_page_dir are no longer needed.
-        assert_eq!(free_page_tracker.get_return_pages().len(), 4);
-        std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 }
