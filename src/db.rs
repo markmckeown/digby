@@ -825,24 +825,35 @@ impl Db {
         // Provides a list of free pages that can be modified or added
         // to the free page directory if not used in the init process -
         // the init process will generate some unused pages.
-        let free_pages: Vec<PageNo> = self.page_cache.generate_free_pages(18, 0);
-        assert!(free_pages.len() == 18, "There should be 18 free pages");
+        let free_pages: Vec<PageNo> = self.page_cache.generate_free_pages(12, 0);
+        assert!(free_pages.len() == 12, "There should be 12 free pages");
 
         // Write the free page directory pages at page numbers 3 to 11.
         // The free page dir for blk_exp 0 will be overwritten later.
         self.write_free_dir_pages(3);
 
+        let leaf_pages: Vec<PageNo> = self
+            .page_cache
+            .generate_free_pages(2, self.db_config.leaf_page_blk_exp);
+        assert!(leaf_pages.len() == 2, "There should be 2 leaf pages");
+
         // Write the global tree root page at page number 13.
         // The first page in a tree is a leaf page.
-        let mut global_tree_root_page =
-            LeafPage::create_new(self.page_cache.get_db_config(), PageNo::from_u64(13), 0);
+        let mut global_tree_root_page = LeafPage::create_new(
+            self.page_cache.get_db_config(),
+            *leaf_pages.first().unwrap(),
+            0,
+        );
         // Write the global_tree_root_page to disk.
         self.page_cache.put_page(global_tree_root_page.get_page());
 
         // Write the table directory page at page number 12.
         // The first page in a tree is a leaf page.
-        let mut table_dir_page =
-            LeafPage::create_new(self.page_cache.get_db_config(), PageNo::from_u64(12), 0);
+        let mut table_dir_page = LeafPage::create_new(
+            self.page_cache.get_db_config(),
+            *leaf_pages.get(1).unwrap(),
+            0,
+        );
         self.page_cache.put_page(table_dir_page.get_page());
 
         // Write first master page at page number 1.
@@ -864,20 +875,6 @@ impl Db {
         master_page2.set_table_dir_page_no(PageNo::from_u64(12));
         master_page2.set_global_tree_root_page_no(PageNo::from_u64(13));
         self.page_cache.put_page(master_page2.get_page());
-
-        // Now write the free page directory at page 3.
-        let mut free_dir_page =
-            FreeDirPage::create_new(self.page_cache.get_db_config(), PageNo::new(0, 3), 0);
-
-        let free_pgs_blk_exp_0 = vec![
-            PageNo::new(0, 14),
-            PageNo::new(0, 15),
-            PageNo::new(0, 16),
-            PageNo::new(0, 17),
-        ];
-
-        free_dir_page.add_free_pages(&free_pgs_blk_exp_0);
-        self.page_cache.put_page(free_dir_page.get_page());
 
         // Flush all pages so far, don't sync the db metadata page yet.
         self.page_cache.sync_data();
@@ -974,7 +971,7 @@ mod tests {
             let free_page_dir_page_no = head_page2.get_free_page_dir_page_no(0);
             let free_page_dir_page =
                 FreeDirPage::from_page(db.page_cache.get_page(free_page_dir_page_no));
-            assert!(free_page_dir_page.get_entries() == 4);
+            assert!(free_page_dir_page.get_entries() == 0);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }

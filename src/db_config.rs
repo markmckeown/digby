@@ -2,7 +2,6 @@ use crate::block_sanity::BlockSanity;
 use crate::compressor::CompressorType;
 use crate::overflow_page::OverflowPage;
 
-
 #[derive(Copy, Clone, Debug)]
 pub struct DbConfig {
     pub block_size: usize,
@@ -46,8 +45,6 @@ impl DbConfig {
     pub const fn get_max_overflow_exp_size(&self) -> u8 {
         8
     }
-
-
 }
 
 #[derive(Clone, Debug)]
@@ -113,16 +110,25 @@ impl DbConfigBuilder {
     }
 
     pub const fn build(mut self) -> DbConfig {
-        self.overflow_pg_free_space[0] = self.block_size - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
-        self.overflow_pg_free_space[1] = (self.block_size * (1 << 1)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
-        self.overflow_pg_free_space[2] = (self.block_size * (1 << 2)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
-        self.overflow_pg_free_space[3] = (self.block_size * (1 << 3)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
-        self.overflow_pg_free_space[4] = (self.block_size * (1 << 4)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
-        self.overflow_pg_free_space[5] = (self.block_size * (1 << 5)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
-        self.overflow_pg_free_space[6] = (self.block_size * (1 << 6)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
-        self.overflow_pg_free_space[7] = (self.block_size * (1 << 7)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
-        self.overflow_pg_free_space[8] = (self.block_size * (1 << 8)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
-        
+        self.overflow_pg_free_space[0] =
+            self.block_size - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[1] =
+            (self.block_size * (1 << 1)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[2] =
+            (self.block_size * (1 << 2)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[3] =
+            (self.block_size * (1 << 3)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[4] =
+            (self.block_size * (1 << 4)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[5] =
+            (self.block_size * (1 << 5)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[6] =
+            (self.block_size * (1 << 6)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[7] =
+            (self.block_size * (1 << 7)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[8] =
+            (self.block_size * (1 << 8)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+
         DbConfig {
             block_size: self.block_size,
             page_size: self.block_size - self.block_sanity_size,

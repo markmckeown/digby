@@ -10,7 +10,6 @@ use crate::tuple::TupleTrait;
 
 pub struct OverflowPageHandler {}
 
-
 impl OverflowPageHandler {
     pub fn store_overflow_tuple(
         tuple: OverflowTuple,
@@ -65,9 +64,12 @@ impl OverflowPageHandler {
 
         let max_blocks = end / max_block_size;
         let remainder = end % max_block_size;
-        
+
         for _ in 0..max_blocks {
-            next_page = free_pg_mgr.get_free_page(page_cache, page_cache.get_db_config().get_max_overflow_exp_size());
+            next_page = free_pg_mgr.get_free_page(
+                page_cache,
+                page_cache.get_db_config().get_max_overflow_exp_size(),
+            );
             let mut page = OverflowPage::create_new(page_cache.get_db_config(), next_page, version);
             page.set_next_page(previous);
 
@@ -77,7 +79,6 @@ impl OverflowPageHandler {
             end -= bytes_to_write;
             previous = next_page;
         }
-
 
         if remainder > 0 {
             let pg_exp = page_cache.get_db_config().get_blk_exp_for_size(remainder);
@@ -92,9 +93,6 @@ impl OverflowPageHandler {
 
         next_page
     }
-
-
-
 
     pub fn get_overflow_tuple(
         overflow_page_no: PageNo,
@@ -187,7 +185,7 @@ mod tests {
 
         // Setup the free page infrastructure
         let _ = page_cache.generate_free_pages(11, 0);
-        
+
         let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
         let offset = 2;
         for i in 0..9 {
