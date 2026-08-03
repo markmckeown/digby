@@ -29,7 +29,7 @@ pub struct Db {
     db_config: DbConfig,
 }
 
-// TODO - initial db layout.
+// Initial db layout.
 // Control Pages
 // block 0, size 1 block - DB root page.
 // block 1, size 1 block - master page 1
@@ -46,12 +46,10 @@ pub struct Db {
 // block 10, size 1 block - free page directory, blk_exp 7 (524288 bytes)
 // block 11, size 1 block - free page directory, blk_exp 8 (1048576 bytes)
 //
-// Global Tree Leaf Page
-// block 12, size ? blocks.
-// Table Directory Tree Leaf Page
-// block ?, size ? blocks.
+// Global Tree Leaf Page, block 12, size ? (depends on config) blocks.
+// Table Directory Tree Leaf Page, block ?, size ? blocks.
 //
-// TODO allocate 12 blocks.
+// Steps in cerating a DB.
 // Init blocks 3 to 11 as free page directories.
 // Allocate Leaf Page for global tree root with leaf page block size
 // Init Global Tree Leaf Page
@@ -63,12 +61,11 @@ pub struct Db {
 // Write root page.
 // Sync file.
 impl Db {
-    // Default block size, the page size is a function of the block size
-    // depending on what block checksum is used or if encryption is being
-    // used. For example if using a 4 byte checksum and no encryption then
-    // the page size will be BLOCK_SIZE - 4.
-    // TODO - should support multiple block sizes at once to allow very
-    // large pages for large tuples.
+    // A DB page is held in a page container. The page container
+    // is made up of 1 or more blocks, and contains a page and
+    // either a  checksum or some encryption metadata.
+    // This is the default block size, if should be the atomic write
+    // unit of the OS.
     pub const BLOCK_SIZE: usize = 4096;
 
     // Create a DB object.
@@ -121,7 +118,7 @@ impl Db {
 
         // Set up the file layer with the open file.
         let file_layer: FileLayer = FileLayer::new(db_file, block_size);
-        // Create block layer - this will depend on if encrytion is being
+        // Create page container layer - this will depend on if encrytion is being
         // used or just checksums. There is no encryption and checksum as
         // the Aes128Gcm has built in checksum support.
         // TODO -  checksum hardcoded to xxHash32 and encryption to
