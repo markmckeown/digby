@@ -48,6 +48,19 @@ pub struct PageContainerLayer {
 }
 
 impl PageContainerLayer {
+    pub fn open(file_layer: FileLayer, db_config: DbConfig, key: Option<Vec<u8>>) -> Self {
+        match key {
+           Some(value) => {
+              PageContainerLayer::new_with_key(file_layer, db_config, value)
+           }
+           None => {
+              PageContainerLayer::new(file_layer, db_config)
+           }
+        }
+    }
+
+
+
     pub fn new(file_layer: FileLayer, db_config: DbConfig) -> Self {
         PageContainerLayer {
             file_layer,

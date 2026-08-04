@@ -15,6 +15,30 @@ use crate::{
     ClearHandler, Compressor, FreeDirPage, FreePageManager, LeafPage, OverflowPageHandler,
     StoreTupleProcessor, TreeDeleteHandler, TupleProcessor,
 };
+use log::error;
+use std::io;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum DigbyError {
+    #[error("An IO error: {0}.")]
+    Io(#[from] io::Error),
+
+    #[error("File already exists at path '{0}'.")]
+    FileExistsAtPath(String),
+
+    #[error("File '{0}' does not exist.")]
+    FileNotExistsAtPath(String),
+
+    #[error("Database file '{0}' is empty.")]
+    DbFileEmptyAtPath(String),
+
+    #[error("Not implemented")]
+    NotImplemented,
+
+    #[error("Provided configuration is inconsistent.")]
+    ConfigurationError,
+}
 
 // Layers in the Db are:
 //   file layer - manipulate the file holding the db nodes.
@@ -70,20 +94,81 @@ impl Db {
 
     // Create a db at path with db_config, error if:
     //   - File exists at path.
-    //   - Cannot write to path.
-    //   - No parent directory.
-    pub fn create(_path: &str, _key: Option<Vec<u8>>, _db_config: &DbConfig) -> Option<Self> {
-        // TODO
-        None
+    pub fn create(
+        path: &str,
+        key: Option<Vec<u8>>,
+        db_config: &DbConfig,
+    ) -> Result<Self, DigbyError> {
+        use std::fs::OpenOptions;
+        use std::path::Path;
+
+        if db_config.block_sanity == BlockSanity::Aes128Gcm && key.is_none() {
+            error!("Cannot create database. Configuration error, AES128GCM is configured without key.");
+            return Err(DigbyError::ConfigurationError);
+        }
+
+        if db_config.block_sanity == BlockSanity::XxH32Checksum && key.is_some() {
+            error!("Cannot create database. Configuration error, xxHash32 is configured as checksum but encryption key is supplied.");
+            return Err(DigbyError::ConfigurationError);
+        }
+
+        if Path::new(path).exists() {
+            error!("Cannot create database at '{}', file already exists.", path);
+            return Err(DigbyError::FileExistsAtPath(path.to_string()));
+        }
+
+        let db_file = OpenOptions::new().read(true).write(true).open(path)?;
+        let file_layer: FileLayer = FileLayer::new(db_file, db_config.block_size);
+        let pg_ctr_layer = PageContainerLayer::open(file_layer, *db_config, key);
+        let page_cache: PageCache = PageCache::new(pg_ctr_layer);
+
+        let mut db = Db {
+            page_cache,
+            compressor: Compressor::new(db_config.compressor_type),
+            db_config: *db_config,
+        };
+
+
+        db.init_db_file(db_config.block_sanity)?;
+        Ok(db)
     }
 
     // Open an existing DB, error if:
     //   - no file at path.
     //   - file is corrupt.
     //   - key is incorrect.
-    pub fn open(_path: &str, _key: Option<Vec<u8>>) -> Option<Self> {
-        // TODO
-        None
+    pub fn open(path: &str, _key: Option<Vec<u8>>) -> Result<Self, DigbyError> {
+        use std::fs::OpenOptions;
+        use std::path::Path;
+
+        if !Path::new(path).exists() {
+            error!("Cannot open database at '{}', file does not exist.", path);
+            return Err(DigbyError::FileNotExistsAtPath(path.to_string()));
+        }
+
+        let db_file = OpenOptions::new().read(true).write(true).open(path)?;
+        if db_file.metadata().unwrap().len() == 0 {
+            error!("File at path '{}' is empty, database is corrupt.", path);
+            return Err(DigbyError::DbFileEmptyAtPath(path.to_string()));
+        }
+
+        // Need to speculatively read the db_config from the start of the file.
+        // let db_config = get_db_config_from_file(db_file)?;
+        /*
+        let file_layer: FileLayer = FileLayer::new(db_file, db_config.block_size);
+        let pg_ctr_layer = PageContainerLayer::open(file_layer, db_config, key);
+        let page_cache: PageCache = PageCache::new(pg_ctr_layer);
+
+        let mut db = Db {
+            page_cache,
+            compressor: Compressor::new(db_config.compressor_type),
+            db_config: db_config,
+        };
+
+        db.check_db_integrity()?;
+        Ok(db)
+        */
+        Err(DigbyError::NotImplemented)
     }
 
     // Create a DB object.
