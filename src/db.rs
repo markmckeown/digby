@@ -68,6 +68,24 @@ impl Db {
     // unit of the OS.
     pub const BLOCK_SIZE: usize = 4096;
 
+    // Create a db at path with db_config, error if:
+    //   - File exists at path.
+    //   - Cannot write to path.
+    //   - No parent directory.
+    pub fn create(_path: &str, _key: Option<Vec<u8>>, _db_config: &DbConfig) -> Option<Self> {
+        // TODO
+        None
+    }
+
+    // Open an existing DB, error if:
+    //   - no file at path.
+    //   - file is corrupt.
+    //   - key is incorrect.
+    pub fn open(_path: &str, _key: Option<Vec<u8>>) -> Option<Self> {
+        // TODO
+        None
+    }
+
     // Create a DB object.
     //   path - the path to the file to use. If the file does not exist then create it for
     //          a new database. If the file exists sanity check it.
