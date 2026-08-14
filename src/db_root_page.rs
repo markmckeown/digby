@@ -10,6 +10,7 @@ use std::io::Cursor;
 // | Page No (8 bytes) | Version/Type (8 bytes) |
 // | Magic Number(u32) | DbVersionMajor (u16) | DbVersionMinor (u16) |
 // | Sanity (u8) | Compression (u8) |
+// | leaf_pg_blk_sz_shift (u8) | dir_pg_blk_sz_shift (u8) |
 pub struct DbRootPage {
     page: Page,
 }
@@ -146,6 +147,34 @@ impl DbRootPage {
             .write_u8(compression_type)
             .expect("Failed to write compression type");
     }
+
+    pub fn get_leaf_pg_blk_sz_shift(&self) -> u8 {
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
+        cursor.set_position(26);
+        cursor.read_u8().unwrap()
+    }
+
+    pub fn set_leaf_pg_blk_sz_shift(&mut self, leaf_pg_blk_sz_shift: u8) {
+        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
+        cursor.set_position(26);
+        cursor
+            .write_u8(leaf_pg_blk_sz_shift)
+            .expect("Failed to write leaf_pg_blk_sz_shift");
+    }
+
+    pub fn get_dir_pg_blk_sz_shift(&self) -> u8 {
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
+        cursor.set_position(27);
+        cursor.read_u8().unwrap()
+    }
+
+    pub fn set_dir_pg_blk_sz_shift(&mut self, dir_pg_blk_sz_shift: u8) {
+        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
+        cursor.set_position(27);
+        cursor
+            .write_u8(dir_pg_blk_sz_shift)
+            .expect("Failed to write dir_pg_blk_sz_shift");
+    }
 }
 
 #[cfg(test)]
@@ -268,5 +297,11 @@ mod tests {
 
         root_page.set_version(100);
         assert_eq!(root_page.get_version(), 100);
+
+        root_page.set_leaf_pg_blk_sz_shift(29);
+        assert_eq!(root_page.get_leaf_pg_blk_sz_shift(), 29);
+
+        root_page.set_dir_pg_blk_sz_shift(54);
+        assert_eq!(root_page.get_dir_pg_blk_sz_shift(), 54);
     }
 }

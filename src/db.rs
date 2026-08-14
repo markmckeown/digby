@@ -103,12 +103,16 @@ impl Db {
         use std::path::Path;
 
         if db_config.block_sanity == BlockSanity::Aes128Gcm && key.is_none() {
-            error!("Cannot create database. Configuration error, AES128GCM is configured without key.");
+            error!(
+                "Cannot create database. Configuration error, AES128GCM is configured without key."
+            );
             return Err(DigbyError::ConfigurationError);
         }
 
         if db_config.block_sanity == BlockSanity::XxH32Checksum && key.is_some() {
-            error!("Cannot create database. Configuration error, xxHash32 is configured as checksum but encryption key is supplied.");
+            error!(
+                "Cannot create database. Configuration error, xxHash32 is configured as checksum but encryption key is supplied."
+            );
             return Err(DigbyError::ConfigurationError);
         }
 
@@ -127,7 +131,6 @@ impl Db {
             compressor: Compressor::new(db_config.compressor_type),
             db_config: *db_config,
         };
-
 
         db.init_db_file(db_config.block_sanity)?;
         Ok(db)
@@ -968,7 +971,7 @@ impl Db {
         self.page_cache.put_page(master_page1.get_page());
 
         // Write second master page at page number 2, the version
-        // is 1 - this makes master_page2 the current master page.
+        // is 1 - this makes master_page 2 the current master page.
         let mut master_page2: DbMasterPage =
             DbMasterPage::create_new(self.page_cache.get_db_config(), PageNo::new(0, 2), 1);
         Self::update_master_free_pg_dirs(&mut master_page2, 3);
