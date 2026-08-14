@@ -874,8 +874,7 @@ impl Db {
         // encryption and then opened without a key then we will not be able to open
         // the root_page as the checksum will not match.
         // This could be avoided if the root page was not encrypted.
-        let stored_compressor_type = CompressorType::try_from(root_page.get_compression_type())
-            .expect("Unknown compression");
+        let stored_compressor_type = root_page.get_compression_type();
         if stored_compressor_type != self.compressor.compressor_type {
             panic!(
                 "Db compression mis-match, stored type is {:?}, requested type {:?}",

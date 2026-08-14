@@ -130,7 +130,7 @@ fn test_db_store_large_key_value_compressible() {
 }
 
 #[test]
-#[should_panic(expected = "Db compression mis-match, stored type is 1, requested type None")]
+#[should_panic(expected = "Db compression mis-match, stored type is LZ4, requested type None")]
 fn test_db_store_large_key_value_compressible_mismatch() {
     let temp_file = NamedTempFile::new().expect("Failed to create temp file");
     let key: Vec<u8> = vec![111u8; 8192];

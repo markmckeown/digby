@@ -1,4 +1,5 @@
 use crate::block_sanity::BlockSanity;
+use crate::compressor::CompressorType;
 use crate::db_config::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
@@ -11,6 +12,7 @@ use std::io::Cursor;
 // | Magic Number(u32) | DbVersionMajor (u16) | DbVersionMinor (u16) |
 // | Sanity (u8) | Compression (u8) |
 // | leaf_pg_blk_sz_shift (u8) | dir_pg_blk_sz_shift (u8) |
+// | Block Size (u64) |
 pub struct DbRootPage {
     page: Page,
 }
@@ -135,17 +137,17 @@ impl DbRootPage {
             .expect("Failed to write sanity type");
     }
 
-    pub fn get_compression_type(&self) -> u8 {
+    pub fn get_compression_type(&self) -> CompressorType {
         let mut cursor = Cursor::new(self.page.get_page_bytes());
         cursor.set_position(25);
-        cursor.read_u8().unwrap()
+        CompressorType::try_from(cursor.read_u8().unwrap()).unwrap()
     }
 
-    pub fn set_compression_type(&mut self, compression_type: u8) {
+    pub fn set_compression_type(&mut self, compression_type: CompressorType) {
         let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(25);
         cursor
-            .write_u8(compression_type)
+            .write_u8(u8::from(compression_type))
             .expect("Failed to write compression type");
     }
 
@@ -177,11 +179,36 @@ impl DbRootPage {
             .expect("Failed to write dir_pg_blk_sz_shift");
     }
 
+    pub fn get_blk_sz(&self) -> usize {
+        let mut cursor = Cursor::new(self.page.get_page_bytes());
+        cursor.set_position(28);
+        cursor.read_u64::<LittleEndian>().unwrap() as usize
+    }
+
+    pub fn set_blk_sz(&mut self, blk_sz: usize) {
+        let mut cursor = Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
+        cursor.set_position(28);
+        cursor
+            .write_u64::<LittleEndian>(blk_sz as u64)
+            .expect("Failed to write blk_sz");
+    }
+
     pub fn set_db_config(&mut self, db_config: &DbConfig) {
         self.set_sanity_type(db_config.block_sanity);
-        self.set_compression_type(db_config.compressor_type.into());
+        self.set_compression_type(db_config.compressor_type);
         self.set_leaf_pg_blk_sz_shift(db_config.leaf_page_blk_exp);
         self.set_dir_pg_blk_sz_shift(db_config.dir_page_blk_exp);
+        self.set_blk_sz(db_config.block_size);
+    }
+
+    pub fn get_db_config(&self) -> DbConfig {
+        DbConfig::builder()
+            .block_size(self.get_blk_sz())
+            .block_sanity(self.get_sanity_type())
+            .compressor_type(self.get_compression_type())
+            .leaf_page_blk_exp(self.get_leaf_pg_blk_sz_shift())
+            .dir_page_blk_exp(self.get_dir_pg_blk_sz_shift())
+            .build()
     }
 }
 
@@ -300,8 +327,8 @@ mod tests {
         root_page.set_sanity_type(BlockSanity::XxH32Checksum);
         assert_eq!(root_page.get_sanity_type(), BlockSanity::XxH32Checksum);
 
-        root_page.set_compression_type(1);
-        assert_eq!(root_page.get_compression_type(), 1);
+        root_page.set_compression_type(CompressorType::LZ4);
+        assert_eq!(root_page.get_compression_type(), CompressorType::LZ4);
 
         root_page.set_version(100);
         assert_eq!(root_page.get_version(), 100);
@@ -311,5 +338,8 @@ mod tests {
 
         root_page.set_dir_pg_blk_sz_shift(54);
         assert_eq!(root_page.get_dir_pg_blk_sz_shift(), 54);
+
+        root_page.set_blk_sz(4096);
+        assert_eq!(root_page.get_blk_sz(), 4096);
     }
 }
