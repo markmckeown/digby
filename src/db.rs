@@ -121,7 +121,13 @@ impl Db {
             return Err(DigbyError::FileExistsAtPath(path.to_string()));
         }
 
-        let db_file = OpenOptions::new().read(true).write(true).open(path)?;
+        let db_file = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .read(true)
+            .write(true)
+            .open(path)
+            .expect("Failed to open file.");
         let file_layer: FileLayer = FileLayer::new(db_file, db_config.block_size);
         let pg_ctr_layer = PageContainerLayer::open(file_layer, *db_config, key);
         let page_cache: PageCache = PageCache::new(pg_ctr_layer);
@@ -140,7 +146,7 @@ impl Db {
     //   - no file at path.
     //   - file is corrupt.
     //   - key is incorrect.
-    pub fn open(path: &str, _key: Option<Vec<u8>>) -> Result<Self, DigbyError> {
+    pub fn open(path: &str, key: Option<Vec<u8>>) -> Result<Self, DigbyError> {
         use std::fs::OpenOptions;
         use std::path::Path;
 
@@ -149,15 +155,15 @@ impl Db {
             return Err(DigbyError::FileNotExistsAtPath(path.to_string()));
         }
 
-        let db_file = OpenOptions::new().read(true).write(true).open(path)?;
+        let mut db_file = OpenOptions::new().read(true).write(true).open(path)?;
         if db_file.metadata().unwrap().len() == 0 {
             error!("File at path '{}' is empty, database is corrupt.", path);
             return Err(DigbyError::DbFileEmptyAtPath(path.to_string()));
         }
 
         // Need to speculatively read the db_config from the start of the file.
-        // let db_config = get_db_config_from_file(db_file)?;
-        /*
+        let db_config = DbRootPage::read_db_config(&mut db_file);
+
         let file_layer: FileLayer = FileLayer::new(db_file, db_config.block_size);
         let pg_ctr_layer = PageContainerLayer::open(file_layer, db_config, key);
         let page_cache: PageCache = PageCache::new(pg_ctr_layer);
@@ -165,13 +171,11 @@ impl Db {
         let mut db = Db {
             page_cache,
             compressor: Compressor::new(db_config.compressor_type),
-            db_config: db_config,
+            db_config,
         };
 
         db.check_db_integrity()?;
         Ok(db)
-        */
-        Err(DigbyError::NotImplemented)
     }
 
     // Create a DB object.
@@ -1048,6 +1052,7 @@ mod tests {
     use rand::{rng, seq::SliceRandom};
     use std::fs;
     use tempfile::NamedTempFile;
+    use tempfile::TempDir;
 
     #[test]
     fn test_db_creation() {
@@ -1101,6 +1106,28 @@ mod tests {
             assert!(returned_value == value);
         }
         fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
+    }
+
+    #[test]
+    fn test_db_create_open() {
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
+        let key = b"the_key".to_vec();
+        let value = b"the_value".to_vec();
+        {
+            let db_config = DbConfig::builder().block_size(4096).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            assert!(!db.delete(&key));
+            db.put(key.as_ref(), value.as_ref());
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then
+        // they are closed, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::open(db_path, None).unwrap();
+            let returned_value = db.get(key.as_ref()).unwrap();
+            assert!(returned_value == value);
+        }
     }
 
     #[test]

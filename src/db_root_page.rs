@@ -210,6 +210,15 @@ impl DbRootPage {
             .dir_page_blk_exp(self.get_dir_pg_blk_sz_shift())
             .build()
     }
+
+    pub fn read_db_config(file: &mut std::fs::File) -> DbConfig {
+        use std::io::Read;
+        let mut page = Page::new(64, 64);
+        file.read_exact(page.get_pg_ctr_bytes_mut())
+            .expect("Cannot read root page.");
+        let root_page = DbRootPage::from_page(page);
+        root_page.get_db_config()
+    }
 }
 
 #[cfg(test)]
