@@ -132,7 +132,7 @@ impl Db {
             db_config: *db_config,
         };
 
-        db.init_db_file(db_config.block_sanity)?;
+        db.init_db_file()?;
         Ok(db)
     }
 
@@ -262,8 +262,7 @@ impl Db {
         if is_new {
             // Need to populate the new database with some metadata pages
             // including the sanity_type (encryption or checksum).
-            db.init_db_file(sanity_type)
-                .expect("Failed to initialize DB file");
+            db.init_db_file().expect("Failed to initialize DB file");
         } else {
             // The DB already exists, check it is sane.
             db.check_db_integrity().expect("DB integrity check failed");
@@ -922,7 +921,7 @@ impl Db {
     // There is no DB file, or the file is empty.
     // Need to create pages and then write the
     // initial meta data pages.
-    fn init_db_file(&mut self, sanity_type: BlockSanity) -> std::io::Result<()> {
+    fn init_db_file(&mut self) -> std::io::Result<()> {
         // Get some free pages and make space in the file.
         // Will trigger a file sync.
         // Provides a list of free pages that can be modified or added
@@ -986,8 +985,6 @@ impl Db {
 
         // Write the root page as last step to make the DB sane.
         let mut db_root_page: DbRootPage = DbRootPage::create_new(self.page_cache.get_db_config());
-        db_root_page.set_sanity_type(sanity_type);
-        db_root_page.set_compression_type(self.compressor.compressor_type.into());
         self.page_cache.put_page(db_root_page.get_page());
 
         self.page_cache.sync_data();

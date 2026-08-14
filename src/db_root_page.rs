@@ -51,15 +51,16 @@ impl DbRootPage {
     const VERSION_MAJOR: u16 = 0;
     const VERSION_MINOR: u16 = 1;
 
-    pub fn create_new(page_config: &DbConfig) -> Self {
+    pub fn create_new(db_config: &DbConfig) -> Self {
         let mut db_root_page = DbRootPage {
-            page: Page::create_new(page_config, 1),
+            page: Page::create_new(db_config, 1),
         };
         db_root_page.page.set_type(PageType::DbRoot);
         db_root_page.page.set_page_number(PageNo::new(0, 0));
         db_root_page.set_magic_number();
         db_root_page.set_db_major_version();
         db_root_page.set_db_minor_version();
+        db_root_page.set_db_config(db_config);
         db_root_page
     }
 
@@ -174,6 +175,13 @@ impl DbRootPage {
         cursor
             .write_u8(dir_pg_blk_sz_shift)
             .expect("Failed to write dir_pg_blk_sz_shift");
+    }
+
+    pub fn set_db_config(&mut self, db_config: &DbConfig) {
+        self.set_sanity_type(db_config.block_sanity);
+        self.set_compression_type(db_config.compressor_type.into());
+        self.set_leaf_pg_blk_sz_shift(db_config.leaf_page_blk_exp);
+        self.set_dir_pg_blk_sz_shift(db_config.dir_page_blk_exp);
     }
 }
 
