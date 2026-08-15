@@ -42,8 +42,8 @@ pub enum DigbyError {
 
 // Layers in the Db are:
 //   file layer - manipulate the file holding the db nodes.
-//   block layer - interacts with file layer, manages blocks which holds pages.
-//   page cache - provides DB pages and interacts with block layer. Client gets and puts
+//   page container layer - interacts with file layer, manages blocks which holds pages.
+//   page cache - provides DB pages and interacts with page container layer. Client gets and puts
 //                pages.
 //
 // Compressor to use when compressing large tuples.
@@ -1050,26 +1050,19 @@ impl Drop for Db {
 mod tests {
     use super::*;
     use rand::{rng, seq::SliceRandom};
-    use std::fs;
-    use tempfile::NamedTempFile;
     use tempfile::TempDir;
 
     #[test]
     fn test_db_creation() {
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
         {
-            Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
+            let db_config = DbConfig::builder().block_size(4096).build();
+            Db::create(db_path, None, &db_config).unwrap();
         }
         {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::from_u64(1)));
             let head_page2 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::from_u64(2)));
             let free_page_dir_page_no = head_page2.get_free_page_dir_page_no(0);
@@ -1077,35 +1070,6 @@ mod tests {
                 FreeDirPage::from_page(db.page_cache.get_page(free_page_dir_page_no));
             assert!(free_page_dir_page.get_entries() == 0);
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
-    }
-
-    #[test]
-    fn test_db_store_value() {
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        let key = b"the_key".to_vec();
-        let value = b"the_value".to_vec();
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            assert!(!db.delete(&key));
-            db.put(key.as_ref(), value.as_ref());
-        }
-        // The new scope essentially closes the DB - when Files run out of scope then
-        // they are close, Rust bizairely does not allow error handling on close!
-        {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
-            let returned_value = db.get(key.as_ref()).unwrap();
-            assert!(returned_value == value);
-        }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
     #[test]
@@ -1132,93 +1096,75 @@ mod tests {
 
     #[test]
     fn test_db_store_two_value() {
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
+
         let key = b"the_key".to_vec();
         let value = b"the_value".to_vec();
         let another_key = b"another_key".to_vec();
         let another_value = b"another_value".to_vec();
         {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
+            let db_config = DbConfig::builder().block_size(4096).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
             db.put(key.as_ref(), value.as_ref());
             db.put(another_key.as_ref(), another_value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
             let returned_value = db.get(another_key.as_ref()).unwrap();
             assert!(returned_value == another_value);
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
     #[test]
     fn test_db_store_value_delete() {
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
+
         let key = b"the_key".to_vec();
         let value = b"the_value".to_vec();
         {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
+            let db_config = DbConfig::builder().block_size(4096).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
             db.put(key.as_ref(), value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
         }
         {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let deleted = db.delete(key.as_ref());
             assert!(deleted);
         }
         {
-            let mut db = Db::new(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let returned_value = db.get(key.as_ref());
             assert!(returned_value.is_none());
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
     #[test]
     fn test_db_store_value_delete_small_page_reverse() {
         let size = 4096u64;
         let block_size = 256;
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
+
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let db_config = DbConfig::builder().block_size(block_size).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
             for i in 0u64..=size {
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
             }
@@ -1226,24 +1172,14 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             for i in (0..(size + 1)).rev() {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
@@ -1256,31 +1192,24 @@ mod tests {
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
     #[test]
     fn test_db_store_value_delete_small_page_reverse_le() {
         let block_size = 256;
         let size = 4096u64;
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let db_config = DbConfig::builder().block_size(block_size).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
             for i in 0u64..=size {
                 db.put(&i.to_le_bytes(), &i.to_le_bytes());
             }
@@ -1288,24 +1217,14 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
                 assert_eq!(u64::from_le_bytes(returned_value.try_into().unwrap()), i);
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             for i in (0..(size + 1)).rev() {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
                 assert_eq!(u64::from_le_bytes(returned_value.try_into().unwrap()), i);
@@ -1318,30 +1237,23 @@ mod tests {
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_le_bytes());
             assert!(returned_value.is_none());
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
     #[test]
     fn test_db_store_value_delete_small_page_random() {
         let size = 4096u64;
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let block_size = 256;
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                256,
-            );
+            let db_config = DbConfig::builder().block_size(block_size).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
             let deleted = db.delete(&0u64.to_be_bytes());
             assert!(!deleted);
             let mut numbers: Vec<u64> = (0..=size).collect();
@@ -1356,24 +1268,14 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                256,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                256,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1387,31 +1289,23 @@ mod tests {
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                256,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
     #[test]
     fn test_db_store_value_delete_small_page_random_le() {
         let size = 4096u64;
         let block_size = 256;
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let db_config = DbConfig::builder().block_size(block_size).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1422,24 +1316,15 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
+
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
                 assert_eq!(u64::from_le_bytes(returned_value.try_into().unwrap()), i);
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1453,17 +1338,11 @@ mod tests {
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_le_bytes());
             assert!(returned_value.is_none());
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
     #[test]
@@ -1471,14 +1350,14 @@ mod tests {
         let size = 40u64;
         let value = vec![0u8; 2048];
         let key = [0u8; 200];
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                4096,
-            );
+            let db_config = DbConfig::builder()
+                .compressor_type(CompressorType::None)
+                .build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1491,12 +1370,8 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                4096,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
+
             for i in 0u64..=size {
                 let mut k = key.to_vec();
                 k[0..8].copy_from_slice(&i.to_le_bytes());
@@ -1505,12 +1380,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                4096,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1523,20 +1393,17 @@ mod tests {
                 assert!(returned_value.is_none());
             }
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
     #[test]
     fn test_db_clear() {
         let block_size = 256;
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let db_config = DbConfig::builder().block_size(block_size).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
             let mut numbers: Vec<u64> = (0..=256).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1547,24 +1414,14 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             db.clear();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let mut numbers: Vec<u64> = (0..=256).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1573,7 +1430,6 @@ mod tests {
                 assert!(returned_value.is_none());
             }
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
     #[test]
@@ -1595,14 +1451,12 @@ mod tests {
     fn test_db_store_value_delete_small_page() {
         let size = 4096u64;
         let block_size = 256;
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let db_config = DbConfig::builder().block_size(block_size).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
             for i in 0u64..size {
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
                 for j in 0u64..i {
@@ -1614,12 +1468,7 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_be_bytes());
                 if returned_value.is_none() {
@@ -1632,12 +1481,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
@@ -1650,31 +1494,23 @@ mod tests {
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 
     #[test]
     fn test_db_store_value_delete_small_page_little_endian() {
         let size = 4096u64;
         let block_size = 256;
-        let temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let db_config = DbConfig::builder().block_size(block_size).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
             for i in 0u64..size {
                 db.put(&i.to_le_bytes(), &i.to_le_bytes());
                 for j in 0u64..i {
@@ -1688,12 +1524,7 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_le_bytes());
                 if returned_value.is_none() {
@@ -1706,12 +1537,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
                 assert_eq!(u64::from_le_bytes(returned_value.try_into().unwrap()), i);
@@ -1724,16 +1550,10 @@ mod tests {
             }
         }
         {
-            let mut db = Db::new_with_page_size(
-                temp_file.path().to_str().unwrap(),
-                None,
-                CompressorType::None,
-                block_size,
-            );
+            let mut db = Db::open(db_path, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_le_bytes());
             assert!(returned_value.is_none());
         }
-        fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
 }
