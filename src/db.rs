@@ -873,7 +873,7 @@ impl Db {
 // Functions to either create or to initialise the database.
 impl Db {
     fn check_db_integrity(&mut self) -> std::io::Result<()> {
-        let root_page = DbRootPage::from_page(self.page_cache.get_page(PageNo::new(0, 0)));
+        let root_page = DbRootPage::from_page(self.page_cache.get_root_page());
         // There is no sanity check for sanity type, if the db was created with
         // encryption and then opened without a key then we will not be able to open
         // the root_page as the checksum will not match.
@@ -988,7 +988,7 @@ impl Db {
 
         // Write the root page as last step to make the DB sane.
         let mut db_root_page: DbRootPage = DbRootPage::create_new(self.page_cache.get_db_config());
-        self.page_cache.put_page(db_root_page.get_page());
+        self.page_cache.put_root_page(db_root_page.get_page());
 
         self.page_cache.sync_data();
         Ok(())

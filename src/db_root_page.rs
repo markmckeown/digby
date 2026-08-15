@@ -55,7 +55,10 @@ impl DbRootPage {
 
     pub fn create_new(db_config: &DbConfig) -> Self {
         let mut db_root_page = DbRootPage {
-            page: Page::create_new(db_config, 1),
+            page: Page::new(
+                db_config.block_size,
+                db_config.block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
+            ),
         };
         db_root_page.page.set_type(PageType::DbRoot);
         db_root_page.page.set_page_number(PageNo::new(0, 0));

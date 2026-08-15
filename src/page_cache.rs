@@ -62,6 +62,10 @@ impl PageCache {
         }
     }
 
+    pub fn get_root_page(&mut self) -> Page {
+        self.pg_ctr_layer.read_root_page()
+    }
+
     pub fn get_page_ref(&mut self, page_number: PageNo) -> &Page {
         if self.page_map.contains_key(&page_number) {
             return self.page_map.get(&page_number).unwrap();
@@ -96,6 +100,12 @@ impl PageCache {
             .copy_from_slice(page.get_pg_ctr_bytes());
         self.pg_ctr_layer.write_page(page, page_no);
         self.add_page_to_cache(page_no, page_for_cache);
+    }
+
+    pub fn put_root_page(&mut self, page: &mut Page) {
+        let page_no = page.get_page_number();
+        assert_eq!(page.get_page_number().get_blk_offset(), 0);
+        self.pg_ctr_layer.write_root_page(page, page_no);
     }
 
     pub fn get_total_page_count(&self) -> u64 {

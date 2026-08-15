@@ -1,3 +1,4 @@
+use crate::XxHashSanity;
 use crate::block_sanity::BlockSanity;
 use crate::db_config::DbConfig;
 use crate::file_layer::FileLayer;
@@ -94,6 +95,18 @@ impl PageContainerLayer {
         page
     }
 
+    pub fn read_root_page(&mut self) -> Page {
+        let mut page = Page::new(
+            self.db_config.block_size,
+            self.db_config.block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
+        );
+        self.file_layer
+            .read_page_from_disk(&mut page, &PageNo::new(0, 0))
+            .expect("Failed to read root page");
+        XxHashSanity::verify_checksum(&page);
+        page
+    }
+
     pub fn get_total_page_count(&self) -> u64 {
         self.file_layer.get_block_count()
     }
@@ -108,6 +121,17 @@ impl PageContainerLayer {
         self.file_layer
             .write_page_to_disk(page, &page_no)
             .expect("Failed to write page");
+    }
+
+    pub fn write_root_page(&mut self, page: &mut Page, page_no: PageNo) {
+        assert!(
+            page_no.get_blk_offset() < self.file_layer.get_block_count(),
+            "Writing page outside the file."
+        );
+        XxHashSanity::set_checksum(page);
+        self.file_layer
+            .write_page_to_disk(page, &page_no)
+            .expect("Failed to write root page");
     }
 
     // There has been a request for more free pages during a commit - there are
