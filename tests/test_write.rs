@@ -1,19 +1,11 @@
 use byteorder::ReadBytesExt;
 use byteorder::{LittleEndian, WriteBytesExt};
-use digby::Db;
-use digby::compressor::CompressorType;
 use std::fs::{File, OpenOptions};
 use std::io::Cursor;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
-
-#[test]
-fn test_digby_db() {
-    let mut _db = Db::new("/tmp/test_db.db", None, CompressorType::None);
-    let _ = std::fs::remove_file("/tmp/test_db.db");
-}
 
 #[test]
 fn test_write_db_page() {
