@@ -81,7 +81,9 @@ impl OverflowPageHandler {
         }
 
         if remainder > 0 {
-            let pg_exp = page_cache.get_db_config().get_blk_exp_for_size(remainder);
+            let pg_exp = page_cache
+                .get_db_config()
+                .get_blk_cnt_shift_for_size(remainder);
             next_page = free_pg_mgr.get_free_page(page_cache, pg_exp);
             let mut page = OverflowPage::create_new(page_cache.get_db_config(), next_page, version);
             page.set_next_page(previous);

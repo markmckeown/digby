@@ -707,7 +707,7 @@ impl DirPage {
         let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = DirPage::create_new(
             db_config,
-            PageNo::new(db_config.dir_page_blk_exp, 0),
+            PageNo::new(db_config.dir_pg_blk_cnt_shift, 0),
             version,
         );
 
@@ -750,7 +750,7 @@ impl DirPage {
         let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = DirPage::create_new(
             db_config,
-            PageNo::new(db_config.dir_page_blk_exp, 0),
+            PageNo::new(db_config.dir_pg_blk_cnt_shift, 0),
             version,
         );
 
@@ -801,7 +801,7 @@ impl DirPage {
         let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = DirPage::create_new(
             db_config,
-            PageNo::new(db_config.dir_page_blk_exp, 0),
+            PageNo::new(db_config.dir_pg_blk_cnt_shift, 0),
             version,
         );
 
@@ -850,7 +850,7 @@ impl DirPage {
         let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = DirPage::create_new(
             db_config,
-            PageNo::new(db_config.dir_page_blk_exp, 0),
+            PageNo::new(db_config.dir_pg_blk_cnt_shift, 0),
             version,
         );
 

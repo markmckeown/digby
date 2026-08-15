@@ -9,8 +9,8 @@ pub struct DbConfig {
     pub block_sanity_size: usize,
     pub compressor_type: CompressorType,
     pub block_sanity: BlockSanity,
-    pub leaf_page_blk_exp: u8,
-    pub dir_page_blk_exp: u8,
+    pub leaf_pg_blk_cnt_shift: u8,
+    pub dir_pg_blk_cnt_shift: u8,
     pub overflow_pg_free_space: [usize; 9],
 }
 
@@ -20,18 +20,18 @@ impl DbConfig {
     }
 
     pub const fn get_leaf_page_blk_cnt(&self) -> u64 {
-        1 << self.leaf_page_blk_exp
+        1 << self.leaf_pg_blk_cnt_shift
     }
 
     pub const fn get_dir_page_blk_cnt(&self) -> u64 {
-        1 << self.dir_page_blk_exp
+        1 << self.dir_pg_blk_cnt_shift
     }
 
     pub const fn get_max_overflow_pg_free_space(&self) -> usize {
         self.overflow_pg_free_space[8]
     }
 
-    pub const fn get_blk_exp_for_size(&self, size: usize) -> u8 {
+    pub const fn get_blk_cnt_shift_for_size(&self, size: usize) -> u8 {
         let mut i = 0usize;
         while i < self.overflow_pg_free_space.len() {
             if size <= self.overflow_pg_free_space[i] {
@@ -53,8 +53,8 @@ pub struct DbConfigBuilder {
     block_sanity_size: usize,
     compressor_type: CompressorType,
     block_sanity: BlockSanity,
-    leaf_page_blk_exp: u8,
-    dir_page_blk_exp: u8,
+    leaf_pg_blk_cnt_shift: u8,
+    dir_pg_blk_cnt_shift: u8,
     overflow_pg_free_space: [usize; 9],
 }
 
@@ -71,8 +71,8 @@ impl DbConfigBuilder {
             block_sanity_size: 4,
             compressor_type: CompressorType::LZ4,
             block_sanity: BlockSanity::XxH32Checksum,
-            leaf_page_blk_exp: 0,
-            dir_page_blk_exp: 0,
+            leaf_pg_blk_cnt_shift: 0,
+            dir_pg_blk_cnt_shift: 0,
             overflow_pg_free_space: [0; 9],
         }
     }
@@ -99,13 +99,13 @@ impl DbConfigBuilder {
         self
     }
 
-    pub const fn leaf_page_blk_exp(mut self, leaf_page_blk_exp: u8) -> Self {
-        self.leaf_page_blk_exp = leaf_page_blk_exp;
+    pub const fn leaf_pg_blk_cnt_shift(mut self, leaf_pg_blk_cnt_shift: u8) -> Self {
+        self.leaf_pg_blk_cnt_shift = leaf_pg_blk_cnt_shift;
         self
     }
 
-    pub const fn dir_page_blk_exp(mut self, dir_page_blk_exp: u8) -> Self {
-        self.dir_page_blk_exp = dir_page_blk_exp;
+    pub const fn dir_pg_blk_cnt_shift(mut self, dir_pg_blk_cnt_shift: u8) -> Self {
+        self.dir_pg_blk_cnt_shift = dir_pg_blk_cnt_shift;
         self
     }
 
@@ -135,8 +135,8 @@ impl DbConfigBuilder {
             block_sanity_size: self.block_sanity_size,
             compressor_type: self.compressor_type,
             block_sanity: self.block_sanity,
-            leaf_page_blk_exp: self.leaf_page_blk_exp,
-            dir_page_blk_exp: self.dir_page_blk_exp,
+            leaf_pg_blk_cnt_shift: self.leaf_pg_blk_cnt_shift,
+            dir_pg_blk_cnt_shift: self.dir_pg_blk_cnt_shift,
             overflow_pg_free_space: self.overflow_pg_free_space,
         }
     }
@@ -152,15 +152,15 @@ mod tests {
             .block_size(8192)
             .block_sanity_size(4)
             .compressor_type(CompressorType::LZ4)
-            .leaf_page_blk_exp(1)
-            .dir_page_blk_exp(2)
+            .leaf_pg_blk_cnt_shift(1)
+            .dir_pg_blk_cnt_shift(2)
             .build();
 
         assert_eq!(config.block_size, 8192);
         assert_eq!(config.page_size, 8188);
         assert_eq!(config.block_sanity_size, 4);
         assert!(matches!(config.compressor_type, CompressorType::LZ4));
-        assert_eq!(config.leaf_page_blk_exp, 1);
-        assert_eq!(config.dir_page_blk_exp, 2);
+        assert_eq!(config.leaf_pg_blk_cnt_shift, 1);
+        assert_eq!(config.dir_pg_blk_cnt_shift, 2);
     }
 }

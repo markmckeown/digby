@@ -199,8 +199,8 @@ impl DbRootPage {
     pub fn set_db_config(&mut self, db_config: &DbConfig) {
         self.set_sanity_type(db_config.block_sanity);
         self.set_compression_type(db_config.compressor_type);
-        self.set_leaf_pg_blk_sz_shift(db_config.leaf_page_blk_exp);
-        self.set_dir_pg_blk_sz_shift(db_config.dir_page_blk_exp);
+        self.set_leaf_pg_blk_sz_shift(db_config.leaf_pg_blk_cnt_shift);
+        self.set_dir_pg_blk_sz_shift(db_config.dir_pg_blk_cnt_shift);
         self.set_blk_sz(db_config.block_size);
     }
 
@@ -209,8 +209,8 @@ impl DbRootPage {
             .block_size(self.get_blk_sz())
             .block_sanity(self.get_sanity_type())
             .compressor_type(self.get_compression_type())
-            .leaf_page_blk_exp(self.get_leaf_pg_blk_sz_shift())
-            .dir_page_blk_exp(self.get_dir_pg_blk_sz_shift())
+            .leaf_pg_blk_cnt_shift(self.get_leaf_pg_blk_sz_shift())
+            .dir_pg_blk_cnt_shift(self.get_dir_pg_blk_sz_shift())
             .build()
     }
 

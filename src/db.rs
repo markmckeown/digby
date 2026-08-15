@@ -376,7 +376,7 @@ impl Db {
         // in the tree will be a leaf page.
         let new_table_root_page_no = tx_ctx
             .free_pg_mgr
-            .get_free_page(&mut self.page_cache, self.db_config.leaf_page_blk_exp);
+            .get_free_page(&mut self.page_cache, self.db_config.leaf_pg_blk_cnt_shift);
         let mut new_table_root_page = LeafPage::create_new(
             self.page_cache.get_db_config(),
             new_table_root_page_no,
@@ -842,7 +842,7 @@ impl Db {
 
         let leaf_pages: Vec<PageNo> = self
             .page_cache
-            .generate_free_pages(2, self.db_config.leaf_page_blk_exp);
+            .generate_free_pages(2, self.db_config.leaf_pg_blk_cnt_shift);
         assert!(leaf_pages.len() == 2, "There should be 2 leaf pages");
 
         // Write the global tree root page at page number 13.
