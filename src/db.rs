@@ -1,5 +1,4 @@
 use crate::block_sanity::BlockSanity;
-use crate::compressor::CompressorType;
 use crate::db_config::DbConfig;
 use crate::db_master_page::DbMasterPage;
 use crate::db_root_page::DbRootPage;
@@ -176,102 +175,6 @@ impl Db {
 
         db.check_db_integrity()?;
         Ok(db)
-    }
-
-    // Create a DB object.
-    //   path - the path to the file to use. If the file does not exist then create it for
-    //          a new database. If the file exists sanity check it.
-    //   key - optional. If provided use the key to encrypt/decrypt the db blocks. Once used
-    //         for a database then should be consistently used.
-    //   compressor_type - the compressor to use for large tuples.
-    pub fn new(path: &str, key: Option<Vec<u8>>, compressor_type: CompressorType) -> Self {
-        Db::new_with_page_size(path, key, compressor_type, Db::BLOCK_SIZE)
-    }
-
-    // As "new" but allows a different block_size to be used.
-    pub fn new_with_page_size(
-        path: &str,
-        key: Option<Vec<u8>>,
-        compressor_type: CompressorType,
-        block_size: usize,
-    ) -> Self {
-        use std::fs::OpenOptions;
-        use std::path::Path;
-
-        let mut is_new = false;
-
-        // Might make sense to lock the file.
-        // If file exists open to append, new database,
-        // else treat as an existing database
-        let db_file: std::fs::File;
-        if Path::new(path).exists() {
-            db_file = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .open(path)
-                .expect("Failed to open existing DB file");
-            if std::fs::metadata(path).unwrap().len() == 0 {
-                // If file is empty treat as new database.
-                is_new = true;
-            }
-        } else {
-            // File does not exist, create.
-            db_file = OpenOptions::new()
-                .write(true)
-                .read(true)
-                .create(true)
-                .truncate(true) // Not necessary as file does not exist but clippy wants it.
-                .open(path)
-                .expect("Failed to open or create DB file");
-            is_new = true;
-        }
-
-        // Set up the file layer with the open file.
-        let file_layer: FileLayer = FileLayer::new(db_file, block_size);
-        // Create page container layer - this will depend on if encrytion is being
-        // used or just checksums. There is no encryption and checksum as
-        // the Aes128Gcm has built in checksum support.
-        // TODO -  checksum hardcoded to xxHash32 and encryption to
-        // AES-128-GCM.
-        // File layer is passed to block layer.
-        let block_layer: PageContainerLayer;
-        let sanity_type: BlockSanity;
-        let page_config: DbConfig;
-        if let Some(k) = key {
-            sanity_type = BlockSanity::Aes128Gcm;
-            page_config = DbConfig::builder()
-                .block_size(block_size)
-                .compressor_type(compressor_type)
-                .block_sanity(sanity_type)
-                .build();
-            block_layer = PageContainerLayer::new_with_key(file_layer, page_config, k);
-        } else {
-            sanity_type = BlockSanity::XxH32Checksum;
-            page_config = DbConfig::builder()
-                .block_size(block_size)
-                .compressor_type(compressor_type)
-                .block_sanity(sanity_type)
-                .build();
-            block_layer = PageContainerLayer::new(file_layer, page_config);
-        }
-        // Create page cache with the block layer.
-        let page_cache: PageCache = PageCache::new(block_layer);
-
-        let mut db = Db {
-            page_cache,
-            compressor: Compressor::new(compressor_type),
-            db_config: page_config,
-        };
-
-        if is_new {
-            // Need to populate the new database with some metadata pages
-            // including the sanity_type (encryption or checksum).
-            db.init_db_file().expect("Failed to initialize DB file");
-        } else {
-            // The DB already exists, check it is sane.
-            db.check_db_integrity().expect("DB integrity check failed");
-        }
-        db
     }
 
     pub fn delete(&mut self, key: &[u8]) -> bool {
@@ -1049,6 +952,7 @@ impl Drop for Db {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compressor::CompressorType;
     use rand::{rng, seq::SliceRandom};
     use tempfile::TempDir;
 

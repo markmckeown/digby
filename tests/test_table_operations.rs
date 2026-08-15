@@ -1,6 +1,5 @@
 use digby::Db;
 use digby::db_config::DbConfig;
-use std::fs;
 use tempfile::TempDir;
 
 #[test]
