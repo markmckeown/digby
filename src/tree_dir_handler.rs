@@ -57,7 +57,7 @@ impl TreeDirHandler {
     ) {
         for page_ref in page_refs {
             let old_page_no = page_ref.page.get_page_number();
-            if old_page_no.to_u64() != 0 {
+            if old_page_no.get_blk_offset() != 0 {
                 free_pg_mgr.return_free_page_no(page_cache, old_page_no);
             }
             let new_page_no =
@@ -136,7 +136,7 @@ mod tests {
         for leaf_page in leaf_pages {
             let tree_dir_entry = TreeDirEntry::new(
                 leaf_page.get_left_key().unwrap(),
-                leaf_page.get_page_number().to_u64(),
+                leaf_page.get_page_number(),
             );
             entries.push(tree_dir_entry);
         }
@@ -160,7 +160,7 @@ mod tests {
         for leaf_page in leaf_pages {
             let tree_dir_entry = TreeDirEntry::new(
                 leaf_page.get_left_key().unwrap(),
-                leaf_page.get_page_number().to_u64(),
+                leaf_page.get_page_number(),
             );
             entries.push(tree_dir_entry);
         }

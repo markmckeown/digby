@@ -407,11 +407,11 @@ impl DirPage {
     //   not be an exact match)
     // - if a child page has split then we need to update on entry and add a new entry.
     // This function is to update an existing key with a new page number.
-    fn update_child_page_no(&mut self, key: &[u8], page_no: u64) {
+    fn update_child_page_no(&mut self, key: &[u8], page_no: PageNo) {
         let entries = self.get_entries_size() as usize;
         // Page empty - we can just add the page number as the left most page and return.
         if entries == 0 {
-            self.set_page_to_left(PageNo::from_u64(page_no));
+            self.set_page_to_left(page_no);
             return;
         }
 
@@ -419,14 +419,14 @@ impl DirPage {
         // as we have just updated a child page. This means we have just
         // found the old child page reference when looking for the leaf page
         if self.has_left_fence() && key < self.get_left_fence_key() {
-            self.set_page_to_left(PageNo::from_u64(page_no));
+            self.set_page_to_left(page_no);
             return;
         }
 
         if self.has_right_fence() && key > self.get_right_fence_key() {
             let slot_to_update = self.get_slot_at_index(entries - 1);
             let val_offset = (slot_to_update.offset + slot_to_update.key_len as u16) as usize;
-            let val_bytes = page_no.to_le_bytes();
+            let val_bytes = page_no.get_bytes();
             self.page.get_page_bytes_mut()[val_offset..val_offset + DirPage::VALUE_SIZE]
                 .copy_from_slice(&val_bytes);
             return;
@@ -448,7 +448,7 @@ impl DirPage {
         let slot = self.get_slot_at_index(0);
         if key_suffix < self.get_key_at_slot(&slot) {
             // The key belongs to the left most page. We just need to update the page number for the left most page.
-            self.set_page_to_left(PageNo::from_u64(page_no));
+            self.set_page_to_left(page_no);
             return;
         }
 
@@ -457,7 +457,7 @@ impl DirPage {
         let index_to_update = if found { index } else { index - 1 };
         let slot_to_update = self.get_slot_at_index(index_to_update);
         let val_offset = (slot_to_update.offset + slot_to_update.key_len as u16) as usize;
-        let val_bytes = page_no.to_le_bytes();
+        let val_bytes = page_no.get_bytes();
         self.page.get_page_bytes_mut()[val_offset..val_offset + DirPage::VALUE_SIZE]
             .copy_from_slice(&val_bytes);
     }
@@ -492,7 +492,7 @@ impl DirPage {
         self.set_right_fence_key(new_right_fence);
         self.set_prefix_length(prefix_length as u8);
         for tuple in entries {
-            let ok = self.add_child_page(tuple.0.as_ref(), tuple.1);
+            let ok = self.add_child_page(tuple.0.as_ref(), PageNo::from_u64(tuple.1));
             if !ok {
                 // Cannot rebuild page with new compression, page not big enough.
                 // Reset page back back to original bits and trigger a split.
@@ -527,7 +527,7 @@ impl DirPage {
         self.set_right_fence_key(right_fence.as_ref());
         self.set_prefix_length(prefix_length as u8);
         for tuple in entries {
-            let ok = self.add_child_page(tuple.0.as_ref(), tuple.1);
+            let ok = self.add_child_page(tuple.0.as_ref(), PageNo::from_u64(tuple.1));
             if !ok {
                 // Cannot rebuild page with new compression, page not big enough.
                 // Reset page back back to original bits and trigger a split.
@@ -540,7 +540,7 @@ impl DirPage {
 
     // Called when a child page has split and we need to add a
     // new entry for the new page in the dir_page.
-    fn add_child_page(&mut self, key: &[u8], page_no: u64) -> bool {
+    fn add_child_page(&mut self, key: &[u8], page_no: PageNo) -> bool {
         if self.has_left_fence() && key < self.get_left_fence_key() {
             if !self.reset_with_new_left_fence(key) {
                 // Reset failed as cannot rebuild same page with new compression as not enough space.
@@ -586,7 +586,7 @@ impl DirPage {
             !found,
             "BUG: Key already exists in the page when adding a new child page"
         );
-        self.add_key_value_at_index(index, key_suffix, &page_no.to_le_bytes());
+        self.add_key_value_at_index(index, key_suffix, &page_no.get_bytes());
         true
     }
 
@@ -707,7 +707,7 @@ impl DirPage {
         let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = DirPage::create_new(
             db_config,
-            PageNo::new(db_config.dir_pg_blk_cnt_shift, 0),
+            PageNo::new(PageType::DirPage, db_config.dir_pg_blk_cnt_shift, 0),
             version,
         );
 
@@ -750,7 +750,7 @@ impl DirPage {
         let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = DirPage::create_new(
             db_config,
-            PageNo::new(db_config.dir_pg_blk_cnt_shift, 0),
+            PageNo::new(PageType::DirPage, db_config.dir_pg_blk_cnt_shift, 0),
             version,
         );
 
@@ -801,7 +801,7 @@ impl DirPage {
         let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = DirPage::create_new(
             db_config,
-            PageNo::new(db_config.dir_pg_blk_cnt_shift, 0),
+            PageNo::new(PageType::DirPage, db_config.dir_pg_blk_cnt_shift, 0),
             version,
         );
 
@@ -850,7 +850,7 @@ impl DirPage {
         let mut left_page = DirPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = DirPage::create_new(
             db_config,
-            PageNo::new(db_config.dir_pg_blk_cnt_shift, 0),
+            PageNo::new(PageType::DirPage, db_config.dir_pg_blk_cnt_shift, 0),
             version,
         );
 
@@ -1059,7 +1059,7 @@ impl DirPage {
         // There should only be the left most page.
         if entries == 0 {
             assert!(page_no == self.get_page_to_left());
-            self.set_page_to_left(PageNo::new(0, 0));
+            self.set_page_to_left(PageNo::new(PageType::Null, 0, 0));
             return;
         }
 
@@ -1151,7 +1151,7 @@ mod tests {
             .block_size(1028)
             .block_sanity_size(4)
             .build();
-        let dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let dir_page = DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         assert_eq!(dir_page.get_page_number().get_blk_offset(), 1);
         assert_eq!(dir_page.get_version(), 0);
         assert_eq!(dir_page.get_entries_size(), 0);
@@ -1179,11 +1179,12 @@ mod tests {
     #[should_panic(expected = "Cannot set left fence key on a page that already has entries.")]
     fn test_cannot_set_left_fence_after_adding_entries() {
         let page_config = DbConfig::builder().block_size(1028).build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let page_no1 = 2;
-        dir_page.add_child_page(key1, page_no1);
+        dir_page.add_child_page(key1, PageNo::from_u64(page_no1));
         assert_eq!(dir_page.get_entries_size(), 1);
         // Cannot set left or right fence after adding entries.
         dir_page.set_left_fence_key(b"key0");
@@ -1193,12 +1194,13 @@ mod tests {
     #[should_panic(expected = "Cannot set right fence key on a page that already has entries.")]
     fn test_cannot_set_right_fence_after_adding_entries() {
         let page_config = DbConfig::builder().block_size(1028).build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         assert_eq!(dir_page.get_all_child_pages(), vec![]);
         let key1 = b"key1";
         let page_no1 = 2;
-        dir_page.add_child_page(key1, page_no1);
+        dir_page.add_child_page(key1, PageNo::from_u64(page_no1));
         assert_eq!(dir_page.get_entries_size(), 1);
         assert_eq!(dir_page.get_all_child_pages(), vec![PageNo::from_u64(2)]);
         // Cannot set left or right fence after adding entries.
@@ -1209,14 +1211,15 @@ mod tests {
     #[should_panic(expected = "Cannot split a page with fewer than 3 entries.")]
     fn test_cannot_split_page_with_less_than_3_entries() {
         let page_config = DbConfig::builder().block_size(1028).build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let page_no1 = 2;
-        dir_page.add_child_page(key1, page_no1);
+        dir_page.add_child_page(key1, PageNo::from_u64(page_no1));
         let key2 = b"key2";
         let page_no2 = 3;
-        dir_page.add_child_page(key2, page_no2);
+        dir_page.add_child_page(key2, PageNo::from_u64(page_no2));
 
         assert_eq!(dir_page.get_entries_size(), 2);
         assert_eq!(
@@ -1230,11 +1233,12 @@ mod tests {
     #[should_panic(expected = "Cannot set prefix length on a page that already has entries.")]
     fn test_cannot_set_right_prefix_after_adding_entries() {
         let page_config = DbConfig::builder().block_size(1028).build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let page_no1 = 2;
-        dir_page.add_child_page(key1, page_no1);
+        dir_page.add_child_page(key1, PageNo::from_u64(page_no1));
         assert_eq!(dir_page.get_entries_size(), 1);
         // Cannot set left or right fence after adding entries.
         dir_page.set_prefix_length(3);
@@ -1244,7 +1248,8 @@ mod tests {
     #[should_panic(expected = "Prefix length cannot be larger than the right fence key size.")]
     fn test_prefix_larger_than_right_fence() {
         let page_config = DbConfig::builder().block_size(1028).build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let key2 = b"key2";
@@ -1256,7 +1261,8 @@ mod tests {
     #[test]
     fn test_add_child_page() {
         let page_config = DbConfig::builder().block_size(1028).build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         assert_eq!(dir_page.get_page_bytes().len(), 1024);
         let key1 = b"key1";
         let key2 = b"key2";
@@ -1266,8 +1272,8 @@ mod tests {
         dir_page.set_right_fence_key(b"key3");
         dir_page.set_prefix_length(3);
         dir_page.set_page_to_left(PageNo::from_u64(1));
-        dir_page.add_child_page(key1, page_no1);
-        dir_page.add_child_page(key2, page_no2);
+        dir_page.add_child_page(key1, PageNo::from_u64(page_no1));
+        dir_page.add_child_page(key2, PageNo::from_u64(page_no2));
         assert_eq!(dir_page.get_entries_size(), 2);
         assert_eq!(dir_page.get_next(key1), PageNo::from_u64(page_no1));
         assert_eq!(dir_page.get_next(key2), PageNo::from_u64(page_no2));
@@ -1280,7 +1286,8 @@ mod tests {
     #[test]
     fn test_add_child_page_reset_right_fence() {
         let page_config = DbConfig::builder().block_size(1024).build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         let key1 = b"key1";
         let key2 = b"key2";
         let page_no1 = 2;
@@ -1289,8 +1296,8 @@ mod tests {
         dir_page.set_right_fence_key(b"key3");
         dir_page.set_prefix_length(3);
         dir_page.set_page_to_left(PageNo::from_u64(1));
-        dir_page.add_child_page(key1, page_no1);
-        dir_page.add_child_page(key2, page_no2);
+        dir_page.add_child_page(key1, PageNo::from_u64(page_no1));
+        dir_page.add_child_page(key2, PageNo::from_u64(page_no2));
         assert_eq!(dir_page.get_entries_size(), 2);
         assert_eq!(dir_page.get_next(key1), PageNo::from_u64(page_no1));
         assert_eq!(dir_page.get_next(key2), PageNo::from_u64(page_no2));
@@ -1299,7 +1306,7 @@ mod tests {
         assert_eq!(dir_page.get_prefix_length(), 3);
         assert_eq!(dir_page.get_page_to_left(), PageNo::from_u64(1));
         let key3 = b"key4";
-        dir_page.add_child_page(key3, 4);
+        dir_page.add_child_page(key3, PageNo::from_u64(4));
         assert_eq!(dir_page.get_entries_size(), 3);
         assert_eq!(dir_page.get_right_fence_key(), key3);
         assert_eq!(dir_page.get_prefix_length(), 3);
@@ -1309,7 +1316,8 @@ mod tests {
     #[test]
     fn test_add_child_page_reset_left_fence() {
         let page_config = DbConfig::builder().block_size(1024).build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         let key1 = b"key2";
         let key2 = b"key3";
         let page_no1 = 2;
@@ -1318,8 +1326,8 @@ mod tests {
         dir_page.set_right_fence_key(b"key4");
         dir_page.set_prefix_length(3);
         dir_page.set_page_to_left(PageNo::from_u64(1));
-        dir_page.add_child_page(key1, page_no1);
-        dir_page.add_child_page(key2, page_no2);
+        dir_page.add_child_page(key1, PageNo::from_u64(page_no1));
+        dir_page.add_child_page(key2, PageNo::from_u64(page_no2));
         assert_eq!(dir_page.get_entries_size(), 2);
         assert_eq!(dir_page.get_next(key1), PageNo::from_u64(page_no1));
         assert_eq!(dir_page.get_next(key2), PageNo::from_u64(page_no2));
@@ -1328,7 +1336,7 @@ mod tests {
         assert_eq!(dir_page.get_prefix_length(), 3);
         assert_eq!(dir_page.get_page_to_left(), PageNo::from_u64(1));
         let key3 = b"key1";
-        dir_page.add_child_page(key3, 4);
+        dir_page.add_child_page(key3, PageNo::from_u64(4));
         assert_eq!(dir_page.get_entries_size(), 3);
         assert_eq!(dir_page.get_right_fence_key(), b"key4");
         assert_eq!(dir_page.get_left_fence_key(), key3);
@@ -1342,7 +1350,8 @@ mod tests {
             .block_size(160)
             .block_sanity_size(160 - 112)
             .build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
         let key3 = b"aaaaaaaaaaaaaaaaaaab";
@@ -1350,9 +1359,9 @@ mod tests {
         dir_page.set_right_fence_key(key2);
         dir_page.set_prefix_length(19);
         dir_page.set_page_to_left(PageNo::from_u64(1));
-        dir_page.add_child_page(key1, 2);
-        dir_page.add_child_page(key2, 3);
-        dir_page.add_child_page(key3, 4);
+        dir_page.add_child_page(key1, PageNo::from_u64(2));
+        dir_page.add_child_page(key2, PageNo::from_u64(3));
+        dir_page.add_child_page(key3, PageNo::from_u64(4));
         assert_eq!(dir_page.get_entries_size(), 3);
         assert_eq!(dir_page.get_free_space(), 1);
         let reset = dir_page.reset_with_new_left_fence(b"aaaa");
@@ -1367,7 +1376,8 @@ mod tests {
             .block_size(160)
             .block_sanity_size(160 - 112)
             .build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
         let key3 = b"aaaaaaaaaaaaaaaaaaab";
@@ -1375,12 +1385,12 @@ mod tests {
         dir_page.set_right_fence_key(key2);
         dir_page.set_prefix_length(19);
         dir_page.set_page_to_left(PageNo::from_u64(1));
-        dir_page.add_child_page(key1, 2);
-        dir_page.add_child_page(key2, 3);
-        dir_page.add_child_page(key3, 4);
+        dir_page.add_child_page(key1, PageNo::from_u64(2));
+        dir_page.add_child_page(key2, PageNo::from_u64(3));
+        dir_page.add_child_page(key3, PageNo::from_u64(4));
         assert_eq!(dir_page.get_entries_size(), 3);
         assert_eq!(dir_page.get_free_space(), 1);
-        let ok = dir_page.add_child_page(b"aaaa", 5);
+        let ok = dir_page.add_child_page(b"aaaa", PageNo::from_u64(5));
         assert!(!ok);
         assert_eq!(dir_page.get_entries_size(), 3);
         assert_eq!(dir_page.get_free_space(), 1);
@@ -1392,7 +1402,8 @@ mod tests {
             .block_size(160)
             .block_sanity_size(160 - 112)
             .build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
         let key3 = b"aaaaaaaaaaaaaaaaaaab";
@@ -1400,9 +1411,9 @@ mod tests {
         dir_page.set_right_fence_key(key2);
         dir_page.set_prefix_length(19);
         dir_page.set_page_to_left(PageNo::from_u64(1));
-        dir_page.add_child_page(key1, 2);
-        dir_page.add_child_page(key2, 3);
-        dir_page.add_child_page(key3, 4);
+        dir_page.add_child_page(key1, PageNo::from_u64(2));
+        dir_page.add_child_page(key2, PageNo::from_u64(3));
+        dir_page.add_child_page(key3, PageNo::from_u64(4));
         assert_eq!(dir_page.get_entries_size(), 3);
         assert_eq!(dir_page.get_free_space(), 1);
         let reset = dir_page.reset_with_new_right_fence(b"aaaaaaaaaaaaaaaaaaazaaa");
@@ -1417,7 +1428,8 @@ mod tests {
             .block_size(160)
             .block_sanity_size(160 - 112)
             .build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         let key1 = b"aaaaaaaaaaaaaaaaaaaa";
         let key2 = b"aaaaaaaaaaaaaaaaaaaz";
         let key3 = b"aaaaaaaaaaaaaaaaaaab";
@@ -1425,12 +1437,12 @@ mod tests {
         dir_page.set_right_fence_key(key2);
         dir_page.set_prefix_length(19);
         dir_page.set_page_to_left(PageNo::from_u64(1));
-        dir_page.add_child_page(key1, 2);
-        dir_page.add_child_page(key2, 3);
-        dir_page.add_child_page(key3, 4);
+        dir_page.add_child_page(key1, PageNo::from_u64(2));
+        dir_page.add_child_page(key2, PageNo::from_u64(3));
+        dir_page.add_child_page(key3, PageNo::from_u64(4));
         assert_eq!(dir_page.get_entries_size(), 3);
         assert_eq!(dir_page.get_free_space(), 1);
-        let ok = dir_page.add_child_page(b"aaaaaaaaaaaaaaaaaaazaaa", 5);
+        let ok = dir_page.add_child_page(b"aaaaaaaaaaaaaaaaaaazaaa", PageNo::from_u64(5));
         assert!(!ok);
         assert_eq!(dir_page.get_entries_size(), 3);
         assert_eq!(dir_page.get_free_space(), 1);
@@ -1439,7 +1451,8 @@ mod tests {
     #[test]
     fn test_get_next_page() {
         let page_config = DbConfig::builder().block_size(1028).build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
 
         // Add left page.
         dir_page.set_page_to_left(PageNo::from_u64(1));
@@ -1447,16 +1460,16 @@ mod tests {
         // Add keys
         let key1 = b"key2";
         let page_no1 = 2;
-        dir_page.add_child_page(key1, page_no1);
+        dir_page.add_child_page(key1, PageNo::from_u64(page_no1));
         let key2 = b"key5";
         let page_no2 = 5;
-        dir_page.add_child_page(key2, page_no2);
+        dir_page.add_child_page(key2, PageNo::from_u64(page_no2));
         let key3 = b"key7";
         let page_no3 = 7;
-        dir_page.add_child_page(key3, page_no3);
+        dir_page.add_child_page(key3, PageNo::from_u64(page_no3));
         let key4 = b"key8";
         let page_no8 = 8;
-        dir_page.add_child_page(key4, page_no8);
+        dir_page.add_child_page(key4, PageNo::from_u64(page_no8));
 
         assert_eq!(dir_page.get_next(b"key0"), PageNo::from_u64(1));
         assert_eq!(dir_page.get_next(b"key1"), PageNo::from_u64(1));
@@ -1482,10 +1495,11 @@ mod tests {
     #[test]
     fn test_split_page() {
         let page_config = DbConfig::builder().block_size(1028).build();
-        let mut dir_page = DirPage::create_new(&page_config, PageNo::new(0, 1), 0);
+        let mut dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 1), 0);
         for i in 0..20 {
             let key = (i as u64).to_le_bytes().to_vec();
-            dir_page.add_child_page(&key, i as u64);
+            dir_page.add_child_page(&key, PageNo::from_u64(i as u64));
         }
         let (left_page, right_page, _) = dir_page.split_page(&page_config, 0);
         assert_eq!(left_page.get_entries_size(), 10);

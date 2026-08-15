@@ -139,9 +139,9 @@ mod tests {
         assert!(0 == master_page.get_free_page_dir_page_no(0).get_blk_offset());
         assert!(0 == master_page.get_global_tree_root_page_no().get_blk_offset());
         assert!(0 == master_page.get_table_dir_page_no().get_blk_offset());
-        master_page.set_free_page_dir_page_no(0, PageNo::new(0, 67));
-        master_page.set_global_tree_root_page_no(PageNo::new(0, 87));
-        master_page.set_table_dir_page_no(PageNo::new(0, 34));
+        master_page.set_free_page_dir_page_no(0, PageNo::new(PageType::FreeDir, 0, 67));
+        master_page.set_global_tree_root_page_no(PageNo::new(PageType::LeafPage, 0, 87));
+        master_page.set_table_dir_page_no(PageNo::new(PageType::LeafPage, 0, 34));
         assert!(67 == master_page.get_free_page_dir_page_no(0).get_blk_offset());
         assert!(87 == master_page.get_global_tree_root_page_no().get_blk_offset());
         assert!(34 == master_page.get_table_dir_page_no().get_blk_offset());

@@ -26,8 +26,8 @@ impl XxHashSanity {
         let stored_checksum = cursor.read_u32::<LittleEndian>().unwrap();
         assert!(
             stored_checksum == calculated_checksum,
-            "Calculated checksum does not match stored checksum for page {}",
-            page.get_page_number().to_u64()
+            "Calculated checksum does not match stored checksum for page {:?}",
+            page.get_page_number()
         );
     }
 }

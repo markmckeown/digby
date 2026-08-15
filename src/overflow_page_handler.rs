@@ -57,8 +57,8 @@ impl OverflowPageHandler {
         let buffer = tuple.get_serialized();
         let mut end = tuple.get_byte_size();
 
-        let mut previous = PageNo::new(0, 0);
-        let mut next_page: PageNo = PageNo::new(0, 0);
+        let mut previous = PageNo::new(crate::page::PageType::Overflow, 0, 0);
+        let mut next_page: PageNo = PageNo::new(crate::page::PageType::Overflow, 0, 0);
 
         let max_block_size = page_cache.get_db_config().get_max_overflow_pg_free_space();
 
@@ -156,7 +156,7 @@ impl OverflowPageHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DbMasterPage, db_config::DbConfig};
+    use crate::{DbMasterPage, db_config::DbConfig, page::PageType};
 
     const DB_CONFIG: DbConfig = DbConfig::builder()
         .block_size(4096)
@@ -188,16 +188,20 @@ mod tests {
         // Setup the free page infrastructure
         let _ = page_cache.generate_free_pages(11, 0);
 
-        let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
+        let mut master_page =
+            DbMasterPage::create_new(&DB_CONFIG, PageNo::new(PageType::DbMaster, 0, 1), version);
         let offset = 2;
         for i in 0..9 {
             let mut free_dir_page = crate::FreeDirPage::create_new(
                 page_cache.get_db_config(),
-                PageNo::new(0, offset + i),
+                PageNo::new(PageType::FreeDir, 0, offset + i),
                 0,
             );
             page_cache.put_page(free_dir_page.get_page());
-            master_page.set_free_page_dir_page_no(i as u8, PageNo::new(0, offset + i as u64));
+            master_page.set_free_page_dir_page_no(
+                i as u8,
+                PageNo::new(PageType::FreeDir, 0, offset + i as u64),
+            );
         }
 
         let mut free_pg_mgr = FreePageManager::new(&master_page, &mut page_cache, new_version);

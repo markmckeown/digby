@@ -68,7 +68,12 @@ impl FileLayer {
         use std::io::{Read, Seek, SeekFrom};
 
         let pg_blk_offset = page_no.get_blk_offset();
-        assert!(pg_blk_offset < self.block_count);
+        assert!(
+            pg_blk_offset < self.block_count,
+            "blk offset {}, block count {}",
+            pg_blk_offset,
+            self.block_count
+        );
 
         let offset = pg_blk_offset * self.block_size as u64;
         self.file

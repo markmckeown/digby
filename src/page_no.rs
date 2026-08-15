@@ -1,3 +1,5 @@
+use crate::page::PageType;
+
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct PageNo(pub u64);
 
@@ -23,9 +25,13 @@ impl PageNo {
     const TOP_BYTE_MASK: u64 = 0xFF00_0000_0000_0000;
     const BOTTOM_56_MASK: u64 = 0x00FF_FFFF_FFFF_FFFF;
 
-    pub fn new(pg_blk_cnt_shift: u8, pg_blk_offset: u64) -> Self {
+    pub fn new(pg_type: PageType, pg_blk_cnt_shift: u8, pg_blk_offset: u64) -> Self {
         assert!(pg_blk_cnt_shift <= 8);
-        Self((u64::from(pg_blk_cnt_shift) << 56) | (pg_blk_offset & Self::BOTTOM_56_MASK))
+        Self(
+            (u64::from(pg_type as u8 & 0x0F) << 60)
+                | (u64::from(pg_blk_cnt_shift & 0x0F) << 56)
+                | (pg_blk_offset & Self::BOTTOM_56_MASK),
+        )
     }
 
     pub fn from_u64(page_no: u64) -> Self {
@@ -47,11 +53,15 @@ impl PageNo {
     }
 
     pub fn get_blk_cnt(&self) -> u64 {
-        1 << (self.0 >> 56)
+        1 << self.get_blk_cnt_shift()
+    }
+
+    pub fn get_pg_type(&self) -> PageType {
+        PageType::try_from((self.0 >> 60) as u8).unwrap()
     }
 
     pub fn get_blk_cnt_shift(&self) -> u8 {
-        (self.0 >> 56) as u8
+        ((self.0 >> 56) as u8) & 0x0F
     }
 
     pub fn get_pg_blk_size(&self, block_size: usize) -> usize {
@@ -83,9 +93,10 @@ mod tests {
         assert_eq!(page_no.get_blk_offset(), 34);
         assert_eq!(page_no.get_bytes(), [34, 0, 0, 0, 0, 0, 0, 0]);
 
-        let page_no_2 = PageNo::new(1, 57);
+        let page_no_2 = PageNo::new(PageType::LeafPage, 1, 57);
         assert_eq!(page_no_2.get_blk_cnt(), 2);
         assert_eq!(page_no_2.get_pg_blk_size(4096), 4096 * 2);
         assert_eq!(page_no_2.get_blk_offset(), 57);
+        assert_eq!(page_no_2.get_pg_type(), PageType::LeafPage);
     }
 }

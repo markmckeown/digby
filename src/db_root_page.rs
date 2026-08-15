@@ -61,7 +61,9 @@ impl DbRootPage {
             ),
         };
         db_root_page.page.set_type(PageType::DbRoot);
-        db_root_page.page.set_page_number(PageNo::new(0, 0));
+        db_root_page
+            .page
+            .set_page_number(PageNo::new(PageType::DbRoot, 0, 0));
         db_root_page.set_magic_number();
         db_root_page.set_db_major_version();
         db_root_page.set_db_minor_version();

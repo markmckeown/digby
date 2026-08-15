@@ -5,6 +5,7 @@ use std::convert::TryFrom;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum PageType {
+    Null = 0,
     // A page that can be reused. Created when DB file grows.
     Free = 1,
     // Page created when DB is created and not changed.
@@ -26,6 +27,7 @@ impl TryFrom<u8> for PageType {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
+            0 => Ok(PageType::Null),
             1 => Ok(PageType::Free),
             2 => Ok(PageType::DbRoot),
             4 => Ok(PageType::DbMaster),
@@ -145,9 +147,12 @@ mod tests {
         assert_eq!(page.get_page_number().to_u64(), 0);
         assert_eq!(0, page.get_version());
         assert_eq!(0, page.get_page().get_page_number().to_u64());
-        page.set_page_number(PageNo::from_u64(42));
+        page.set_page_number(PageNo::new(PageType::LeafPage, 0, 42));
         page.set_type(PageType::LeafPage);
-        assert_eq!(page.get_page_number().to_u64(), 42);
+        assert_eq!(
+            page.get_page_number(),
+            PageNo::new(PageType::LeafPage, 0, 42)
+        );
         assert_eq!(page.get_type() as u8, PageType::LeafPage as u8);
     }
 }

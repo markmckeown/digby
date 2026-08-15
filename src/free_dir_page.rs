@@ -181,10 +181,14 @@ mod tests {
 
     #[test]
     fn test_adding_entries() {
-        let mut free_page_dir = FreeDirPage::create_new(&DB_CONFIG, PageNo::new(0, 34), 4564);
+        let mut free_page_dir = FreeDirPage::create_new(
+            &DB_CONFIG,
+            PageNo::new(crate::page::PageType::FreeDir, 0, 34),
+            4564,
+        );
         assert!(!free_page_dir.has_free_pages());
-        free_page_dir.add_free_page(PageNo::new(0, 73));
-        free_page_dir.add_free_page(PageNo::new(0, 103));
+        free_page_dir.add_free_page(PageNo::new(crate::page::PageType::Free, 0, 73));
+        free_page_dir.add_free_page(PageNo::new(crate::page::PageType::Free, 0, 103));
         assert_eq!(4092, free_page_dir.get_page_bytes().len());
         assert!(free_page_dir.has_free_pages());
         assert!(103 == free_page_dir.get_free_page().get_blk_offset());
@@ -194,12 +198,16 @@ mod tests {
 
     #[test]
     fn test_fill_free_page_dir() {
-        let mut free_page_dir = FreeDirPage::create_new(&DB_CONFIG, PageNo::new(0, 34), 657);
+        let mut free_page_dir = FreeDirPage::create_new(
+            &DB_CONFIG,
+            PageNo::new(crate::page::PageType::FreeDir, 0, 34),
+            657,
+        );
         let mut count = 0;
         for number in 1..=1020 {
             if !free_page_dir.is_full() {
                 count += 1;
-                free_page_dir.add_free_page(PageNo::new(0, number));
+                free_page_dir.add_free_page(PageNo::new(crate::page::PageType::Free, 0, number));
             }
         }
         assert!(free_page_dir.is_full());
@@ -210,7 +218,11 @@ mod tests {
 
     #[test]
     fn test_invalid_type() {
-        let mut free_page_dir = FreeDirPage::create_new(&DB_CONFIG, PageNo::new(0, 34), 657);
+        let mut free_page_dir = FreeDirPage::create_new(
+            &DB_CONFIG,
+            PageNo::new(crate::page::PageType::FreeDir, 0, 34),
+            657,
+        );
         free_page_dir.page.set_type(crate::page::PageType::DbMaster);
         let result = std::panic::catch_unwind(|| FreeDirPage::from_page(free_page_dir.page));
         assert!(result.is_err());

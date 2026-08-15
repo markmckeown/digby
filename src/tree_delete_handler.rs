@@ -197,7 +197,7 @@ impl TreeDeleteHandler {
         new_version: u64,
     ) -> PageNo {
         let dir_page_blk_exp = page_cache.get_db_config().dir_pg_blk_cnt_shift;
-        let mut new_page_no = PageNo::new(dir_page_blk_exp, 0);
+        let mut new_page_no = PageNo::new(PageType::DirPage, dir_page_blk_exp, 0);
         loop {
             // Note there has to be at least one
             let dir_page_wrapped = dir_pages.pop();
@@ -209,7 +209,7 @@ impl TreeDeleteHandler {
             free_pg_mgr.return_free_page_no(page_cache, old_page_no);
             // The first dir_page we pop does not need its directory entries changed.
             if new_page_no.get_blk_offset() != 0 {
-                let tree_dir_entry = TreeDirEntry::new(key.to_owned(), new_page_no.to_u64());
+                let tree_dir_entry = TreeDirEntry::new(key.to_owned(), new_page_no);
                 dir_page.store_child_pages(vec![tree_dir_entry].as_ref());
             }
             new_page_no = free_pg_mgr.get_free_page(page_cache, dir_page_blk_exp);
@@ -237,7 +237,7 @@ impl TreeDeleteHandler {
             }
             let mut dir_page = dir_page_wrapped.unwrap();
             // Update the entry in the dir page with the new page number
-            let tree_dir_entry = TreeDirEntry::new(key.to_owned(), page_no_to_update.to_u64());
+            let tree_dir_entry = TreeDirEntry::new(key.to_owned(), page_no_to_update);
             dir_page.store_child_pages(vec![tree_dir_entry].as_ref());
             let dir_old_page_no = dir_page.get_page_number();
             free_pg_mgr.return_free_page_no(page_cache, dir_old_page_no);

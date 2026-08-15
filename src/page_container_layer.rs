@@ -4,6 +4,7 @@ use crate::db_config::DbConfig;
 use crate::file_layer::FileLayer;
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page::PageType;
 use crate::page_no::PageNo;
 
 // The DB is divided into pages, for example leaf
@@ -101,7 +102,7 @@ impl PageContainerLayer {
             self.db_config.block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
         );
         self.file_layer
-            .read_page_from_disk(&mut page, &PageNo::new(0, 0))
+            .read_page_from_disk(&mut page, &PageNo::new(PageType::DbRoot, 0, 0))
             .expect("Failed to read root page");
         XxHashSanity::verify_checksum(&page);
         page
@@ -153,9 +154,9 @@ impl PageContainerLayer {
                 page_ctr_size,
                 page_ctr_size - self.db_config.block_sanity_size,
             );
-            let new_page_no = PageNo::new(block_cnt_exp, block_offset);
+            let new_page_no = PageNo::new(PageType::Free, block_cnt_exp, block_offset);
             page.set_page_number(new_page_no);
-            page.set_type(crate::page::PageType::Free);
+            page.set_type(PageType::Free);
             self.set_sanity(&mut page);
             created_page_nos.push(new_page_no);
             self.file_layer.append_new_page(&page, &new_page_no);

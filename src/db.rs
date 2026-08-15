@@ -4,7 +4,7 @@ use crate::db_master_page::DbMasterPage;
 use crate::db_root_page::DbRootPage;
 use crate::file_layer::FileLayer;
 use crate::overflow_tuple::OverflowTuple;
-use crate::page::PageTrait;
+use crate::page::{PageTrait, PageType};
 use crate::page_cache::PageCache;
 use crate::page_container_layer::PageContainerLayer;
 use crate::page_no::PageNo;
@@ -319,7 +319,7 @@ impl Db {
             tx_ctx.new_version,
             &self.db_config,
         );
-        tx_ctx.global_root_page_no = PageNo::from_u64(new_tree_root_page_no);
+        tx_ctx.global_root_page_no = new_tree_root_page_no;
     }
 
     pub fn clear(&mut self) {
@@ -404,14 +404,14 @@ impl Db {
         let page = self.page_cache.get_page(table_tree_root_page_no);
         // Store the reference to the new table in the table
         // directory tree.
-        tx_ctx.tree_dir_root_page_no = PageNo::from_u64(StoreTupleProcessor::store_tuple(
+        tx_ctx.tree_dir_root_page_no = StoreTupleProcessor::store_tuple(
             tuple,
             page,
             &mut tx_ctx.free_pg_mgr,
             &mut self.page_cache,
             tx_ctx.new_version,
             &self.db_config,
-        ));
+        );
     }
 
     pub fn commit(&mut self, tx_ctx: &mut TxCtx) {
@@ -551,7 +551,7 @@ impl Db {
         // for the table tree, create a tuple for the new tree reference.
         let table_tuple = TupleProcessor::generate_tuple(
             table_name,
-            &new_table_root_page_no.to_le_bytes(),
+            &new_table_root_page_no.get_bytes(),
             &mut self.page_cache,
             &mut tx_ctx.free_pg_mgr,
             tx_ctx.new_version,
@@ -570,7 +570,7 @@ impl Db {
             tx_ctx.new_version,
             &self.db_config,
         );
-        tx_ctx.tree_dir_root_page_no = PageNo::from_u64(new_table_dir_root_page_no);
+        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
     }
 
     // Remove all the entries in a table.
@@ -657,14 +657,14 @@ impl Db {
             );
             // Store table reference and provide the
             // new table directory tree root page.
-            PageNo::from_u64(StoreTupleProcessor::store_tuple(
+            StoreTupleProcessor::store_tuple(
                 table_tuple,
                 table_dir_root_page,
                 &mut tx_ctx.free_pg_mgr,
                 &mut self.page_cache,
                 tx_ctx.new_version,
                 &self.db_config,
-            ))
+            )
         };
         tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
     }
@@ -768,7 +768,7 @@ impl Db {
             tx_ctx.new_version,
             &self.db_config,
         );
-        tx_ctx.tree_dir_root_page_no = PageNo::from_u64(new_table_dir_root_page_no);
+        tx_ctx.tree_dir_root_page_no = new_table_dir_root_page_no;
         deleted
     }
 }
@@ -790,8 +790,16 @@ impl Db {
             );
         }
         // Get the two master pages.
-        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(0, 1)));
-        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(0, 2)));
+        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(
+            PageType::DbMaster,
+            0,
+            1,
+        )));
+        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(
+            PageType::DbMaster,
+            0,
+            2,
+        )));
         // Determine which is the current master.
         let current_master = if master_page1.get_version() > master_page2.get_version() {
             master_page1
@@ -811,7 +819,7 @@ impl Db {
         for i in 0..9 {
             let mut free_dir_page = FreeDirPage::create_new(
                 self.page_cache.get_db_config(),
-                PageNo::new(0, offset + i),
+                PageNo::new(PageType::FreeDir, 0, offset + i),
                 0,
             );
             self.page_cache.put_page(free_dir_page.get_page());
@@ -820,7 +828,8 @@ impl Db {
 
     fn update_master_free_pg_dirs(master_page: &mut DbMasterPage, offset: u64) {
         for i in 0..9 {
-            master_page.set_free_page_dir_page_no(i, PageNo::new(0, offset + i as u64));
+            master_page
+                .set_free_page_dir_page_no(i, PageNo::new(PageType::FreeDir, 0, offset + i as u64));
         }
     }
 
@@ -865,8 +874,11 @@ impl Db {
         self.page_cache.put_page(table_dir_page.get_page());
 
         // Write first master page at page number 1.
-        let mut master_page1: DbMasterPage =
-            DbMasterPage::create_new(self.page_cache.get_db_config(), PageNo::new(0, 1), 0);
+        let mut master_page1: DbMasterPage = DbMasterPage::create_new(
+            self.page_cache.get_db_config(),
+            PageNo::new(PageType::DbMaster, 0, 1),
+            0,
+        );
         // Tell the first master page where the free page directory page is,
         // where the table directory root page is and where the global
         // tree root is.
@@ -877,8 +889,11 @@ impl Db {
 
         // Write second master page at page number 2, the version
         // is 1 - this makes master_page 2 the current master page.
-        let mut master_page2: DbMasterPage =
-            DbMasterPage::create_new(self.page_cache.get_db_config(), PageNo::new(0, 2), 1);
+        let mut master_page2: DbMasterPage = DbMasterPage::create_new(
+            self.page_cache.get_db_config(),
+            PageNo::new(PageType::DbMaster, 0, 2),
+            1,
+        );
         Self::update_master_free_pg_dirs(&mut master_page2, 3);
         master_page2.set_table_dir_page_no(PageNo::from_u64(12));
         master_page2.set_global_tree_root_page_no(PageNo::from_u64(13));

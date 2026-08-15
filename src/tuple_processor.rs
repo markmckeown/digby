@@ -121,7 +121,7 @@ mod tests {
     use super::*;
     use crate::compressor::{Compressor, CompressorType};
     use crate::file_layer::FileLayer;
-    use crate::page::PageTrait;
+    use crate::page::{PageTrait, PageType};
     use crate::page_container_layer::PageContainerLayer;
     use crate::tuple::TupleTrait;
     use crate::{DbMasterPage, PageNo};
@@ -172,7 +172,8 @@ mod tests {
             crate::FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
-        let mut master_page = DbMasterPage::create_new(&DB_CONFIG, PageNo::new(0, 1), version);
+        let mut master_page =
+            DbMasterPage::create_new(&DB_CONFIG, PageNo::new(PageType::DbMaster, 0, 1), version);
         master_page.set_free_page_dir_page_no(0, free_dir_page_no);
 
         let mut free_pg_mgr = FreePageManager::new(&master_page, &mut page_cache, version + 1);

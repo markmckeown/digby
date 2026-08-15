@@ -198,6 +198,7 @@ impl LeafPageHandler {
 mod tests {
     use super::*;
     use crate::db_config::DbConfig;
+    use crate::page::PageType;
     use crate::page_no::PageNo;
 
     #[test]
@@ -208,8 +209,11 @@ mod tests {
             .build();
         let version = 0;
 
-        let mut tree_leaf_page: LeafPage =
-            LeafPage::create_new(&db_config, PageNo::new(0, 56), version + 1);
+        let mut tree_leaf_page: LeafPage = LeafPage::create_new(
+            &db_config,
+            PageNo::new(PageType::LeafPage, 0, 56),
+            version + 1,
+        );
         let mut new_version = version;
         let mut tuple: Tuple;
         let mut pages: UpdateResult = UpdateResult {
@@ -246,7 +250,8 @@ mod tests {
             .block_size(4096)
             .block_sanity_size(4)
             .build();
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&db_config, PageNo::new(0, 0), 1);
+        let mut tree_leaf_page: LeafPage =
+            LeafPage::create_new(&db_config, PageNo::new(PageType::LeafPage, 0, 0), 1);
         let mut new_version = 2;
         let mut tuple: Tuple;
         // Each loop is a new commit.
@@ -275,7 +280,8 @@ mod tests {
             .block_sanity_size(4)
             .build();
         let version = 0;
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&db_config, PageNo::new(0, 0), 0);
+        let mut tree_leaf_page: LeafPage =
+            LeafPage::create_new(&db_config, PageNo::new(PageType::LeafPage, 0, 0), 0);
         tree_leaf_page.set_version(version + 1);
         let mut new_version = version;
         let mut tuple: Tuple;
@@ -305,7 +311,8 @@ mod tests {
             .block_sanity_size(4)
             .build();
         let version = 0;
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&db_config, PageNo::new(0, 0), 0);
+        let mut tree_leaf_page: LeafPage =
+            LeafPage::create_new(&db_config, PageNo::new(PageType::LeafPage, 0, 0), 0);
         tree_leaf_page.set_version(version + 1);
 
         let mut new_version = version;
@@ -340,7 +347,8 @@ mod tests {
             .block_sanity_size(4)
             .build();
         let version = 0;
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&db_config, PageNo::new(0, 0), 0);
+        let mut tree_leaf_page: LeafPage =
+            LeafPage::create_new(&db_config, PageNo::new(PageType::LeafPage, 0, 0), 0);
         let mut new_version = version;
         let mut tuple: Tuple;
 
@@ -374,7 +382,8 @@ mod tests {
             .block_sanity_size(4)
             .build();
         let version = 0;
-        let mut tree_leaf_page: LeafPage = LeafPage::create_new(&db_config, PageNo::new(0, 0), 0);
+        let mut tree_leaf_page: LeafPage =
+            LeafPage::create_new(&db_config, PageNo::new(PageType::LeafPage, 0, 0), 0);
         tree_leaf_page.set_version(version + 1);
 
         let mut new_version = version;
