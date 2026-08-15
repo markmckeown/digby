@@ -60,7 +60,8 @@ impl TreeDirHandler {
             if old_page_no.to_u64() != 0 {
                 free_pg_mgr.return_free_page_no(page_cache, old_page_no);
             }
-            let new_page_no = free_pg_mgr.get_free_page(page_cache, old_page_no.get_blk_cnt_exp());
+            let new_page_no =
+                free_pg_mgr.get_free_page(page_cache, old_page_no.get_blk_cnt_shift());
             page_ref.page.set_page_number(new_page_no);
             page_ref.page.set_version(version);
         }

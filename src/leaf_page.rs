@@ -644,7 +644,7 @@ impl LeafPage {
         let mut left_page = LeafPage::create_new(db_config, page_no, version);
         let mut right_page = LeafPage::create_new(
             db_config,
-            PageNo::new(page_no.get_blk_cnt_exp(), 0),
+            PageNo::new(page_no.get_blk_cnt_shift(), 0),
             version,
         );
 
@@ -687,7 +687,7 @@ impl LeafPage {
         let mut left_page = LeafPage::create_new(db_config, page_no, version);
         let mut right_page = LeafPage::create_new(
             db_config,
-            PageNo::new(page_no.get_blk_cnt_exp(), 0),
+            PageNo::new(page_no.get_blk_cnt_shift(), 0),
             version,
         );
 
@@ -733,7 +733,7 @@ impl LeafPage {
         let mut left_page = LeafPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = LeafPage::create_new(
             db_config,
-            PageNo::new(self.page.get_page_number().get_blk_cnt_exp(), 0),
+            PageNo::new(self.page.get_page_number().get_blk_cnt_shift(), 0),
             version,
         );
 
@@ -782,7 +782,7 @@ impl LeafPage {
         let mut left_page = LeafPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = LeafPage::create_new(
             db_config,
-            PageNo::new(self.page.get_page_number().get_blk_cnt_exp(), 0),
+            PageNo::new(self.page.get_page_number().get_blk_cnt_shift(), 0),
             version,
         );
 
@@ -836,7 +836,7 @@ impl LeafPage {
         let mut left_page = LeafPage::create_new(db_config, self.page.get_page_number(), version);
         let mut right_page = LeafPage::create_new(
             db_config,
-            PageNo::new(self.page.get_page_number().get_blk_cnt_exp(), 0),
+            PageNo::new(self.page.get_page_number().get_blk_cnt_shift(), 0),
             version,
         );
 

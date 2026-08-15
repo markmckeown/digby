@@ -3,15 +3,15 @@ pub struct PageNo(pub u64);
 
 // PageNo:
 //
-// | pg_ctr_blk_cnt_exp (1 byte) | file_blk_offset 7 bytes |
+// | pg_ctr_blk_cnt_shift (1 byte) | file_blk_offset 7 bytes |
 //
 // A Page Container is made up of one or more blocks. The number
-// if blocks is encoded as pg_ctr_blk_cnt_exp in the page number.
+// if blocks is encoded as pg_ctr_blk_cnt_shift in the page number.
 // The number of blocks in the page container is
 //
-//   2 << pg_ctr_blk_cnt_exp
+//   2 << pg_ctr_blk_cnt_shift
 //
-// So if pg_ctr_blk_cnt_exp is zero the page container contains
+// So if pg_ctr_blk_cnt_shift is zero the page container contains
 // one block. pg_ctr_blk_cnt_exp is limited to 8, which limits
 // the size of a page container to 256 blocks.
 //
@@ -23,9 +23,9 @@ impl PageNo {
     const TOP_BYTE_MASK: u64 = 0xFF00_0000_0000_0000;
     const BOTTOM_56_MASK: u64 = 0x00FF_FFFF_FFFF_FFFF;
 
-    pub fn new(pg_blk_cnt_exp: u8, pg_blk_offset: u64) -> Self {
-        assert!(pg_blk_cnt_exp <= 8);
-        Self((u64::from(pg_blk_cnt_exp) << 56) | (pg_blk_offset & Self::BOTTOM_56_MASK))
+    pub fn new(pg_blk_cnt_shift: u8, pg_blk_offset: u64) -> Self {
+        assert!(pg_blk_cnt_shift <= 8);
+        Self((u64::from(pg_blk_cnt_shift) << 56) | (pg_blk_offset & Self::BOTTOM_56_MASK))
     }
 
     pub fn from_u64(page_no: u64) -> Self {
@@ -50,7 +50,7 @@ impl PageNo {
         1 << (self.0 >> 56)
     }
 
-    pub fn get_blk_cnt_exp(&self) -> u8 {
+    pub fn get_blk_cnt_shift(&self) -> u8 {
         (self.0 >> 56) as u8
     }
 

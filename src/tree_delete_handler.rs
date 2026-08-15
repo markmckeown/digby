@@ -94,7 +94,7 @@ impl TreeDeleteHandler {
         free_pg_mgr.return_free_page_no(page_cache, old_leaf_page_no);
         if !leaf_page.is_empty() {
             new_leaf_page_no =
-                free_pg_mgr.get_free_page(page_cache, old_leaf_page_no.get_blk_cnt_exp());
+                free_pg_mgr.get_free_page(page_cache, old_leaf_page_no.get_blk_cnt_shift());
             leaf_page.set_page_number(new_leaf_page_no);
             leaf_page.set_version(new_version);
             page_cache.put_page(leaf_page.get_page());
@@ -242,7 +242,7 @@ impl TreeDeleteHandler {
             let dir_old_page_no = dir_page.get_page_number();
             free_pg_mgr.return_free_page_no(page_cache, dir_old_page_no);
             page_no_to_update =
-                free_pg_mgr.get_free_page(page_cache, dir_old_page_no.get_blk_cnt_exp());
+                free_pg_mgr.get_free_page(page_cache, dir_old_page_no.get_blk_cnt_shift());
             dir_page.set_page_number(page_no_to_update);
             dir_page.set_version(new_version);
             page_cache.put_page(dir_page.get_page());
@@ -291,7 +291,7 @@ impl TreeDeleteHandler {
 
         // Get a new page number for root page.
         let new_root_page_no =
-            free_pg_mgr.get_free_page(page_cache, root_page_no.get_blk_cnt_exp());
+            free_pg_mgr.get_free_page(page_cache, root_page_no.get_blk_cnt_shift());
 
         // Set the page number and version and write to disk.
         root_page.set_page_number(new_root_page_no);

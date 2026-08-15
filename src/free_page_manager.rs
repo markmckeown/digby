@@ -30,19 +30,19 @@ impl FreePageManager {
         }
     }
 
-    pub fn get_free_page(&mut self, page_cache: &mut PageCache, blk_exp: u8) -> PageNo {
+    pub fn get_free_page(&mut self, page_cache: &mut PageCache, blk_cnt_shift: u8) -> PageNo {
         assert!(
             !self.flushed,
             "Cannot get free page after flushing free page trackers."
         );
-        if blk_exp == 0 {
+        if blk_cnt_shift == 0 {
             return self.base_free_pg_tracker.get_free_page(page_cache);
         }
-        if !self.free_pg_trackers.contains_key(&blk_exp) {
-            self.create_page_tracker(page_cache, blk_exp);
+        if !self.free_pg_trackers.contains_key(&blk_cnt_shift) {
+            self.create_page_tracker(page_cache, blk_cnt_shift);
         }
         self.free_pg_trackers
-            .get_mut(&blk_exp)
+            .get_mut(&blk_cnt_shift)
             .unwrap()
             .get_free_page(page_cache, &mut self.base_free_pg_tracker)
     }
@@ -52,13 +52,13 @@ impl FreePageManager {
             !self.flushed,
             "Cannot return free page after flushing free page trackers."
         );
-        let blk_exp = page_no.get_blk_cnt_exp();
-        if blk_exp == 0 {
+        let blk_cnt_shift = page_no.get_blk_cnt_shift();
+        if blk_cnt_shift == 0 {
             self.base_free_pg_tracker.return_free_page_no(page_no);
             return;
         }
 
-        self.get_free_page_tracker(page_cache, blk_exp)
+        self.get_free_page_tracker(page_cache, blk_cnt_shift)
             .return_free_page_no(page_no);
     }
 
@@ -72,7 +72,7 @@ impl FreePageManager {
             "Cannot flush free page trackers after they have already been flushed."
         );
         self.flushed = true;
-        for (blk_exp, tracker) in &mut self.free_pg_trackers {
+        for (blk_cnt_shift, tracker) in &mut self.free_pg_trackers {
             let mut free_dir_pages =
                 tracker.get_free_dir_pages(page_cache, &mut self.base_free_pg_tracker);
             assert!(!free_dir_pages.is_empty());
@@ -80,7 +80,7 @@ impl FreePageManager {
             while let Some(mut free_dir_page) = free_dir_pages.pop() {
                 page_cache.put_page(free_dir_page.get_page());
             }
-            master_page.set_free_page_dir_page_no(*blk_exp, first_free_dir_page);
+            master_page.set_free_page_dir_page_no(*blk_cnt_shift, first_free_dir_page);
         }
         // Now flush the base free page tracker
         let mut free_dir_pages = self.base_free_pg_tracker.get_free_dir_pages(page_cache);
@@ -95,30 +95,33 @@ impl FreePageManager {
     fn get_free_page_tracker(
         &mut self,
         page_cache: &mut PageCache,
-        blk_exp: u8,
+        blk_cnt_shift: u8,
     ) -> &mut FreePageTracker {
-        assert!(blk_exp != 0);
-        if !self.free_pg_trackers.contains_key(&blk_exp) {
-            self.create_page_tracker(page_cache, blk_exp);
+        assert!(blk_cnt_shift != 0);
+        if !self.free_pg_trackers.contains_key(&blk_cnt_shift) {
+            self.create_page_tracker(page_cache, blk_cnt_shift);
         }
-        self.free_pg_trackers.get_mut(&blk_exp).unwrap()
+        self.free_pg_trackers.get_mut(&blk_cnt_shift).unwrap()
     }
 
     fn create_page_tracker(
         &mut self,
         page_cache: &mut PageCache,
-        blk_exp: u8,
+        blk_cnt_shift: u8,
     ) -> &mut FreePageTracker {
-        assert!(blk_exp != 0);
+        assert!(blk_cnt_shift != 0);
         assert!(
-            blk_exp < self.og_free_pg_dir_pg_nos.len() as u8,
-            "Block exponent {} is out of bounds for the original free page directory page numbers.",
-            blk_exp
+            blk_cnt_shift < self.og_free_pg_dir_pg_nos.len() as u8,
+            "Block count shift {} is out of bounds for the original free page directory page numbers.",
+            blk_cnt_shift
         );
-        let page_no = self.og_free_pg_dir_pg_nos.get(blk_exp as usize).unwrap();
+        let page_no = self
+            .og_free_pg_dir_pg_nos
+            .get(blk_cnt_shift as usize)
+            .unwrap();
         let page = page_cache.get_page(*page_no);
-        let free_pg_tracker = FreePageTracker::new(page, self.version, blk_exp);
-        self.free_pg_trackers.insert(blk_exp, free_pg_tracker);
-        self.free_pg_trackers.get_mut(&blk_exp).unwrap()
+        let free_pg_tracker = FreePageTracker::new(page, self.version, blk_cnt_shift);
+        self.free_pg_trackers.insert(blk_cnt_shift, free_pg_tracker);
+        self.free_pg_trackers.get_mut(&blk_cnt_shift).unwrap()
     }
 }
