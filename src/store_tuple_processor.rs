@@ -365,6 +365,7 @@ mod tests {
             crate::PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
+        page_cache.generate_free_pages(1, 0); // pop root page.
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
@@ -395,7 +396,7 @@ mod tests {
             version + 1,
             &DB_CONFIG,
         );
-        assert_eq!(new_root_tree_no.get_blk_offset(), 2);
+        assert_eq!(new_root_tree_no.get_blk_offset(), 3);
 
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");
     }
@@ -417,6 +418,7 @@ mod tests {
             crate::PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
+        page_cache.generate_free_pages(1, 0);
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
@@ -485,6 +487,7 @@ mod tests {
             crate::PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
+        page_cache.generate_free_pages(1, 0); // Pop root page.
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);

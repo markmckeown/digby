@@ -8,8 +8,6 @@ pub enum PageType {
     Null = 0,
     // A page that can be reused. Created when DB file grows.
     Free = 1,
-    // Page created when DB is created and not changed.
-    DbRoot = 2,
     // There are two DbMaster pages - one is current and one is old.
     // These are flipped when a new version is committed.
     DbMaster = 4,
@@ -29,7 +27,6 @@ impl TryFrom<u8> for PageType {
         match value {
             0 => Ok(PageType::Null),
             1 => Ok(PageType::Free),
-            2 => Ok(PageType::DbRoot),
             4 => Ok(PageType::DbMaster),
             5 => Ok(PageType::Overflow),
             6 => Ok(PageType::FreeDir),

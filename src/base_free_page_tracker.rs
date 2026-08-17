@@ -181,6 +181,7 @@ mod tests {
             crate::PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache: PageCache = PageCache::new(block_layer);
 
+        page_cache.generate_free_pages(1, 0); // pop root page
         let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
         let mut free_dir_page =
             FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
@@ -190,16 +191,16 @@ mod tests {
             BaseFreePageTracker::new(page_cache.get_page(free_dir_page_no), version + 1);
 
         let new_free_page = free_page_tracker.get_free_page(&mut page_cache);
-        assert!(new_free_page.get_blk_offset() == 1);
-        assert_eq!(page_cache.get_total_page_count(), 9);
+        assert!(new_free_page.get_blk_offset() == 2);
+        assert_eq!(page_cache.get_total_page_count(), 10);
 
         for number in 16u64..=5000 {
             free_page_tracker.return_free_page_no(PageNo::from_u64(number));
         }
-        assert_eq!(page_cache.get_total_page_count(), 9);
+        assert_eq!(page_cache.get_total_page_count(), 10);
         let mut pages = free_page_tracker.get_free_dir_pages(&mut page_cache);
         assert_eq!(pages.len(), 10);
-        assert_eq!(page_cache.get_total_page_count(), 18);
+        assert_eq!(page_cache.get_total_page_count(), 19);
 
         let free_page_dir_no = pages.last().unwrap().get_page_number();
         while !pages.is_empty() {
@@ -213,7 +214,7 @@ mod tests {
         for _number in 1u32..=2100 {
             free_page_tracker.get_free_page(&mut page_cache);
         }
-        assert_eq!(page_cache.get_total_page_count(), 18);
+        assert_eq!(page_cache.get_total_page_count(), 19);
         // Two of the free_page_dir are no longer needed.
         assert_eq!(free_page_tracker.get_return_pages().len(), 4);
         std::fs::remove_file(temp_file.path()).expect("Failed to remove temp file");

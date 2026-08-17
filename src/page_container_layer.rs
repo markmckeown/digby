@@ -102,7 +102,7 @@ impl PageContainerLayer {
             self.db_config.block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
         );
         self.file_layer
-            .read_page_from_disk(&mut page, &PageNo::new(PageType::DbRoot, 0, 0))
+            .read_page_from_disk(&mut page, &PageNo::new(PageType::Null, 0, 0))
             .expect("Failed to read root page");
         XxHashSanity::verify_checksum(&page);
         page

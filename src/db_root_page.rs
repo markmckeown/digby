@@ -60,10 +60,10 @@ impl DbRootPage {
                 db_config.block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
             ),
         };
-        db_root_page.page.set_type(PageType::DbRoot);
+        db_root_page.page.set_type(PageType::Null);
         db_root_page
             .page
-            .set_page_number(PageNo::new(PageType::DbRoot, 0, 0));
+            .set_page_number(PageNo::new(PageType::Null, 0, 0));
         db_root_page.set_magic_number();
         db_root_page.set_db_major_version();
         db_root_page.set_db_minor_version();
@@ -72,7 +72,7 @@ impl DbRootPage {
     }
 
     pub fn from_page(page: Page) -> Self {
-        if page.get_type() != PageType::DbRoot {
+        if page.get_type() != PageType::Null {
             panic!("Invalid page type for RootPage");
         }
         if page.get_page_number().get_blk_offset() != 0 {
@@ -242,7 +242,7 @@ mod tests {
         assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
         assert_eq!(root_page.get_db_major_version(), DbRootPage::VERSION_MAJOR);
         assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
-        assert_eq!(root_page.page.get_type(), PageType::DbRoot);
+        assert_eq!(root_page.page.get_type(), PageType::Null);
     }
 
     #[test]
@@ -258,7 +258,7 @@ mod tests {
         assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
         assert_eq!(root_page.get_db_major_version(), DbRootPage::VERSION_MAJOR);
         assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
-        assert_eq!(root_page.page.get_type(), PageType::DbRoot);
+        assert_eq!(root_page.page.get_type(), PageType::Null);
         assert_eq!(root_page.get_page_bytes().len(), 4092);
         root_page.set_page_number(PageNo::from_u64(0));
         assert_eq!(root_page.get_page_number().get_blk_offset(), 0);
@@ -278,14 +278,14 @@ mod tests {
         assert_eq!(root_page.get_magic_number(), DbRootPage::MAGIC_NUMBER);
         assert_eq!(root_page.get_db_major_version(), DbRootPage::VERSION_MAJOR);
         assert_eq!(root_page.get_db_minor_version(), DbRootPage::VERSION_MINOR);
-        assert_eq!(root_page.page.get_type(), PageType::DbRoot);
+        assert_eq!(root_page.page.get_type(), PageType::Null);
         root_page.set_page_number(PageNo::from_u64(23));
     }
 
     #[test]
     fn test_from_page_valid() {
         let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::DbRoot);
+        page.set_type(PageType::Null);
         page.set_page_number(PageNo::from_u64(0));
 
         // Manually write the magic number to the page buffer so validation passes
@@ -311,7 +311,7 @@ mod tests {
     #[should_panic(expected = "Invalid page number for RootPage")]
     fn test_from_page_invalid_page_number() {
         let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::DbRoot);
+        page.set_type(PageType::Null);
         page.set_page_number(PageNo::from_u64(1));
         let _ = DbRootPage::from_page(page);
     }
@@ -320,7 +320,7 @@ mod tests {
     #[should_panic(expected = "Invalid magic number for RootPage")]
     fn test_from_page_invalid_magic_number() {
         let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::DbRoot);
+        page.set_type(PageType::Null);
         page.set_page_number(PageNo::from_u64(0));
         // Magic number is 0 by default, so validation will panic
         let _ = DbRootPage::from_page(page);

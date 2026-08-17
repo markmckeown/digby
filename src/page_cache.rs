@@ -40,6 +40,10 @@ impl PageCache {
     // immutable refernce to a page that is shared, and a version
     // that returns a copy of the page.
     pub fn get_page(&mut self, page_number: PageNo) -> Page {
+        assert!(
+            page_number.get_blk_offset() != 0,
+            "Attempt to get root page."
+        );
         match self.page_map.get(&page_number) {
             Some(page) => {
                 let mut page_copy =
@@ -90,6 +94,11 @@ impl PageCache {
 
     pub fn put_page(&mut self, page: &mut Page) {
         let page_no = page.get_page_number();
+        assert!(
+            page_no.get_blk_offset() != 0,
+            "Attempt to overwrite root page."
+        );
+
         // Take a copy of the page before the block_layer processes it,
         // the block layer might encrypt it.
         // TODO - block_layer.write_page should return the page to us to avoid need to copy.
@@ -143,7 +152,7 @@ mod tests {
         let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
         let block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
         let mut page_cache = PageCache::new(block_layer);
-        let page_number = 0;
+        let page_number = 1;
 
         // Write a page to the cache
         let mut page = Page::create_new(page_cache.get_db_config(), 1);
