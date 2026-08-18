@@ -41,6 +41,8 @@ pub mod tuple_processor;
 pub use tuple_processor::TupleProcessor;
 pub mod xxhash_sanity;
 pub use xxhash_sanity::XxHashSanity;
+pub mod xxhash3_sanity;
+pub use xxhash3_sanity::XxHash3Sanity;
 pub mod aes_128_gcm_sanity;
 pub use aes_128_gcm_sanity::Aes128GcmSanity;
 pub mod compressor;

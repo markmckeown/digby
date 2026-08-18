@@ -93,6 +93,7 @@ impl PageContainerLayer {
             .read_page_from_disk(&mut page, &page_no)
             .expect("Failed to read page");
         self.check_sanity(&mut page);
+        assert_eq!(page_no, page.get_page_number());
         page
     }
 

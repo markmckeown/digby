@@ -856,21 +856,17 @@ impl Db {
 
         // Write the global tree root page at page number 13.
         // The first page in a tree is a leaf page.
-        let mut global_tree_root_page = LeafPage::create_new(
-            self.page_cache.get_db_config(),
-            *leaf_pages.first().unwrap(),
-            0,
-        );
+        let global_tree_root_page_no = *leaf_pages.first().unwrap();
+        let mut global_tree_root_page =
+            LeafPage::create_new(self.page_cache.get_db_config(), global_tree_root_page_no, 0);
         // Write the global_tree_root_page to disk.
         self.page_cache.put_page(global_tree_root_page.get_page());
 
         // Write the table directory page at page number 12.
         // The first page in a tree is a leaf page.
-        let mut table_dir_page = LeafPage::create_new(
-            self.page_cache.get_db_config(),
-            *leaf_pages.get(1).unwrap(),
-            0,
-        );
+        let table_dir_page_no = *leaf_pages.get(1).unwrap();
+        let mut table_dir_page =
+            LeafPage::create_new(self.page_cache.get_db_config(), table_dir_page_no, 0);
         self.page_cache.put_page(table_dir_page.get_page());
 
         // Write first master page at page number 1.
@@ -883,8 +879,8 @@ impl Db {
         // where the table directory root page is and where the global
         // tree root is.
         Self::update_master_free_pg_dirs(&mut master_page1, 3);
-        master_page1.set_table_dir_page_no(PageNo::from_u64(12));
-        master_page1.set_global_tree_root_page_no(PageNo::from_u64(13));
+        master_page1.set_table_dir_page_no(table_dir_page_no);
+        master_page1.set_global_tree_root_page_no(global_tree_root_page_no);
         self.page_cache.put_page(master_page1.get_page());
 
         // Write second master page at page number 2, the version
@@ -895,8 +891,8 @@ impl Db {
             1,
         );
         Self::update_master_free_pg_dirs(&mut master_page2, 3);
-        master_page2.set_table_dir_page_no(PageNo::from_u64(12));
-        master_page2.set_global_tree_root_page_no(PageNo::from_u64(13));
+        master_page2.set_table_dir_page_no(table_dir_page_no);
+        master_page2.set_global_tree_root_page_no(global_tree_root_page_no);
         self.page_cache.put_page(master_page2.get_page());
 
         // Flush all pages so far, don't sync the db metadata page yet.
@@ -922,8 +918,16 @@ impl Db {
     //   Update the master page after making tree changes.
     //   Overwrite the non-current master page with the new version.
     fn get_master_page(&mut self) -> DbMasterPage {
-        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::from_u64(1)));
-        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::from_u64(2)));
+        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(
+            PageType::DbMaster,
+            0,
+            1,
+        )));
+        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(
+            PageType::DbMaster,
+            0,
+            2,
+        )));
 
         if master_page1.get_version() > master_page2.get_version() {
             master_page1
@@ -982,8 +986,16 @@ mod tests {
         }
         {
             let mut db = Db::open(db_path, None).unwrap();
-            let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::from_u64(1)));
-            let head_page2 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::from_u64(2)));
+            let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::new(
+                PageType::DbMaster,
+                0,
+                1,
+            )));
+            let head_page2 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::new(
+                PageType::DbMaster,
+                0,
+                2,
+            )));
             let free_page_dir_page_no = head_page2.get_free_page_dir_page_no(0);
             let free_page_dir_page =
                 FreeDirPage::from_page(db.page_cache.get_page(free_page_dir_page_no));
@@ -1050,6 +1062,41 @@ mod tests {
         let value = b"the_value".to_vec();
         {
             let db_config = DbConfig::builder().block_size(4096).build();
+            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            db.put(key.as_ref(), value.as_ref());
+        }
+        // The new scope essentially closes the DB - when Files run out of scope then
+        // they are close, Rust bizairely does not allow error handling on close!
+        {
+            let mut db = Db::open(db_path, None).unwrap();
+            let returned_value = db.get(key.as_ref()).unwrap();
+            assert!(returned_value == value);
+        }
+        {
+            let mut db = Db::open(db_path, None).unwrap();
+            let deleted = db.delete(key.as_ref());
+            assert!(deleted);
+        }
+        {
+            let mut db = Db::open(db_path, None).unwrap();
+            let returned_value = db.get(key.as_ref());
+            assert!(returned_value.is_none());
+        }
+    }
+
+    #[test]
+    fn test_db_store_value_delete_xxhash3() {
+        let dir = TempDir::new().expect("Failed to create temp dir");
+        let file_path = dir.path().join("db");
+        let db_path = file_path.to_str().unwrap();
+
+        let key = b"the_key".to_vec();
+        let value = b"the_value".to_vec();
+        {
+            let db_config = DbConfig::builder()
+                .block_size(4096)
+                .block_sanity(BlockSanity::XxH64Checksum)
+                .build();
             let mut db = Db::create(db_path, None, &db_config).unwrap();
             db.put(key.as_ref(), value.as_ref());
         }

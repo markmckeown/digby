@@ -1,6 +1,7 @@
 use crate::db_config::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page::PageType;
 use crate::page_container_layer::PageContainerLayer;
 use crate::page_no::PageNo;
 use std::collections::HashMap;
@@ -95,6 +96,10 @@ impl PageCache {
     pub fn put_page(&mut self, page: &mut Page) {
         let page_no = page.get_page_number();
         assert!(
+            page_no.get_pg_type() != PageType::Null,
+            "Attempt to write Null page"
+        );
+        assert!(
             page_no.get_blk_offset() != 0,
             "Attempt to overwrite root page."
         );
@@ -157,13 +162,13 @@ mod tests {
         // Write a page to the cache
         let mut page = Page::create_new(page_cache.get_db_config(), 1);
         page_cache.generate_free_pages(10, 0);
-        page.set_page_number(PageNo::from_u64(page_number));
+        page.set_page_number(PageNo::new(page::PageType::Free, 0, page_number));
         page.set_type(page::PageType::Free);
         page_cache.put_page(&mut page);
         page_cache.sync_all();
         // Read the page back from the cache
-        let read_page = page_cache.get_page(PageNo::from_u64(page_number));
-        assert_eq!(read_page.get_page_number().to_u64(), page_number);
+        let read_page = page_cache.get_page(PageNo::new(page::PageType::Free, 0, page_number));
+        assert_eq!(read_page.get_page_number().get_blk_offset(), page_number);
         assert_eq!(read_page.get_page_bytes(), page.get_page_bytes());
     }
 }
