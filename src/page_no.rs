@@ -26,7 +26,7 @@ impl PageNo {
     const BOTTOM_56_MASK: u64 = 0x00FF_FFFF_FFFF_FFFF;
 
     pub fn new(pg_type: PageType, pg_blk_cnt_shift: u8, pg_blk_offset: u64) -> Self {
-        assert!(pg_blk_cnt_shift <= 8);
+        assert!(pg_blk_cnt_shift <= crate::db_config::DbConfig::MAX_BLK_SHIFT);
         Self(
             (u64::from(pg_type as u8 & 0x0F) << 60)
                 | (u64::from(pg_blk_cnt_shift & 0x0F) << 56)

@@ -15,6 +15,8 @@ pub struct DbConfig {
 }
 
 impl DbConfig {
+    pub const MAX_BLK_SHIFT: u8 = 8;
+
     pub const fn builder() -> DbConfigBuilder {
         DbConfigBuilder::new()
     }
