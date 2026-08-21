@@ -20,6 +20,7 @@ impl PageTrait for DirPage {
     }
 
     fn set_page_number(&mut self, page_no: PageNo) {
+        assert!(page_no.get_pg_type() == PageType::DirPage);
         self.page.set_page_number(page_no)
     }
 
@@ -104,16 +105,16 @@ impl DirPage {
     const VALUE_SIZE: usize = 8; // u64 page number of child page
     const SLOT_SIZE: usize = 3; // 2 (offset) + 1 (key_len)
 
-    pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
-        if page_number.get_blk_offset() != 0 {
+    pub fn create_new(page_config: &DbConfig, pg_no: PageNo, version: u64) -> Self {
+        if pg_no.get_blk_offset() != 0 {
             assert!(
-                page_number.get_blk_cnt() == page_config.get_dir_page_blk_cnt(),
+                pg_no.get_blk_cnt() == page_config.get_dir_page_blk_cnt(),
                 "DirPage page number has wrong block count."
             );
         }
+        assert!(pg_no.get_pg_type() == PageType::DirPage);
         let mut page = Page::create_new(page_config, page_config.get_dir_page_blk_cnt());
-        page.set_type(PageType::DirPage);
-        page.set_page_number(page_number);
+        page.set_page_number(pg_no);
         let mut dir_page = DirPage { page };
         dir_page.set_free_space(dir_page.page.get_pg_size() as u16 - DirPage::HEADER_SIZE as u16);
         dir_page.set_version(version);
@@ -1170,8 +1171,7 @@ mod tests {
     #[should_panic(expected = "Page type is not DirPage")]
     fn test_invalid_page() {
         let page_config = DbConfig::builder().block_size(1028).build();
-        let mut leaf_page = Page::new(page_config.block_size, page_config.page_size);
-        leaf_page.set_type(PageType::LeafPage);
+        let leaf_page = Page::new(page_config.block_size, page_config.page_size);
         let _dir_page = DirPage::from_page(leaf_page);
     }
 

@@ -163,7 +163,6 @@ mod tests {
         let mut page = Page::create_new(page_cache.get_db_config(), 1);
         page_cache.generate_free_pages(10, 0);
         page.set_page_number(PageNo::new(page::PageType::Free, 0, page_number));
-        page.set_type(page::PageType::Free);
         page_cache.put_page(&mut page);
         page_cache.sync_all();
         // Read the page back from the cache

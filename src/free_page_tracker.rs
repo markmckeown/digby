@@ -2,6 +2,7 @@ use crate::base_free_page_tracker::BaseFreePageTracker;
 use crate::free_dir_page::FreeDirPage;
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page::PageType;
 use crate::page_cache::PageCache;
 use crate::page_no::PageNo;
 
@@ -114,7 +115,8 @@ impl FreePageTracker {
     ) -> Vec<FreeDirPage> {
         assert!(self.free_dir_page_list.len() == 1);
 
-        let next_free_page_no = base_free_pg_tracker.get_free_page(page_cache);
+        let mut next_free_page_no = base_free_pg_tracker.get_free_page(page_cache);
+        next_free_page_no.set_type(PageType::FreeDir);
         let mut last = self.free_dir_page_list.last_mut().unwrap();
         // Get a free_page_no for last to be written to.
         self.returned_pages.push(last.get_page_number());

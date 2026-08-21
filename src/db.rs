@@ -374,9 +374,10 @@ impl Db {
 
         // Need to create a root page for the new table tree, the first page
         // in the tree will be a leaf page.
-        let new_table_root_page_no = tx_ctx
+        let mut new_table_root_page_no = tx_ctx
             .free_pg_mgr
             .get_free_page(&mut self.page_cache, self.db_config.leaf_pg_blk_cnt_shift);
+        new_table_root_page_no.set_type(PageType::LeafPage);
         let mut new_table_root_page = LeafPage::create_new(
             self.page_cache.get_db_config(),
             new_table_root_page_no,
@@ -856,7 +857,8 @@ impl Db {
 
         // Write the global tree root page at page number 13.
         // The first page in a tree is a leaf page.
-        let global_tree_root_page_no = *leaf_pages.first().unwrap();
+        let mut global_tree_root_page_no = *leaf_pages.first().unwrap();
+        global_tree_root_page_no.set_type(PageType::LeafPage);
         let mut global_tree_root_page =
             LeafPage::create_new(self.page_cache.get_db_config(), global_tree_root_page_no, 0);
         // Write the global_tree_root_page to disk.
@@ -864,7 +866,8 @@ impl Db {
 
         // Write the table directory page at page number 12.
         // The first page in a tree is a leaf page.
-        let table_dir_page_no = *leaf_pages.get(1).unwrap();
+        let mut table_dir_page_no = *leaf_pages.get(1).unwrap();
+        table_dir_page_no.set_type(PageType::LeafPage);
         let mut table_dir_page =
             LeafPage::create_new(self.page_cache.get_db_config(), table_dir_page_no, 0);
         self.page_cache.put_page(table_dir_page.get_page());

@@ -112,14 +112,7 @@ impl Page {
     }
 
     pub fn get_type(&self) -> PageType {
-        PageType::try_from(VersionHolder::from_bytes(&self.pg_ctr_bytes[8..8 + 8]).get_flags())
-            .unwrap()
-    }
-
-    pub fn set_type(&mut self, page_type: PageType) {
-        let mut version_holder = VersionHolder::from_bytes(&self.pg_ctr_bytes[8..8 + 8]);
-        version_holder.set_flags(page_type as u8);
-        self.pg_ctr_bytes[8..8 + 8].copy_from_slice(&version_holder.get_bytes());
+        self.get_page_number().get_pg_type()
     }
 
     pub fn replace_bytes(&mut self, new_bytes: Vec<u8>) {
@@ -145,7 +138,6 @@ mod tests {
         assert_eq!(0, page.get_version());
         assert_eq!(0, page.get_page().get_page_number().to_u64());
         page.set_page_number(PageNo::new(PageType::LeafPage, 0, 42));
-        page.set_type(PageType::LeafPage);
         assert_eq!(
             page.get_page_number(),
             PageNo::new(PageType::LeafPage, 0, 42)

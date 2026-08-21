@@ -17,6 +17,7 @@ impl PageTrait for FreePage {
     }
 
     fn set_page_number(&mut self, page_no: PageNo) {
+        assert!(page_no.get_pg_type() == crate::page::PageType::Free);
         self.page.set_page_number(page_no)
     }
 
@@ -34,18 +35,16 @@ impl PageTrait for FreePage {
 }
 
 impl FreePage {
-    pub fn create_new(page_config: &DbConfig, page_number: u64) -> Self {
-        FreePage::new(page_config.block_size, page_config.page_size, page_number)
+    pub fn create_new(page_config: &DbConfig, pg_no: PageNo) -> Self {
+        FreePage::new(page_config.block_size, page_config.page_size, pg_no)
     }
 
-    fn new(block_size: usize, page_size: usize, page_number: u64) -> Self {
+    fn new(block_size: usize, page_size: usize, pg_no: PageNo) -> Self {
+        assert!(pg_no.get_pg_type() == crate::page::PageType::Free);
         let mut free_page = FreePage {
             page: Page::new(block_size, page_size),
         };
-        free_page.page.set_type(crate::page::PageType::Free);
-        free_page
-            .page
-            .set_page_number(PageNo::from_u64(page_number));
+        free_page.page.set_page_number(pg_no);
         free_page
     }
 
@@ -69,29 +68,17 @@ mod tests {
             .block_size(4096)
             .block_sanity_size(4)
             .build();
-        let free_page = FreePage::create_new(&db_config, 42);
+        let free_page = FreePage::create_new(&db_config, PageNo::new(PageType::Free, 0, 42));
 
-        assert_eq!(free_page.get_page_number().to_u64(), 42);
+        assert_eq!(free_page.get_page_number().get_blk_offset(), 42);
         // We can access `page` through the trait method
         // but we know it's a FreePage type by successfully creating it
     }
 
     #[test]
-    fn test_from_page_valid() {
-        let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::Free);
-        page.set_page_number(PageNo::from_u64(100));
-
-        let free_page = FreePage::from_page(page);
-        assert_eq!(free_page.get_page_number().to_u64(), 100);
-    }
-
-    #[test]
     #[should_panic(expected = "Invalid page type for FreePage")]
     fn test_from_page_invalid() {
-        let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::LeafPage); // Invalid type for FreePage
-
+        let page = Page::new(4096, 4092);
         let _free_page = FreePage::from_page(page);
     }
 
@@ -101,19 +88,19 @@ mod tests {
             .block_size(4096)
             .block_sanity_size(4)
             .build();
-        let mut free_page = FreePage::create_new(&db_config, 1);
+        let mut free_page = FreePage::create_new(&db_config, PageNo::new(PageType::Free, 0, 10));
 
         free_page.set_version(5);
         assert_eq!(free_page.get_version(), 5);
 
-        assert_eq!(free_page.get_page_number().to_u64(), 1);
-        free_page.set_page_number(PageNo::from_u64(42));
-        assert_eq!(free_page.get_page_number().to_u64(), 42);
+        assert_eq!(free_page.get_page_number().get_blk_offset(), 10);
+        free_page.set_page_number(PageNo::new(PageType::Free, 0, 42));
+        assert_eq!(free_page.get_page_number().get_blk_offset(), 42);
 
         let bytes = free_page.get_page_bytes();
         assert_eq!(bytes.len(), 4092);
 
         let page = free_page.get_page();
-        assert_eq!(page.get_page_number().to_u64(), 42);
+        assert_eq!(page.get_page_number(), PageNo::new(PageType::Free, 0, 42));
     }
 }

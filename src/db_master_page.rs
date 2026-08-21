@@ -60,7 +60,6 @@ impl DbMasterPage {
         let mut head_page = DbMasterPage {
             page: Page::create_new(page_config, 1),
         };
-        head_page.page.set_type(PageType::DbMaster);
         head_page.page.set_page_number(page_number);
         head_page.set_version(version);
         head_page
@@ -184,7 +183,6 @@ mod tests {
     #[test]
     fn test_from_page_valid() {
         let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::DbMaster);
         page.set_page_number(PageNo::new(PageType::DbMaster, 0, 2));
 
         let master_page = DbMasterPage::from_page(page);
@@ -195,7 +193,6 @@ mod tests {
     #[should_panic(expected = "DbMasterPage must have page number 1 or 2")]
     fn test_set_invalid_page_no() {
         let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::DbMaster);
         page.set_page_number(PageNo::new(PageType::DbMaster, 0, 2));
 
         let mut master_page = DbMasterPage::from_page(page);
@@ -205,8 +202,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Invalid page type for DbMasterPage")]
     fn test_from_page_invalid_type() {
-        let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::LeafPage);
+        let page = Page::new(4096, 4092);
         let _ = DbMasterPage::from_page(page);
     }
 

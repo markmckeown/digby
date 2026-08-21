@@ -23,6 +23,7 @@ impl PageTrait for LeafPage {
     }
 
     fn set_page_number(&mut self, page_no: PageNo) {
+        assert!(page_no.get_pg_type() == PageType::LeafPage);
         self.page.set_page_number(page_no)
     }
 
@@ -113,16 +114,16 @@ impl LeafPage {
     const HEADER_SIZE: usize = 27; // 8 + 8 + 2 + 2 + 1 + 2 +1 + 2 + 1
     const SLOT_SIZE: usize = 5; // 2 (offset) + 1 (key_len) + 2 (val_len)
 
-    pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
-        if page_number.get_blk_offset() != 0 {
+    pub fn create_new(page_config: &DbConfig, pg_no: PageNo, version: u64) -> Self {
+        assert!(pg_no.get_pg_type() == PageType::LeafPage);
+        if pg_no.get_blk_offset() != 0 {
             assert!(
-                page_number.get_blk_cnt() == page_config.get_leaf_page_blk_cnt(),
+                pg_no.get_blk_cnt() == page_config.get_leaf_page_blk_cnt(),
                 "LeafPage page number has wrong block count."
             );
         }
         let mut page = Page::create_new(page_config, page_config.get_leaf_page_blk_cnt());
-        page.set_type(PageType::LeafPage);
-        page.set_page_number(page_number);
+        page.set_page_number(pg_no);
         page.set_version(version);
         let mut leaf_page = LeafPage { page };
         leaf_page
@@ -1034,8 +1035,7 @@ mod tests {
             .block_sanity_size(96)
             .compressor_type(crate::compressor::CompressorType::None)
             .build();
-        let mut dir_page = Page::new(page_config.block_size, page_config.page_size);
-        dir_page.set_type(PageType::DirPage);
+        let dir_page = Page::new(page_config.block_size, page_config.page_size);
         let _leaf_page = LeafPage::from_page(dir_page);
     }
 

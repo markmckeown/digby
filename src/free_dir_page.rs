@@ -1,6 +1,7 @@
 use crate::db_config::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page::PageType;
 use crate::page_no::PageNo;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
@@ -55,6 +56,7 @@ impl PageTrait for FreeDirPage {
     }
 
     fn set_page_number(&mut self, page_no: PageNo) {
+        assert!(page_no.get_pg_type() == PageType::FreeDir);
         self.page.set_page_number(page_no)
     }
 
@@ -73,24 +75,24 @@ impl PageTrait for FreeDirPage {
 
 impl FreeDirPage {
     const HEADER_SIZE: usize = 34;
-    pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
+    pub fn create_new(page_config: &DbConfig, pg_no: PageNo, version: u64) -> Self {
         assert!(
-            page_number.get_blk_cnt() == 1,
+            pg_no.get_blk_cnt() == 1,
             "FreeDirPage block count must be 1."
         );
+        assert!(pg_no.get_pg_type() == PageType::FreeDir, "Bad page type");
 
         let mut free_page_dir = FreeDirPage {
             page: Page::create_new(page_config, 1),
         };
-        free_page_dir.page.set_type(crate::page::PageType::FreeDir);
-        free_page_dir.page.set_page_number(page_number);
+        free_page_dir.page.set_page_number(pg_no);
         free_page_dir.page.set_version(version);
         free_page_dir
     }
 
     pub fn from_page(page: Page) -> Self {
         let page_type = page.get_type();
-        if page_type != crate::page::PageType::FreeDir {
+        if page_type != PageType::FreeDir {
             panic!("Invalid page type for FreePageDir");
         }
 
@@ -214,17 +216,5 @@ mod tests {
         assert_eq!(count, 507);
         assert_eq!(507, free_page_dir.get_free_page().get_blk_offset());
         assert!(!free_page_dir.is_full());
-    }
-
-    #[test]
-    fn test_invalid_type() {
-        let mut free_page_dir = FreeDirPage::create_new(
-            &DB_CONFIG,
-            PageNo::new(crate::page::PageType::FreeDir, 0, 34),
-            657,
-        );
-        free_page_dir.page.set_type(crate::page::PageType::DbMaster);
-        let result = std::panic::catch_unwind(|| FreeDirPage::from_page(free_page_dir.page));
-        assert!(result.is_err());
     }
 }

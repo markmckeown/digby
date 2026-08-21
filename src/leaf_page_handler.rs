@@ -2,6 +2,7 @@ use crate::db_config::DbConfig;
 use crate::free_page_manager::FreePageManager;
 use crate::leaf_page::LeafPage;
 use crate::page::PageTrait;
+use crate::page::PageType;
 use crate::page_cache::PageCache;
 use crate::tuple::{Tuple, TupleTrait};
 
@@ -186,8 +187,9 @@ impl LeafPageHandler {
             if old_page_no.get_blk_offset() != 0 {
                 free_pg_mgr.return_free_page_no(page_cache, old_page_no);
             }
-            let new_page_no =
+            let mut new_page_no =
                 free_pg_mgr.get_free_page(page_cache, old_page_no.get_blk_cnt_shift());
+            new_page_no.set_type(PageType::LeafPage);
             page.set_page_number(new_page_no);
             page.set_version(version);
         }

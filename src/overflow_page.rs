@@ -1,6 +1,7 @@
 use crate::db_config::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page::PageType;
 use crate::page_no::PageNo;
 use byteorder::WriteBytesExt;
 
@@ -24,6 +25,7 @@ impl PageTrait for OverflowPage {
     }
 
     fn set_page_number(&mut self, page_no: PageNo) {
+        assert!(page_no.get_pg_type() == PageType::Overflow);
         self.page.set_page_number(page_no)
     }
 
@@ -43,12 +45,12 @@ impl PageTrait for OverflowPage {
 impl OverflowPage {
     pub const HEADER_SIZE: usize = 26;
 
-    pub fn create_new(page_config: &DbConfig, page_number: PageNo, version: u64) -> Self {
+    pub fn create_new(page_config: &DbConfig, pg_no: PageNo, version: u64) -> Self {
+        assert!(pg_no.get_pg_type() == PageType::Overflow);
         let mut overflow_page = OverflowPage {
-            page: Page::create_new(page_config, page_number.get_blk_cnt()),
+            page: Page::create_new(page_config, pg_no.get_blk_cnt()),
         };
-        overflow_page.page.set_type(crate::page::PageType::Overflow);
-        overflow_page.page.set_page_number(page_number);
+        overflow_page.page.set_page_number(pg_no);
         overflow_page.set_version(version);
         overflow_page
     }
@@ -113,7 +115,8 @@ mod tests {
 
     #[test]
     fn test_adding_bytes() {
-        let mut page = OverflowPage::create_new(&DB_CONFIG, PageNo::from_u64(334), 34);
+        let mut page =
+            OverflowPage::create_new(&DB_CONFIG, PageNo::new(PageType::Overflow, 0, 334), 34);
         let buffer = b"This is a big buffer".to_vec();
 
         page.add_bytes(buffer[0..4].as_ref(), 4);
@@ -123,16 +126,18 @@ mod tests {
         assert_eq!(page.get_version(), 34);
         assert_eq!(page.get_next_page(), PageNo::from_u64(0));
         assert_eq!(page.get_used_size(), 4);
-        assert_eq!(page.get_page_number().to_u64(), 334);
-        page.set_page_number(PageNo::from_u64(457));
-        assert_eq!(page.get_page_number().to_u64(), 457);
+        assert_eq!(
+            page.get_page_number(),
+            PageNo::new(PageType::Overflow, 0, 334)
+        );
+        page.set_page_number(PageNo::new(PageType::Overflow, 0, 457));
+        assert_eq!(page.get_page_number().get_blk_offset(), 457);
     }
 
     #[should_panic(expected = "Invalid page type for OverflowPage")]
     #[test]
     fn test_invalid_page_type() {
-        let mut page = Page::create_new(&DB_CONFIG, 1);
-        page.set_type(crate::page::PageType::DbMaster);
+        let page = Page::create_new(&DB_CONFIG, 1);
         OverflowPage::from_page(page);
     }
 
@@ -142,8 +147,12 @@ mod tests {
             .block_size(4096)
             .block_sanity_size(4)
             .build();
-        let overflow_page = OverflowPage::create_new(&page_config, PageNo::from_u64(334), 34);
-        assert_eq!(overflow_page.get_page_number().to_u64(), 334);
+        let overflow_page =
+            OverflowPage::create_new(&page_config, PageNo::new(PageType::Overflow, 0, 334), 34);
+        assert_eq!(
+            overflow_page.get_page_number(),
+            PageNo::new(PageType::Overflow, 0, 334)
+        );
         assert_eq!(overflow_page.get_version(), 34);
         assert_eq!(
             overflow_page.page.get_type(),

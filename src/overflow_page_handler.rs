@@ -4,6 +4,7 @@ use crate::OverflowTuple;
 use crate::PageCache;
 use crate::PageNo;
 use crate::page::PageTrait;
+use crate::page::PageType;
 use crate::tuple::Overflow;
 use crate::tuple::Tuple;
 use crate::tuple::TupleTrait;
@@ -28,6 +29,7 @@ impl OverflowPageHandler {
         loop {
             // TODO - pick block size
             next_page = free_pg_mgr.get_free_page(page_cache, 0);
+            next_page.set_type(PageType::Overflow);
             let mut page = OverflowPage::create_new(page_cache.get_db_config(), next_page, version);
             page.set_next_page(previous);
 
@@ -85,6 +87,7 @@ impl OverflowPageHandler {
                 .get_db_config()
                 .get_blk_cnt_shift_for_size(remainder);
             next_page = free_pg_mgr.get_free_page(page_cache, pg_exp);
+            next_page.set_type(PageType::Overflow);
             let mut page = OverflowPage::create_new(page_cache.get_db_config(), next_page, version);
             page.set_next_page(previous);
 

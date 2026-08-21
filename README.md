@@ -1,159 +1,85 @@
 # Digby: A Rust-based Key-Value Store
 
-Digby is an embedded key-value store written in Rust, built as a project to learn Rust and explore database implementation concepts. It uses a B+ Tree as its core data structure.
+Digby is an embedded key-value store written in Rust. It was built as a project to learn Rust and explore advanced database implementation concepts, utilizing a B+ Tree as its core data structure.
 
-Anything with a '(?)' indicates this is not confirmed.
+> **Note:** This project serves as an experimental sandbox for exploring database algorithms, filesystem concepts, and storage architectures. Some of the design discussions below include ongoing research hypotheses and open questions.
 
 ## Features
 
-*   **B+ Tree Based**: Uses a B+ tree for storing key-value pairs.
-*   **Global & Table-based Stores**: Supports a root global B+ Tree as well as independent B+ trees (tables), all stored in a single file.
-*   **Large Item Support**: Large keys and values can be stored with 64 bit sizes. They are stored using overflow pages and they can be compressed with LZ4 (similar to TOAST in Postgres except everything is stored in the same file). Large keys are indexed using a combination of their prefix and a SHA256 hash. The first 223 bytes of the key are used as a prefix plus 32 bytes for SHA256; this allows lexical sorting up to 223 bytes of key.
-*   **Multi Block and Page Sizes**: The base block size can be configured. Pages are made up of one or more blocks. The block size should be a size that the OS can atomically write, for example 4K in general on Linux (though a larger size could be used if using untorn writes in Linux). The size of key metadata pages (root page, master pages and free directory pages) is fixed at a single block. The size option for pages follows a power of two (4K, 8K, 16K..1024K) pattern. Tree directory pages and leaf page sizes can be set independently, eg one block for tree directory pages and 2 blocks for leaf pages. Overflow pages use the minimum number of blocks to store a tuple similar to ZFS, with compressed tuples up to 1MB stored in a single block (this approach optimises the number of blocks used but leads to wasted space). Blocks are managed by a slab allocator.  
-*   **Copy-On-Write (COW)**: Based on "B-trees, Shadowing, and Clones" paper, similar to ZFS and BcacheFS filesystems and mdb database (?).
-*   **Deletion**: Implements deletion without requiring complex tree rebalancing, based on "Deletion Without Rebalancing in Multiway Search Trees" paper.
+*   **B+ Tree Core**: Uses a robust B+ tree for storing key-value pairs.
+*   **Global & Table-based Stores**: Supports a root global B+ tree as well as independent B+ trees (tables), all stored in a single file.
+*   **Large Item Support**: Capable of storing massive keys and values (up to 64-bit sizes).
+    *   Large items are stored using overflow pages and can optionally be compressed with LZ4 (conceptually similar to TOAST in PostgreSQL).
+    *   Large keys are indexed using a combination of their prefix (first 223 bytes) and a SHA-256 hash (32 bytes), allowing lexical sorting up to 223 bytes.
+    *   Overflow pages can be up to 1MB in size and chain together to support larger objects, optimized to minimize page reads.
+*   **Configurable Block & Page Sizes**:
+    *   The base block size is configurable (e.g., 4K for typical Linux atomic write compatibility).
+    *   Pages consist of one or more blocks, sized in powers of two (4K, 8K, 16K... 1024K).
+    *   Tree directory pages and leaf page sizes can be set independently.
+    *   Key metadata pages (root page, master pages, free directory pages) are fixed at a single block.
+    *   Overflow pages use the minimum number of blocks required (similar to ZFS), managed by a slab allocator.
+*   **Copy-On-Write (COW)**: Implements shadowing/clones based on the *"B-trees, Shadowing, and Clones"* paper, similar to the approaches used in ZFS, Bcachefs, and LMDB.
+*   **Simplified Deletion**: Implements deletion without requiring complex tree rebalancing, based on the *"Deletion Without Rebalancing in Multiway Search Trees"* paper.
 *   **Data Integrity and Security**:
-    *   Uses xxhash32 checksums for page integrity verification.
-    *   Optional AES-128-GCM encryption for all stored content, which includes its own integrity checks.
-*   **Compression**: Optional lz4 compression for large keys and values.
-*   **Large Store Support**: Page numbers are 64 bits to support very large databases, effective addressing is 56 bits as 8 bits are used to encode the page size.
-*   **Head and Tail Compression**: Head and tail compression in B+ tree nodes based on `https://www.cs.purdue.edu/homes/csjgwang/pubs/SIGMOD24_BtreeCompression.pdf`
-*   **Transactions**: Support for transactions to make multiple changes to the DB in an atomic operation which is isolated from readers. All updates are durable, the D in ACID; changes are sync'd to the disk before returning control to the client. Currently only supports a single writer at a time. 
+    *   **Checksums**: Option to use either `xxhash32` or `xxhash3` for page integrity verification.
+    *   **Encryption**: Optional AES-128-GCM encryption for all stored content, leveraging its built-in cryptographic integrity checks.
+*   **Compression**: 
+    *   Head and tail compression in B+ tree nodes based on the SIGMOD '24 paper *"B-tree Compression"*.
+    *   Optional LZ4 compression for large keys and values.
+*   **Massive Scale**: 64-bit page numbers support extremely large databases (56 bits for effective addressing, 8 bits used to encode page size).
+*   **Transactions**: Supports ACID transactions to make multiple atomic changes isolated from readers. Currently supports a single concurrent writer (RCU-style via COW) with durable updates synced to disk.
 
-## Usage
+## Getting Started
 
-To use `digby` in your project, add it to your `Cargo.toml`:
+To build the project, ensure you have Rust installed and run:
 
-```toml
-[dependencies]
-digby = "0.2" # Replace with the desired version
+```sh
+cargo build
 ```
 
-### Example
+To execute the test suite:
 
-Here is a simple example of how to create a database, put a value, and then retrieve it.
-
-```rust
-use digby::{Db, CompressorType};
-use std::fs;
-
-fn main() {
-    let db_path = "my_database.db";
-    
-    // Create or open the database.
-    // The second argument is an optional key for encryption.
-    let mut db = Db::new(db_path, None, CompressorType::None);
-
-    let key = b"hello";
-    let value = b"world";
-
-    // Put a key-value pair into the database.
-    db.put(key, value);
-
-    // Get the value back.
-    if let Some(retrieved_value) = db.get(key) {
-        println!("Retrieved value: {}", String::from_utf8_lossy(&retrieved_value));
-        assert_eq!(retrieved_value, value);
-    } else {
-        println!("Value not found!");
-    }
-
-    // Clean up the database file.
-    fs::remove_file(db_path).expect("Failed to remove database file");
-}
+```sh
+cargo test
 ```
 
-## Transactions, COW vs ARIES
+## Architecture & Design Explorations
 
-COW is used in ZFS and BcacheFS filesystems and also in the mdb database. In older
-literature the approach is known as "page shadowing", eg System R. The alternate
-approach is ARIES, a WAFL with redo and undo phases for recovery. I *think* COW
-works for filesystems as they do not need to support complex transactions, while
-for mdb there is a single writer only and it is designed for high read volume and
-low write volume for LDAP. 
+### Transactions: COW vs. ARIES
+Copy-On-Write (COW) is used in filesystems like ZFS and Bcachefs, as well as databases like LMDB. In older literature (e.g., System R), this approach is known as "page shadowing." The alternative approach is ARIES, a Write-Ahead Logging (WAL) protocol with redo and undo phases for recovery. COW works well for filesystems as they typically do not need to support complex transactions. LMDB, which also uses COW, is designed for high read volume and low write volume (LDAP) with a single writer.
 
-Within digby transactions are supported via the "_txn" version of the methods;
-the client starts a transaction with db.new_transaction and is provided with a 
-transaction context that it passes to any subsequent methods in the transaction. 
-When ready to commit, the client calls db.commit with the transaction context. 
-Each operation that is part of the transaction makes the changes to the db 
-tree but does not update the master page; that is done in the commit. 
-Currently digby does not have any thread protection, but as this approach is using COW
-it means you can have multiple readers that do not block each other or the writer,
-but you can only have a single writer (RCU). The readers can use the version information
-in the pages and/or tuples to determine if the version of the tree they are using is
-no longer valid and retry.
+Within Digby, transactions are supported via `_txn` methods. The client starts a transaction with `db.new_transaction` and passes the transaction context to subsequent operations. When ready, the client calls `db.commit`. Operations modify the tree during the transaction but do not update the master page until the commit. 
 
-To support complex transactions with multiple writers and rollback requires a 
-variation of ARIES? If switching to an ARIES type approach can a log be done 
-in the same file as the tree? 
+Because Digby uses COW, it naturally supports multiple readers that do not block each other or the writer, but it restricts writes to a single concurrent writer. Readers can use version information in pages/tuples to detect stale state and retry. Supporting complex transactions with multiple concurrent writers and rollbacks would likely require an ARIES-type approach. *Open Question: If switching to an ARIES approach, can the log be efficiently maintained in the same file as the tree?*
 
-## Checksums and Merkle Trees
-Both ZFS and BcacheFS store the checksum for a page in the pointer to the page/object; 
-the checksum is not stored in the page/object. The exception is the root of the tree
-which stores its own checksum. This forms a Merkle tree; Git is another example of a 
-Merkle tree. This will catch more errors than simple bit rot (Phantom writes, 
-Misdirected reads and writes, DMA parity errors, etc). Is part of
-the reason for doing this in a filesystem that for leaf pages that hold 
-user data you do not want to store a checksum in the object, it should just be
-user file data?
+### Checksums and Merkle Trees
+Both ZFS and Bcachefs store the checksum for a page in the pointer to the page/object rather than in the page itself, except for the root node. This forms a Merkle tree (similar to Git) and catches complex errors like phantom writes, misdirected I/O, and DMA parity errors better than simple bit rot checks. 
 
-In digby it would be possible to add the checksum to the page pointer (internally
-called the page number). However, there are a number of challenges. A fixed
-size for the checksum would need to be chosen - currently a 32 bit xxhash32 is used
-and stored in the block; this could be switched to 64 bit xxhash3. digby also supports
-encryption using AES128-GCM; this has a built in cryptographic hash which requires
-96 bits to store the nonce - digby relies on built in checksum in AES128-GCM rather
-than duplicating the work by adding another checksum. So embedding the checksum in 
-the page pointer loses some flexibility. The page number is also in the digby page,
-so does this protect against phantom writes, misdirected reads and writes etc?
-Another disadvantage of storing the checksum in the page pointer is that more room is
-used in the internal directory nodes.
+In Digby, embedding the checksum in the page pointer presents challenges:
+*   **Checksum Size**: A fixed size (e.g., 32-bit `xxhash32` or 64-bit `xxhash3`) would be needed. 
+*   **Encryption Overlay**: Digby supports AES-128-GCM, which has built-in cryptographic hashing and requires a 96-bit nonce. Relying on AES-128-GCM avoids duplicate checksum work, but embedding its overhead in the page pointer loses flexibility.
+*   **Space Overhead**: Storing checksums in pointers consumes more space in internal directory nodes.
 
-So to support Merkle tree in digby would need to pick a checksum with uncontroversial
-size, eg 64 bits such as for xxhash64 or xxhash3. If encryption was also used 
-then pay the price of double checksumming. The page pointer would then be 128 bits,
-64 bits for checksum, maybe 8 bits for encoding the page/block size (calculated as 
-4096 << size) and leaving 56 bits for addressing. Could also encode the page type 
-in the page pointer in 8 bits leaving 48 bits for addressing (ie 1EiB).
+To fully support a Merkle tree in Digby, an uncontroversial checksum size (e.g., 64-bit `xxhash3`) would be required. If encryption were also enabled, we would pay the price of double-checksumming. The page pointer would expand to 128 bits (64 bits for addressing + 64 bits for the checksum).
 
-## Fast Paxos & Flexible Paxos
+### Fast Paxos & Flexible Paxos
+Integrating Paxos into the database could provide an interesting alternative to a traditional WAL. For instance, if Paxos outputs a queue of agreed work, this could serve as the transaction log. Fast Paxos can reach agreement in a single round but suffers under high contention, requiring larger quorums. Flexible Paxos helps mitigate phase 2 quorum bottlenecks.
 
-An interesting challenge would be to integrate Paxos into the database. For example 
-Paxos outputs a queue of agreed work to execute; could this be the WAFL for the database?
-Fast Paxos can make agreements in a single round of communication, however it suffers
-when there is a lot of contention and requires more than a simple majority to proceed.
-Flexible Paxos helps address some of the limitations of Fast Paxos, i.e., the number of nodes
-needed to reach consensus in phase 2. In Fast Paxos contention can 
-be addressed by each node having an agreed approach to conflicts - given a set of conflicting
-work items the nodes independently resolve them the same way leading to a consistent 
-outcome across all nodes.
+In a sharded architecture, Digby could replicate thousands of Paxos state machines by partitioning the key namespace. For example, 2,000 state machines could map to 2,000 independent B+ trees rooted in a single file, each utilizing COW. This could heavily leverage the parallel I/O capabilities of NVMe drives, with cross-shard transactions utilizing Paxos Commit. *Open Question: Would this architecture lose the natural range-query advantages of a B+ tree?*
 
-Further to this the database could be replicated using thousands of Paxos state machines
-by sharding the key namespace. For example could there be 2K state machines, with 2K trees 
-rooted in the one file each using COW. Would this open up the parallel nature of NVMe drives? 
-Transactions across state machines could use Paxos Commit. Is the advantage of a B+
-tree of naturally supporting ranges lost?
+## Future Explorations
 
-See "Relaxing Quorum Intersection for Fast Paxos". 
-
-## Future Things to Explore
-
-Future plans include:
-
-*   **Root Page Changes**: Add block size, tree leaf and dir page size to root page. Read/write root page outside page cache, ie directly via FileLayer - assert on attempts to read/write to root page (ie NPE) in page cache. Do not encrypt root page. Speculatively read bytes from start of file to get root page contents to determine block size and then read root page using block size. 
-*   **Add xxhash64 checksum**: With support for 1MB pages add support for stronger checksum.
-*   **Allow different tables to have different page sizes**: Tree directory and leaf page sizes can be configured globally, allow different trees to support different directory and leaf page sizes. 
-*   **MVCC (Multi-Version Concurrency Control)**: Extend existing simple versioning system. This is tied to supporting more complex transactions than is currently supported.
+*   **Top-Down Tree Updates**: Digby currently uses a bottom-up approach to writing nodes (leaf -> directory -> master page). This is sub-optimal compared to the top-down approach advocated in *"B-trees, Shadowing, and Clones,"* which writes directory pages on the way down, allowing preemptive splits and better parallelism.
+*   **Per-Table Page Sizes**: Allow different B+ trees (tables) within the same database to configure distinct directory and leaf page sizes.
+*   **MVCC (Multi-Version Concurrency Control)**: Extend the existing rudimentary versioning system to support more complex concurrent transactions.
 *   **Performance Optimizations**:
-    *   Implement a proper page cache.
-    *   Investigate `io_uring` for async I/O. Current approach is that as the tree is being changed the new pages are written out, overwriting existing free pages. Once all the tree pages are written out including the new tree root, sync data is called to make sure the pages are on disk, the master page is written out and then sync data is called again. Using `io_uring` rather than waiting for the pages to be written out they can be scheduled for write back using `io_uring` - it may be possible to chain the write and `sync_file_range` in `io_uring`. Then when coming to write and sync the master page wait until `io_uring` has done all its tasks before writing and syncing the master page. This should be done using Rust Tokio.   
-    *   Explore update optimizations similar to Bcachefs. Bcachefs uses a COW approach were the path through the b+ tree is updated on a change which means for an update in a leaf page multiple pages are written out. It developed an optimisation where part of a leaf pages was used a log for the leaf page, for example if the page was 64K then 16K was devoted to being a log for the leaf node. If a value was updated or added to the leaf then it would be added to the log with a flag indicating that it was added, similarly if a value was deleted - the key was added to the log with a delete flag. When reading the leaf page the log was checked first before accessing the leaf data itself. Once the log was full the leaf page was rewritten with an empty log, or possibly split. An advantage with this approach is that updates only require a single page write in general, if the leaf page has to be re-written then the whole path in the tree is re-written per COW.
-*   **Concurrency**: Add support for multi-threaded access. Current support for transactions in digby and the COW design means that it can support a single writer with multiple readers, the readers would not block the writer or each other and the writers should not block the readers. Readers can use versions in pages/tuples to determine if they are on a stale version of the tree. First step would be to switch to top down writing of the tree rather than bottom up.
-*   **Untorn Writes**: Investigate using Linux untorn writes. Linux has added support for untorn writes. Before this the kernel would write a limited amount of bytes as an atomic action, this was generally 4K (or the page size). Untorn writes were added to support database use cases, to avoid double writing data in a log and then into the database. Untorn writes allow writes of multiple page sizes as an atomic action, for example 16K can either be written or not. The bytes must be aligned. This seems to align with nvme SSD that do writes in 16K block(?). Interestingly when untorn writes were tested with MySQL with 16K pages performance degraded, MySQL writes in 512 byte blocks to a log file - with 4K pages this is a 8x amplification and with 16K pages it is a 32x amplification. How can untorn writes be used in digby?
-*   **Code Quality**: Improve the Rust implementation.
-*   **Fast Flexible Paxos**: For replication.
-*   **Unnecessary copying in page cache.**: Unnecessary page copying in page cache to deal with encrypted pages.
+    *   **Page Cache**: Implement a robust page cache and reduce unnecessary page copying when dealing with encrypted pages.
+    *   **Asynchronous I/O**: Investigate `io_uring` (via Rust's `tokio`) for async I/O. Currently, new pages overwrite existing free pages synchronously, followed by a double `sync_data` around the master page write. `io_uring` could schedule page write-backs and `sync_file_range` asynchronously, waiting on the batch before writing the master page.
+    *   **Log-Structured Leaves**: Explore update optimizations similar to Bcachefs (e.g., logging changes into 256K leaf page chunks and compacting/splitting them when full) to reduce the write amplification of standard COW B-trees.
+*   **Concurrency**: Add support for multi-threaded access. The current COW design supports a single writer and multiple readers. Moving to top-down tree writing would be the first step toward better concurrent writer scaling.
+*   **Untorn Writes**: Investigate leveraging Linux untorn writes (atomic writes of multiple aligned blocks, like 16K on NVMe SSDs). This avoids the double-write penalty of traditional WALs. MySQL saw performance degradation with 16K untorn writes due to write amplification on its 512-byte log blocks, so integrating this effectively into Digby requires careful design.
+*   **Direct NVMe Access**: Explore bypassing the filesystem to access NVMe as a raw KV store for Digby blocks (e.g., referencing *"SAKER: A Software Accelerated Key-value Service via the NVMe Interface"*).
+*   **Code Quality**: Continually refactor for more idiomatic Rust.
 
 ## License
 

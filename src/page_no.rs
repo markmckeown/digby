@@ -24,6 +24,7 @@ pub struct PageNo(pub u64);
 impl PageNo {
     const TOP_BYTE_MASK: u64 = 0xFF00_0000_0000_0000;
     const BOTTOM_56_MASK: u64 = 0x00FF_FFFF_FFFF_FFFF;
+    const BOTTOM_60_MASK: u64 = 0x0FFF_FFFF_FFFF_FFFF;
 
     pub fn new(pg_type: PageType, pg_blk_cnt_shift: u8, pg_blk_offset: u64) -> Self {
         assert!(pg_blk_cnt_shift <= crate::db_config::DbConfig::MAX_BLK_SHIFT);
@@ -58,6 +59,10 @@ impl PageNo {
 
     pub fn get_pg_type(&self) -> PageType {
         PageType::try_from((self.0 >> 60) as u8).unwrap()
+    }
+
+    pub fn set_type(&mut self, pg_type: PageType) {
+        self.0 = (u64::from(pg_type as u8 & 0x0F) << 60) | (self.0 & Self::BOTTOM_60_MASK)
     }
 
     pub fn get_blk_cnt_shift(&self) -> u8 {

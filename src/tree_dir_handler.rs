@@ -1,5 +1,6 @@
 use crate::dir_page::DirPage;
 use crate::page::PageTrait;
+use crate::page::PageType;
 use crate::page_cache::PageCache;
 use crate::{FreePageManager, TreeDirEntry, db_config};
 
@@ -60,8 +61,9 @@ impl TreeDirHandler {
             if old_page_no.get_blk_offset() != 0 {
                 free_pg_mgr.return_free_page_no(page_cache, old_page_no);
             }
-            let new_page_no =
+            let mut new_page_no =
                 free_pg_mgr.get_free_page(page_cache, old_page_no.get_blk_cnt_shift());
+            new_page_no.set_type(PageType::DirPage);
             page_ref.page.set_page_number(new_page_no);
             page_ref.page.set_version(version);
         }
@@ -111,6 +113,7 @@ mod tests {
     use crate::LeafPage;
     use crate::Tuple;
     use crate::db_config::DbConfig;
+    use crate::page::PageType;
     use crate::page_no::PageNo;
 
     #[test]
@@ -120,13 +123,13 @@ mod tests {
             .block_sanity_size(4)
             .compressor_type(crate::compressor::CompressorType::None)
             .build();
-        let mut tree_leaf_page = LeafPage::create_new(&page_config, PageNo::from_u64(0), 0);
-        tree_leaf_page.set_page_number(PageNo::from_u64(21));
+        let mut tree_leaf_page =
+            LeafPage::create_new(&page_config, PageNo::new(PageType::LeafPage, 0, 21), 0);
         let tuple: Tuple = Tuple::new(b"f".to_vec().as_ref(), b"f_value".to_vec().as_ref(), 345);
         tree_leaf_page.add_tuple(&tuple);
 
-        let mut tree_leaf_page1 = LeafPage::create_new(&page_config, PageNo::from_u64(0), 0);
-        tree_leaf_page1.set_page_number(PageNo::from_u64(27));
+        let mut tree_leaf_page1 =
+            LeafPage::create_new(&page_config, PageNo::new(PageType::LeafPage, 0, 27), 0);
         let tuple1: Tuple = Tuple::new(b"h".to_vec().as_ref(), b"h_value".to_vec().as_ref(), 345);
         tree_leaf_page1.add_tuple(&tuple1);
 
@@ -141,19 +144,24 @@ mod tests {
             entries.push(tree_dir_entry);
         }
 
-        let mut tree_dir_page = DirPage::create_new(&page_config, PageNo::from_u64(0), 0);
+        let mut tree_dir_page =
+            DirPage::create_new(&page_config, PageNo::new(PageType::DirPage, 0, 29), 0);
 
         let mut new_pages =
             TreeDirHandler::handle_tree_leaf_store(&page_config, tree_dir_page, entries);
         assert_eq!(new_pages.len(), 1);
         tree_dir_page = new_pages.pop().unwrap().page;
-        assert_eq!(tree_dir_page.get_page_to_left(), PageNo::from_u64(21));
+        assert_eq!(
+            tree_dir_page.get_page_to_left(),
+            PageNo::new(PageType::LeafPage, 0, 21)
+        );
         assert_eq!(tree_dir_page.get_dir_left_key().unwrap(), b"h".to_vec());
 
         let tuple3: Tuple = Tuple::new(b"a".to_vec().as_ref(), b"a_value".to_vec().as_ref(), 345);
-        tree_leaf_page = LeafPage::create_new(&page_config, PageNo::from_u64(0), 0);
+        tree_leaf_page =
+            LeafPage::create_new(&page_config, PageNo::new(PageType::LeafPage, 0, 79), 0);
         tree_leaf_page.add_tuple(&tuple3);
-        tree_leaf_page.set_page_number(PageNo::from_u64(79));
+        tree_leaf_page.set_page_number(PageNo::new(PageType::LeafPage, 0, 79));
         leaf_pages = vec![tree_leaf_page];
 
         entries = Vec::new();
@@ -168,6 +176,9 @@ mod tests {
         new_pages = TreeDirHandler::handle_tree_leaf_store(&page_config, tree_dir_page, entries);
         assert_eq!(new_pages.len(), 1);
         tree_dir_page = new_pages.pop().unwrap().page;
-        assert_eq!(tree_dir_page.get_page_to_left(), PageNo::from_u64(79));
+        assert_eq!(
+            tree_dir_page.get_page_to_left(),
+            PageNo::new(PageType::LeafPage, 0, 79)
+        );
     }
 }

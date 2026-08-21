@@ -95,6 +95,7 @@ impl TreeDeleteHandler {
         if !leaf_page.is_empty() {
             new_leaf_page_no =
                 free_pg_mgr.get_free_page(page_cache, old_leaf_page_no.get_blk_cnt_shift());
+            new_leaf_page_no.set_type(PageType::LeafPage);
             leaf_page.set_page_number(new_leaf_page_no);
             leaf_page.set_version(new_version);
             page_cache.put_page(leaf_page.get_page());
@@ -177,8 +178,9 @@ impl TreeDeleteHandler {
 
         // We have nuked the root of the tree - need to create a TreeLeaf to replace it.
         if dir_pages.is_empty() {
-            let new_root_page_no = free_pg_mgr
+            let mut new_root_page_no = free_pg_mgr
                 .get_free_page(page_cache, page_cache.get_db_config().leaf_pg_blk_cnt_shift);
+            new_root_page_no.set_type(PageType::LeafPage);
             let mut new_root =
                 LeafPage::create_new(page_cache.get_db_config(), new_root_page_no, new_version);
             page_cache.put_page(new_root.get_page());
@@ -213,6 +215,7 @@ impl TreeDeleteHandler {
                 dir_page.store_child_pages(vec![tree_dir_entry].as_ref());
             }
             new_page_no = free_pg_mgr.get_free_page(page_cache, dir_page_blk_exp);
+            new_page_no.set_type(PageType::DirPage);
             dir_page.set_page_number(new_page_no);
             dir_page.set_version(new_version);
             page_cache.put_page(dir_page.get_page());
@@ -243,6 +246,7 @@ impl TreeDeleteHandler {
             free_pg_mgr.return_free_page_no(page_cache, dir_old_page_no);
             page_no_to_update =
                 free_pg_mgr.get_free_page(page_cache, dir_old_page_no.get_blk_cnt_shift());
+            page_no_to_update.set_type(PageType::DirPage);
             dir_page.set_page_number(page_no_to_update);
             dir_page.set_version(new_version);
             page_cache.put_page(dir_page.get_page());
@@ -290,9 +294,9 @@ impl TreeDeleteHandler {
         free_pg_mgr.return_free_page_no(page_cache, root_page_no);
 
         // Get a new page number for root page.
-        let new_root_page_no =
+        let mut new_root_page_no =
             free_pg_mgr.get_free_page(page_cache, root_page_no.get_blk_cnt_shift());
-
+        new_root_page_no.set_type(PageType::LeafPage);
         // Set the page number and version and write to disk.
         root_page.set_page_number(new_root_page_no);
         root_page.set_version(new_version);

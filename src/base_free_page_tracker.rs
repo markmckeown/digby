@@ -1,6 +1,7 @@
 use crate::free_dir_page::FreeDirPage;
 use crate::page::Page;
 use crate::page::PageTrait;
+use crate::page::PageType;
 use crate::page_cache::PageCache;
 use crate::page_no::PageNo;
 
@@ -109,10 +110,11 @@ impl BaseFreePageTracker {
     pub fn get_free_dir_pages(&mut self, page_cache: &mut PageCache) -> Vec<FreeDirPage> {
         assert!(self.free_dir_page_list.len() == 1);
 
-        let next_free_page_no = self.get_free_page(page_cache);
+        let mut next_free_page_no = self.get_free_page(page_cache);
         let mut last = self.free_dir_page_list.last_mut().unwrap();
         // Get a free_page_no for last to be written to.
         self.returned_pages.push(last.get_page_number());
+        next_free_page_no.set_type(PageType::FreeDir);
         last.set_page_number(next_free_page_no);
         last.set_version(self.new_version);
 
@@ -129,7 +131,8 @@ impl BaseFreePageTracker {
         while !self.returned_pages.is_empty() {
             // We create a new free page for the new free_page_dir page we need - we do not want to use a returned page no
             // as that could cause corruption. Returned pages are still in use until the commit is complete.
-            let next_free_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+            let mut next_free_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+            next_free_page_no.set_type(PageType::FreeDir);
             let mut next_free_dir_page = FreeDirPage::create_new(
                 page_cache.get_db_config(),
                 next_free_page_no,
@@ -158,6 +161,7 @@ impl BaseFreePageTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::page::PageType;
 
     const DB_CONFIG: crate::db_config::DbConfig = crate::db_config::DbConfig::builder()
         .block_size(4096)
@@ -182,7 +186,8 @@ mod tests {
         let mut page_cache: PageCache = PageCache::new(block_layer);
 
         page_cache.generate_free_pages(1, 0); // pop root page
-        let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+        let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+        free_dir_page_no.set_type(PageType::FreeDir);
         let mut free_dir_page =
             FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());

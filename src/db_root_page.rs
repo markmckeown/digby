@@ -32,6 +32,7 @@ impl PageTrait for DbRootPage {
             0,
             "DbRootPage must have page number 0"
         );
+        assert!(page_no.get_pg_type() == PageType::Null);
         self.page.set_page_number(page_no)
     }
 
@@ -60,7 +61,6 @@ impl DbRootPage {
                 db_config.block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
             ),
         };
-        db_root_page.page.set_type(PageType::Null);
         db_root_page
             .page
             .set_page_number(PageNo::new(PageType::Null, 0, 0));
@@ -285,7 +285,6 @@ mod tests {
     #[test]
     fn test_from_page_valid() {
         let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::Null);
         page.set_page_number(PageNo::from_u64(0));
 
         // Manually write the magic number to the page buffer so validation passes
@@ -300,18 +299,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Invalid page type for RootPage")]
-    fn test_from_page_invalid_type() {
-        let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::LeafPage);
-        let _ = DbRootPage::from_page(page);
-    }
-
-    #[test]
     #[should_panic(expected = "Invalid page number for RootPage")]
     fn test_from_page_invalid_page_number() {
         let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::Null);
         page.set_page_number(PageNo::from_u64(1));
         let _ = DbRootPage::from_page(page);
     }
@@ -320,7 +310,6 @@ mod tests {
     #[should_panic(expected = "Invalid magic number for RootPage")]
     fn test_from_page_invalid_magic_number() {
         let mut page = Page::new(4096, 4092);
-        page.set_type(PageType::Null);
         page.set_page_number(PageNo::from_u64(0));
         // Magic number is 0 by default, so validation will panic
         let _ = DbRootPage::from_page(page);

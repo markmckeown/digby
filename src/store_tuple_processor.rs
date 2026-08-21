@@ -188,8 +188,11 @@ impl StoreTupleProcessor {
         // We have hit the top of the stack but have two dir entries, the root has split.
         // Need to create a new root, register the entries and return the reference to the root.
         // Need a new TreeDirPage.
-        let new_tree_dir_page =
-            DirPage::create_new(page_cache.get_db_config(), PageNo::from_u64(0), 0);
+        let new_tree_dir_page = DirPage::create_new(
+            page_cache.get_db_config(),
+            PageNo::new(PageType::DirPage, db_config.dir_pg_blk_cnt_shift, 0),
+            0,
+        );
         // Add the entries to the new root page.
         dir_refs = TreeDirHandler::handle_tree_dir_store(db_config, new_tree_dir_page, dir_entries);
         // The new root page cannot split - so there should only be one page in the dir_refs now.
@@ -318,8 +321,15 @@ impl StoreTupleProcessor {
             page_cache.put_page(leaf_page.get_page());
         }
         // Need a new DirPage.
-        let new_tree_dir_page =
-            DirPage::create_new(page_cache.get_db_config(), PageNo::from_u64(0), 0);
+        let new_tree_dir_page = DirPage::create_new(
+            page_cache.get_db_config(),
+            PageNo::new(
+                PageType::DirPage,
+                page_cache.get_db_config().dir_pg_blk_cnt_shift,
+                0,
+            ),
+            0,
+        );
         // Add the entries to the new root page.
         let dir_refs =
             TreeDirHandler::handle_tree_leaf_store(db_config, new_tree_dir_page, entries);
@@ -366,12 +376,14 @@ mod tests {
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         page_cache.generate_free_pages(1, 0); // pop root page.
-        let free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+        let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+        free_dir_page_no.set_type(PageType::FreeDir);
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
-        let root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+        let mut root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+        root_tree_page_no.set_type(PageType::LeafPage);
         let mut leaf_page =
             LeafPage::create_new(page_cache.get_db_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
@@ -420,11 +432,13 @@ mod tests {
 
         page_cache.generate_free_pages(1, 0);
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+        free_dir_page_no.set_type(PageType::FreeDir);
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
         let mut root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+        root_tree_page_no.set_type(PageType::LeafPage);
         let mut leaf_page =
             LeafPage::create_new(page_cache.get_db_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
@@ -489,11 +503,13 @@ mod tests {
 
         page_cache.generate_free_pages(1, 0); // Pop root page.
         let mut free_dir_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+        free_dir_page_no.set_type(PageType::FreeDir);
         let mut free_dir_page =
             crate::FreeDirPage::create_new(page_cache.get_db_config(), free_dir_page_no, version);
         page_cache.put_page(free_dir_page.get_page());
 
         let mut root_tree_page_no = *page_cache.generate_free_pages(1, 0).first().unwrap();
+        root_tree_page_no.set_type(PageType::LeafPage);
         let mut leaf_page =
             LeafPage::create_new(page_cache.get_db_config(), root_tree_page_no, version);
         page_cache.put_page(leaf_page.get_page());
