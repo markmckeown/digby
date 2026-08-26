@@ -8,9 +8,9 @@ use crate::page_no::PageNo;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io::Cursor;
 
-// | Page No (8 bytes) | Version/Type (8 bytes) |
+// | Page No (8 bytes) (0,0,0) | Version, redundant for root page. (8 bytes) |
 // | Magic Number(u32) | DbVersionMajor (u16) | DbVersionMinor (u16) |
-// | Sanity (u8) | Compression (u8) |
+// | Sanity (Checksum or encryption) (u8) | Compression (u8) |
 // | leaf_pg_blk_sz_shift (u8) | dir_pg_blk_sz_shift (u8) |
 // | Block Size (u64) |
 pub struct DbRootPage {
@@ -52,7 +52,7 @@ impl PageTrait for DbRootPage {
 impl DbRootPage {
     const MAGIC_NUMBER: u32 = 26061973;
     const VERSION_MAJOR: u16 = 0;
-    const VERSION_MINOR: u16 = 1;
+    const VERSION_MINOR: u16 = 4;
 
     pub fn create_new(db_config: &DbConfig) -> Self {
         let mut db_root_page = DbRootPage {

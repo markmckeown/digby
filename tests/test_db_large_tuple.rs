@@ -1,6 +1,6 @@
 use digby::Db;
 use digby::db_config::DbConfig;
-use rand::RngCore;
+use rand::Rng;
 use rand::prelude::SliceRandom;
 use rand::rng;
 use tempfile::TempDir;

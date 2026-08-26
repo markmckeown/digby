@@ -100,7 +100,7 @@ mod tests {
 
     use super::*;
     const BLOCK_SIZE: usize = 4096;
-    use rand::Rng;
+    use rand::RngExt;
     use rand::distr::Alphanumeric;
     use tempfile::tempfile;
 

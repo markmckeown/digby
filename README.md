@@ -49,22 +49,22 @@ Copy-On-Write (COW) is used in filesystems like ZFS and Bcachefs, as well as dat
 
 Within Digby, transactions are supported via `_txn` methods. The client starts a transaction with `db.new_transaction` and passes the transaction context to subsequent operations. When ready, the client calls `db.commit`. Operations modify the tree during the transaction but do not update the master page until the commit. 
 
-Because Digby uses COW, it naturally supports multiple readers that do not block each other or the writer, but it restricts writes to a single concurrent writer. Readers can use version information in pages/tuples to detect stale state and retry. Supporting complex transactions with multiple concurrent writers and rollbacks would likely require an ARIES-type approach. *Open Question: If switching to an ARIES approach, can the log be efficiently maintained in the same file as the tree?*
+Because Digby uses COW, it naturally supports multiple readers that do not block each other or the writer, but it restricts writes to a single concurrent writer. Readers can use version information in pages/tuples to detect stale state and retry. Supporting complex transactions with multiple concurrent writers and rollbacks would likely require an ARIES-type approach. If switching to an ARIES approach, can the log be efficiently maintained in the same file as the tree? 
 
 ### Checksums and Merkle Trees
-Both ZFS and Bcachefs store the checksum for a page in the pointer to the page/object rather than in the page itself, except for the root node. This forms a Merkle tree (similar to Git) and catches complex errors like phantom writes, misdirected I/O, and DMA parity errors better than simple bit rot checks. 
+Both ZFS and Bcachefs store the checksum for a page in the pointer to the page/object rather than in the page itself, except for the supernblock. This forms a Merkle tree (similar to Git) and catches complex errors like phantom writes, misdirected I/O, and DMA parity errors better than simple bit rot checks. 
 
 In Digby, embedding the checksum in the page pointer presents challenges:
 *   **Checksum Size**: A fixed size (e.g., 32-bit `xxhash32` or 64-bit `xxhash3`) would be needed. 
 *   **Encryption Overlay**: Digby supports AES-128-GCM, which has built-in cryptographic hashing and requires a 96-bit nonce. Relying on AES-128-GCM avoids duplicate checksum work.
 *   **Space Overhead**: Storing checksums in pointers consumes more space in internal directory nodes.
 
-To fully support a Merkle tree in Digby, an uncontroversial checksum size (e.g., 64-bit `xxhash3`) would be required. If encryption were also enabled, we would pay the price of double-checksumming. The page pointer would expand to 128 bits (64 bits for addressing + 64 bits for the checksum).
+To fully support a Merkle tree in Digby, an uncontroversial checksum size (e.g., 64-bit `xxhash3`) would be required. If encryption were also enabled, it would pay the price of double-checksumming. The page pointer would expand to 128 bits (64 bits for addressing + 64 bits for the checksum), Rust has a u128 type that could be used to hold the page pointer.
 
 ### Fast Paxos & Flexible Paxos
 Integrating Paxos into the database could provide an interesting alternative to a traditional WAL. For instance, if Paxos outputs a queue of agreed work, this could serve as the transaction log. Fast Paxos can reach agreement in a single round but suffers under high contention, requiring larger quorums. Flexible Paxos helps mitigate phase 2 quorum bottlenecks.
 
-In a sharded architecture, Digby could replicate thousands of Paxos state machines by partitioning the key namespace. For example, 2,000 state machines could map to 2,000 independent B+ trees rooted in a single file, each utilizing COW. This could heavily leverage the parallel I/O capabilities of NVMe drives, with cross-shard transactions utilizing Paxos Commit. *Open Question: Would this architecture lose the natural range-query advantages of a B+ tree?*
+In a sharded architecture, Digby could use thousands of Paxos state machines for replication by partitioning the key namespace using a hash function. For example, 2,000 state machines could map to 2,000 independent B+ trees rooted in a single file, each utilizing COW. This could heavily leverage the parallel I/O capabilities of NVMe drives, with cross-shard transactions utilizing Paxos Commit. A forest of trees would mean losing range queries.
 
 ## Future Explorations
 
@@ -78,7 +78,7 @@ In a sharded architecture, Digby could replicate thousands of Paxos state machin
 *   **Concurrency**: Add support for multi-threaded access. The current COW design supports a single writer and multiple readers. Moving to top-down tree writing would be the first step toward better concurrent writer scaling.
 *   **Untorn Writes**: Investigate leveraging Linux untorn writes (atomic writes of multiple aligned blocks, like 16K on NVMe SSDs). This avoids the double-write penalty of traditional WALs. MySQL saw performance degradation with 16K untorn writes due to write amplification on its 512-byte log blocks, so integrating this effectively into Digby requires careful design.
 *   **Direct NVMe Access**: Explore bypassing the filesystem to access NVMe as a raw KV store for Digby blocks (e.g., referencing *"SAKER: A Software Accelerated Key-value Service via the NVMe Interface"*).
-*   **Code Quality**: Continually refactor for more idiomatic Rust.
+*   **Support Repair**: Currently checksums are used to detect corrupt pages but there is no recovery process. ZFS can repair corrupt blocks, this could be done in digby by duplicating blocks on write, for example across two files or devices, and if a block is corrupt overwrite it with a good block.
 
 ## License
 
