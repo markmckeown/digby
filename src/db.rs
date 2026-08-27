@@ -115,6 +115,13 @@ impl Db {
             return Err(DigbyError::ConfigurationError);
         }
 
+        if db_config.block_sanity == BlockSanity::XxH64Checksum && key.is_some() {
+            error!(
+                "Cannot create database. Configuration error, xxHash64 is configured as checksum but encryption key is supplied."
+            );
+            return Err(DigbyError::ConfigurationError);
+        }
+
         if Path::new(path).exists() {
             error!("Cannot create database at '{}', file already exists.", path);
             return Err(DigbyError::FileExistsAtPath(path.to_string()));

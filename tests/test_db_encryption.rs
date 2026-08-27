@@ -55,7 +55,7 @@ fn test_db_store_value_with_encryption_wrong_key() {
 }
 
 #[test]
-#[should_panic(expected = "Calculated checksum does not match stored checksum for page")]
+#[should_panic(expected = "Key is incorrect size")]
 fn test_db_store_value_with_encryption_no_key() {
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");

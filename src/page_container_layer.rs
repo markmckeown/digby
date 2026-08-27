@@ -61,7 +61,7 @@ impl PageContainerLayer {
         PageContainerLayer {
             file_layer,
             db_config,
-            block_sanity: BlockSanity::XxH32Checksum,
+            block_sanity: db_config.block_sanity,
             key: Vec::new(),
         }
     }
