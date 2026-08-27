@@ -79,6 +79,7 @@ In a sharded architecture, Digby could use thousands of Paxos state machines for
 *   **Untorn Writes**: Investigate leveraging Linux untorn writes (atomic writes of multiple aligned blocks, like 16K on NVMe SSDs). This avoids the double-write penalty of traditional WALs. MySQL saw performance degradation with 16K untorn writes due to write amplification on its 512-byte log blocks, so integrating this effectively into Digby requires careful design.
 *   **Direct NVMe Access**: Explore bypassing the filesystem to access NVMe as a raw KV store for Digby blocks (e.g., referencing *"SAKER: A Software Accelerated Key-value Service via the NVMe Interface"*).
 *   **Support Repair**: Currently checksums are used to detect corrupt pages but there is no recovery process. ZFS can repair corrupt blocks, this could be done in digby by duplicating blocks on write, for example across two files or devices, and if a block is corrupt overwrite it with a good block.
+*   **Support for Close**: Add support for tree clones following "B-trees, Shadowing and Clones".
 
 ## License
 
