@@ -59,6 +59,17 @@ In Digby, embedding the checksum in the page pointer presents challenges:
 *   **Encryption Overlay**: Digby supports AES-128-GCM, which has built-in cryptographic hashing and requires a 96-bit nonce. Relying on AES-128-GCM avoids duplicate checksum work.
 *   **Space Overhead**: Storing checksums in pointers consumes more space in internal directory nodes.
 
+### Snapshots
+It is relatively easy to take a clone/snapshot of a COW b-tree, the tricky part is to know which blocks can be reused after a snapshot is deleted.
+"B-trees, Shadowing and Clones" outlines an approach for efficiently taking a snapshot of a b-tree, when you take a snapshot you increment the reference count of the child nodes of the root of the tree. You do not initally need to increment the reference count of any other nodes, there are set of rules for when the reference count for other nodes can be decremented. This raises the problem of managing reference counts for blocks. 
+Filesystems have traditionally used bitmaps to track free blocks, in NetApp WAFL filesystem they initially used a byte instead of a bit to support 256 snapshots which was extended to support more snapshots later - eventually space required to store the block map overflowed memory (add references). 
+brtfs uses a b-tree called the extent tree to track block reference counts, see https://josefbacik.github.io/kernel/btrfs/2021/12/16/btrfs-extent-reference-counting.html - brtfs reference counts every block so there is a lot of write amplification. It's not clear from "B-trees, Shadowing and Clones" whether a form of sparse reference counting could be used whereby entries for blocks are only counted when the reference count goes about one.
+zfs takes a different approach, in each block pointer it records the birthday of the block, the transaction number that created the block. When a snapshot is deleted a delta is taken of the previous and next snapshot to work out which blocks from the snapshot cannot be reused. See https://papers.freebsd.org/2019/bsdcan/ahrens-how_zfs_snapshots_really_work/ The paper "BTRFS: The Linux B-tree Filesystem" makes the case that snapshots in ZFS are not first class clones.
+As over version 0.4 digby has efficitively two snapshots, these are managed by the two master pages. When an update is done the highest master page is copied and used to find the tree roots, new blocks are written out and a set of no longer required blocks is collected. When the transaction commits the freed blocks are added to the free lists. The old master page is overwritten with the new master copy leaving two versions of the db. We can extend this to N versions, when a transaction completes write the freed blocks to a ring buffer of pages in an object with the transaction id. When we have completed N transactions we can remove the freed blocks from the ring buffer and add them to free pages lists and the first snapshot is no longer available, iterate forward in this manner. 
+
+
+
+
 To fully support a Merkle tree in Digby, an uncontroversial checksum size (e.g., 64-bit `xxhash3`) would be required. If encryption were also enabled, it would pay the price of double-checksumming. The page pointer would expand to 128 bits (64 bits for addressing + 64 bits for the checksum), Rust has a u128 type that could be used to hold the page pointer.
 
 ### Fast Paxos & Flexible Paxos
