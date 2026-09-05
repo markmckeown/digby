@@ -23,7 +23,7 @@ Digby is an embedded key-value store written in Rust. It was built as a project 
     *   **Checksums**: Option to use either `xxhash32` (32 bits) or `xxhash3` (64 bits) for page integrity verification.
     *   **Encryption**: Optional AES-128-GCM encryption for all stored content, leveraging its built-in cryptographic integrity checks.
 *   **Compression**: 
-    *   Head and tail compression in B+ tree nodes based on the SIGMOD '24 paper *"B-tree Compression"*.
+    *   Head and tail compression in B+ tree nodes per "B-trees Are Back: Engineering Fast and Pageable Node Layouts" and "An Evaluation of B-tree Compression Techniques".
     *   Optional LZ4 compression for large keys and values.
 *   **Large Scale**: 64-bit page numbers support extremely large databases (56 bits for effective addressing, 4 bits used to encode page block count and 4 bits for page type).
 *   **Transactions**: Supports ACID transactions to make multiple atomic changes isolated from readers. Currently supports a single concurrent writer (RCU-style via COW) with durable updates synced to disk.
