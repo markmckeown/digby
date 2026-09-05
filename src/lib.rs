@@ -65,3 +65,5 @@ pub mod free_page_manager;
 pub use free_page_manager::FreePageManager;
 pub mod base_free_page_tracker;
 pub use base_free_page_tracker::BaseFreePageTracker;
+pub mod write_manager;
+pub use write_manager::WriteManager;
