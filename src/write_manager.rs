@@ -88,7 +88,7 @@ mod tests {
     use tempfile::tempfile;
 
     #[test]
-    fn test_file_layer_write_and_read() {
+    fn test_write_manager_write_and_read() {
         let primary_file = tempfile().expect("Failed to create temp file");
         let mirror_file = tempfile().expect("Failed to create temp file");
         let primary_layer = FileLayer::new(primary_file, BLOCK_SIZE);
@@ -118,5 +118,31 @@ mod tests {
 
         // Verify that the read data matches the written data
         assert_eq!(page.get_pg_ctr_bytes(), read_page.get_pg_ctr_bytes());
+
+        let mut mirror_page = Page::new(BLOCK_SIZE, BLOCK_SIZE);
+        wrt_mgr
+            .read_page_from_mirror(&mut mirror_page, &page_no)
+            .expect("Failed to mirror page");
+
+        // Verify that the mirror data matches the written data
+        assert_eq!(page.get_pg_ctr_bytes(), mirror_page.get_pg_ctr_bytes());
+
+        // Write just to the primary a blank page
+        let primary_page = Page::new(BLOCK_SIZE, BLOCK_SIZE);
+        wrt_mgr
+            .write_page_to_primary(&primary_page, &page_no)
+            .expect("Failed to write page");
+        // Read again.
+        wrt_mgr
+            .read_page_from_disk(&mut read_page, &page_no)
+            .expect("Failed to read page");
+        assert_eq!(
+            read_page.get_pg_ctr_bytes(),
+            primary_page.get_pg_ctr_bytes()
+        );
+        wrt_mgr
+            .read_page_from_mirror(&mut mirror_page, &page_no)
+            .expect("Failed to mirror page");
+        assert_ne!(read_page.get_pg_ctr_bytes(), mirror_page.get_pg_ctr_bytes());
     }
 }
