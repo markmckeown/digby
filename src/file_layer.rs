@@ -96,9 +96,9 @@ impl FileLayer {
 
 #[cfg(test)]
 mod tests {
-    use std::os::unix::fs::FileExt;
-
     use super::*;
+    use crate::page::PageType;
+    use std::os::unix::fs::FileExt;
     const BLOCK_SIZE: usize = 4096;
     use rand::RngExt;
     use rand::distr::Alphanumeric;
@@ -109,7 +109,8 @@ mod tests {
         let temp_file = tempfile().expect("Failed to create temp file");
         let mut file_layer = FileLayer::new(temp_file, BLOCK_SIZE);
         let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4); // Create a new page
-        file_layer.append_new_page(&page, &PageNo::from_u64(0));
+        let page_no = PageNo::new(PageType::Null, 0, 0);
+        file_layer.append_new_page(&page, &page_no);
         let test_data: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(BLOCK_SIZE)
@@ -120,13 +121,13 @@ mod tests {
 
         // Write the page to disk
         file_layer
-            .write_page_to_disk(&page, &PageNo::from_u64(0))
+            .write_page_to_disk(&page, &page_no)
             .expect("Failed to write page");
 
         // Read the page back from disk
         let mut read_page = Page::new(BLOCK_SIZE, BLOCK_SIZE);
         file_layer
-            .read_page_from_disk(&mut read_page, &PageNo::from_u64(0))
+            .read_page_from_disk(&mut read_page, &page_no)
             .expect("Failed to read page");
 
         // Verify that the read data matches the written data

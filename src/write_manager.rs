@@ -77,3 +77,46 @@ impl WriteManager {
         self.primary.sync_data()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::page::PageType;
+    const BLOCK_SIZE: usize = 4096;
+    use rand::RngExt;
+    use rand::distr::Alphanumeric;
+    use tempfile::tempfile;
+
+    #[test]
+    fn test_file_layer_write_and_read() {
+        let primary_file = tempfile().expect("Failed to create temp file");
+        let mirror_file = tempfile().expect("Failed to create temp file");
+        let primary_layer = FileLayer::new(primary_file, BLOCK_SIZE);
+        let mirror_layer = FileLayer::new(mirror_file, BLOCK_SIZE);
+        let mut wrt_mgr = WriteManager::new_with_mirror(primary_layer, mirror_layer);
+        let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4); // Create a new page
+        let page_no = PageNo::new(PageType::Null, 0, 0);
+        wrt_mgr.append_new_page(&page, &page_no);
+        let test_data: String = rand::rng()
+            .sample_iter(&Alphanumeric)
+            .take(BLOCK_SIZE)
+            .map(char::from)
+            .collect();
+        page.get_pg_ctr_bytes_mut()
+            .copy_from_slice(test_data.as_bytes()); // Fill the page with test data
+
+        // Write the page to disk
+        wrt_mgr
+            .write_page_to_disk(&page, &page_no)
+            .expect("Failed to write page");
+
+        // Read the page back from disk
+        let mut read_page = Page::new(BLOCK_SIZE, BLOCK_SIZE);
+        wrt_mgr
+            .read_page_from_disk(&mut read_page, &page_no)
+            .expect("Failed to read page");
+
+        // Verify that the read data matches the written data
+        assert_eq!(page.get_pg_ctr_bytes(), read_page.get_pg_ctr_bytes());
+    }
+}
