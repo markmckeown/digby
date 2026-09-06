@@ -6,6 +6,7 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::page_no::PageNo;
+use crate::write_manager::WriteManager;
 
 // The DB is divided into pages, for example leaf
 // pages (which hold key/values) or directory pages
@@ -43,7 +44,7 @@ use crate::page_no::PageNo;
 //
 
 pub struct PageContainerLayer {
-    file_layer: FileLayer,
+    wrt_mgr: WriteManager,
     db_config: DbConfig,
     block_sanity: BlockSanity,
     key: Vec<u8>, // The encryption key if encryption is being used.
@@ -59,7 +60,7 @@ impl PageContainerLayer {
 
     pub fn new(file_layer: FileLayer, db_config: DbConfig) -> Self {
         PageContainerLayer {
-            file_layer,
+            wrt_mgr: WriteManager::new(file_layer),
             db_config,
             block_sanity: db_config.block_sanity,
             key: Vec::new(),
@@ -76,7 +77,7 @@ impl PageContainerLayer {
             enc_key[0..key.len()].copy_from_slice(&key[..]);
         }
         PageContainerLayer {
-            file_layer,
+            wrt_mgr: WriteManager::new(file_layer),
             block_sanity: BlockSanity::Aes128Gcm,
             db_config,
             key: enc_key,
@@ -89,7 +90,7 @@ impl PageContainerLayer {
 
     pub fn read_page(&mut self, page_no: PageNo) -> Page {
         let mut page = Page::create_new(&self.db_config, page_no.get_blk_cnt());
-        self.file_layer
+        self.wrt_mgr
             .read_page_from_disk(&mut page, &page_no)
             .expect("Failed to read page");
         self.check_sanity(&mut page);
@@ -102,7 +103,7 @@ impl PageContainerLayer {
             self.db_config.block_size,
             self.db_config.block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
         );
-        self.file_layer
+        self.wrt_mgr
             .read_page_from_disk(&mut page, &PageNo::new(PageType::Null, 0, 0))
             .expect("Failed to read root page");
         XxHashSanity::verify_checksum(&page);
@@ -110,28 +111,28 @@ impl PageContainerLayer {
     }
 
     pub fn get_total_page_count(&self) -> u64 {
-        self.file_layer.get_block_count()
+        self.wrt_mgr.get_block_count()
     }
 
     pub fn write_page(&mut self, page: &mut Page, page_no: PageNo) {
         assert!(
-            page_no.get_blk_offset() < self.file_layer.get_block_count(),
+            page_no.get_blk_offset() < self.wrt_mgr.get_block_count(),
             "Writing page outside the file."
         );
 
         self.set_sanity(page);
-        self.file_layer
+        self.wrt_mgr
             .write_page_to_disk(page, &page_no)
             .expect("Failed to write page");
     }
 
     pub fn write_root_page(&mut self, page: &mut Page, page_no: PageNo) {
         assert!(
-            page_no.get_blk_offset() < self.file_layer.get_block_count(),
+            page_no.get_blk_offset() < self.wrt_mgr.get_block_count(),
             "Writing page outside the file."
         );
         XxHashSanity::set_checksum(page);
-        self.file_layer
+        self.wrt_mgr
             .write_page_to_disk(page, &page_no)
             .expect("Failed to write root page");
     }
@@ -149,7 +150,7 @@ impl PageContainerLayer {
         // Get new file block offset - repeat
         let mut created_page_nos: Vec<PageNo> = Vec::new();
         for _ in 0..no_new_pages {
-            let block_offset = self.file_layer.get_block_count();
+            let block_offset = self.wrt_mgr.get_block_count();
             let page_ctr_size = self.db_config.block_size * (1 << block_cnt_exp);
             let mut page = Page::new(
                 page_ctr_size,
@@ -159,10 +160,10 @@ impl PageContainerLayer {
             page.set_page_number(new_page_no);
             self.set_sanity(&mut page);
             created_page_nos.push(new_page_no);
-            self.file_layer.append_new_page(&page, &new_page_no);
+            self.wrt_mgr.append_new_page(&page, &new_page_no);
         }
         // Sync the file and file metadata.
-        self.file_layer.sync_all();
+        self.wrt_mgr.sync_all();
         created_page_nos
     }
 
@@ -175,11 +176,11 @@ impl PageContainerLayer {
     }
 
     pub fn sync_data(&mut self) {
-        self.file_layer.sync_data();
+        self.wrt_mgr.sync_data();
     }
 
     pub fn sync_all(&mut self) {
-        self.file_layer.sync_all();
+        self.wrt_mgr.sync_all();
     }
 }
 
