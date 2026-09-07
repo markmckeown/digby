@@ -52,7 +52,7 @@ impl PageTrait for DbRootPage {
 impl DbRootPage {
     const MAGIC_NUMBER: u32 = 26061973;
     const VERSION_MAJOR: u16 = 0;
-    const VERSION_MINOR: u16 = 4;
+    const VERSION_MINOR: u16 = 5;
 
     pub fn create_new(db_config: &DbConfig) -> Self {
         let mut db_root_page = DbRootPage {
