@@ -27,6 +27,7 @@ Digby is an embedded key-value store written in Rust. It was built as a project 
     *   Optional LZ4 compression for large keys and values.
 *   **Large Scale**: 64-bit page numbers support extremely large databases (56 bits for effective addressing, 4 bits used to encode page block count and 4 bits for page type).
 *   **Transactions**: Supports ACID transactions to make multiple atomic changes isolated from readers. Currently supports a single concurrent writer (RCU-style via COW) with durable updates synced to disk.
+*  **RAID-0 Mirror Support**: Support for block duplication to a mirror file, all block writes are duplicated to the mirror. If a block becomes corrupt and checksum fails the block will be repaired from the mirror, functionality is similar to ZFS ability to repair itself.
 
 ## Getting Started
 
@@ -92,7 +93,6 @@ In a sharded architecture, Digby could use thousands of Paxos state machines for
 *   **Concurrency**: Add support for multi-threaded access. The current COW design supports a single writer and multiple readers. Moving to top-down tree writing would be the first step toward better concurrent writer scaling.
 *   **Untorn Writes**: Investigate leveraging Linux untorn writes (atomic writes of multiple aligned blocks, like 16K on NVMe SSDs). This avoids the double-write penalty of traditional WALs. MySQL saw performance degradation with 16K untorn writes due to write amplification on its 512-byte log blocks, so integrating this effectively into Digby requires careful design.
 *   **Direct NVMe Access**: Explore bypassing the filesystem to access NVMe as a raw KV store for Digby blocks (e.g., referencing *"SAKER: A Software Accelerated Key-value Service via the NVMe Interface"*).
-*   **Support Repair**: Currently checksums are used to detect corrupt pages but there is no recovery process. ZFS can repair corrupt blocks, this could be done in digby by duplicating blocks on write, for example across two files or devices, and if a block is corrupt overwrite it with a good block.
 *   **Support for Close**: Add support for tree clones following "B-trees, Shadowing and Clones".
 
 ## License
