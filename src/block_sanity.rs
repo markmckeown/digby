@@ -4,14 +4,20 @@ use crate::{Aes128GcmSanity, Page, XxHash3Sanity, XxHashSanity};
 // corrupt. This is done either by recording
 // a checksum of the page within the block,
 // or encrypting the page in the block.
-// Three approaches are supported at present, xxhash 32
-// or xxhash3 64 as a checksum or AES-128-GCM
-// encryption of the block.
+// Three approaches are supported at present, xxhash 32 bit
+// or xxhash3 64 bit as a checksum or AES-128-GCM
+// encryption of the block which includes a crypographic hash.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum BlockSanity {
     XxH32Checksum = 0,
     Aes128Gcm = 1,
     XxH64Checksum = 2,
+}
+
+#[derive(Debug)]
+pub enum BlockSanityError {
+    ChecksumMisMatch,
+    Aes128EncryptionError,
 }
 
 impl TryFrom<u8> for BlockSanity {
@@ -46,17 +52,15 @@ impl BlockSanity {
         }
     }
 
-    pub fn check_block_sanity(&self, page: &mut Page, key: &Vec<u8>) {
+    pub fn check_block_sanity(
+        &self,
+        page: &mut Page,
+        key: &Vec<u8>,
+    ) -> Result<(), BlockSanityError> {
         match self {
-            BlockSanity::XxH32Checksum => {
-                XxHashSanity::verify_checksum(page);
-            }
-            BlockSanity::XxH64Checksum => {
-                XxHash3Sanity::verify_checksum(page);
-            }
-            BlockSanity::Aes128Gcm => {
-                Aes128GcmSanity::decrypt_page(page, key);
-            }
+            BlockSanity::XxH32Checksum => XxHashSanity::verify_checksum(page),
+            BlockSanity::XxH64Checksum => XxHash3Sanity::verify_checksum(page),
+            BlockSanity::Aes128Gcm => Aes128GcmSanity::decrypt_page(page, key),
         }
     }
 

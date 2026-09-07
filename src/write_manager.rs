@@ -8,6 +8,13 @@ pub struct WriteManager {
 }
 
 impl WriteManager {
+    pub fn open(primary: FileLayer, mirror: Option<FileLayer>) -> Self {
+        match mirror {
+            Some(value) => WriteManager::new_with_mirror(primary, value),
+            None => WriteManager::new(primary),
+        }
+    }
+
     pub fn new(primary: FileLayer) -> Self {
         WriteManager {
             primary,
@@ -20,6 +27,10 @@ impl WriteManager {
             primary,
             mirror: Some(mirror),
         }
+    }
+
+    pub fn has_mirror(&self) -> bool {
+        self.mirror.is_some()
     }
 
     pub fn get_block_count(&self) -> u64 {

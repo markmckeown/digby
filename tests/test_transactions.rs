@@ -12,7 +12,7 @@ fn test_basic_transaction() {
     let value = b"the_value".to_vec();
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         let mut tx_ctx = db.new_transaction();
         db.put_txn(key.as_ref(), value.as_ref(), &mut tx_ctx);
         // Outside the scope of the txn the key is not in the DB.

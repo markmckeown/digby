@@ -163,7 +163,7 @@ mod tests {
             .open(temp_file.path())
             .unwrap();
         let file_layer = FileLayer::new(file, DB_CONFIG.block_size);
-        let block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
+        let block_layer = PageContainerLayer::new(file_layer, None, DB_CONFIG);
         let mut page_cache = PageCache::new(block_layer);
         let version = 0;
 

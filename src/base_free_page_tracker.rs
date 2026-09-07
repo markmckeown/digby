@@ -182,7 +182,7 @@ mod tests {
         let version = 0;
         let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, DB_CONFIG);
+            crate::PageContainerLayer::new(file_layer, None, DB_CONFIG);
         let mut page_cache: PageCache = PageCache::new(block_layer);
 
         page_cache.generate_free_pages(1, 0); // pop root page

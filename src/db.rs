@@ -95,6 +95,7 @@ impl Db {
     //   - File exists at path.
     pub fn create(
         path: &str,
+        mirror: Option<&str>,
         key: Option<Vec<u8>>,
         db_config: &DbConfig,
     ) -> Result<Self, DigbyError> {
@@ -127,6 +128,25 @@ impl Db {
             return Err(DigbyError::FileExistsAtPath(path.to_string()));
         }
 
+        let mut mirror_layer = None;
+        if let Some(mirror_value) = mirror {
+            if Path::new(mirror_value).exists() {
+                error!(
+                    "Cannot create database at '{}', file already exists.",
+                    mirror.unwrap()
+                );
+                return Err(DigbyError::FileExistsAtPath(mirror_value.to_string()));
+            }
+            let mirror_file = OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .read(true)
+                .write(true)
+                .open(mirror_value)
+                .expect("Failed to open file.");
+            mirror_layer = Some(FileLayer::new(mirror_file, db_config.block_size));
+        }
+
         let db_file = OpenOptions::new()
             .create(true)
             .truncate(true)
@@ -135,7 +155,7 @@ impl Db {
             .open(path)
             .expect("Failed to open file.");
         let file_layer: FileLayer = FileLayer::new(db_file, db_config.block_size);
-        let pg_ctr_layer = PageContainerLayer::open(file_layer, *db_config, key);
+        let pg_ctr_layer = PageContainerLayer::open(file_layer, mirror_layer, *db_config, key);
         let page_cache: PageCache = PageCache::new(pg_ctr_layer);
 
         let mut db = Db {
@@ -152,7 +172,11 @@ impl Db {
     //   - no file at path.
     //   - file is corrupt.
     //   - key is incorrect.
-    pub fn open(path: &str, key: Option<Vec<u8>>) -> Result<Self, DigbyError> {
+    pub fn open(
+        path: &str,
+        mirror: Option<&str>,
+        key: Option<Vec<u8>>,
+    ) -> Result<Self, DigbyError> {
         use std::fs::OpenOptions;
         use std::path::Path;
 
@@ -170,8 +194,31 @@ impl Db {
         // Need to speculatively read the db_config from the start of the file.
         let db_config = DbRootPage::read_db_config(&mut db_file);
 
+        let mut mirror_layer = None;
+        if let Some(mirror_value) = mirror {
+            if !Path::new(mirror_value).exists() {
+                error!(
+                    "Cannot open database at '{}', mirror file does not exist.",
+                    mirror_value
+                );
+                return Err(DigbyError::FileNotExistsAtPath(mirror_value.to_string()));
+            }
+            let mirror_file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(mirror_value)?;
+            if mirror_file.metadata().unwrap().len() == 0 {
+                error!(
+                    "File at path '{}' is empty, database is corrupt.",
+                    mirror.unwrap()
+                );
+                return Err(DigbyError::DbFileEmptyAtPath(mirror_value.to_string()));
+            }
+            mirror_layer = Some(FileLayer::new(mirror_file, db_config.block_size));
+        }
+
         let file_layer: FileLayer = FileLayer::new(db_file, db_config.block_size);
-        let pg_ctr_layer = PageContainerLayer::open(file_layer, db_config, key);
+        let pg_ctr_layer = PageContainerLayer::open(file_layer, mirror_layer, db_config, key);
         let page_cache: PageCache = PageCache::new(pg_ctr_layer);
 
         let mut db = Db {
@@ -992,10 +1039,10 @@ mod tests {
         let db_path = file_path.to_str().unwrap();
         {
             let db_config = DbConfig::builder().block_size(4096).build();
-            Db::create(db_path, None, &db_config).unwrap();
+            Db::create(db_path, None, None, &db_config).unwrap();
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let _head_page1 = DbMasterPage::from_page(db.page_cache.get_page(PageNo::new(
                 PageType::DbMaster,
                 0,
@@ -1022,14 +1069,14 @@ mod tests {
         let value = b"the_value".to_vec();
         {
             let db_config = DbConfig::builder().block_size(4096).build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             assert!(!db.delete(&key));
             db.put(key.as_ref(), value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are closed, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
         }
@@ -1047,14 +1094,14 @@ mod tests {
         let another_value = b"another_value".to_vec();
         {
             let db_config = DbConfig::builder().block_size(4096).build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             db.put(key.as_ref(), value.as_ref());
             db.put(another_key.as_ref(), another_value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
             let returned_value = db.get(another_key.as_ref()).unwrap();
@@ -1072,23 +1119,23 @@ mod tests {
         let value = b"the_value".to_vec();
         {
             let db_config = DbConfig::builder().block_size(4096).build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             db.put(key.as_ref(), value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let deleted = db.delete(key.as_ref());
             assert!(deleted);
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let returned_value = db.get(key.as_ref());
             assert!(returned_value.is_none());
         }
@@ -1107,23 +1154,23 @@ mod tests {
                 .block_size(4096)
                 .block_sanity(BlockSanity::XxH64Checksum)
                 .build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             db.put(key.as_ref(), value.as_ref());
         }
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let returned_value = db.get(key.as_ref()).unwrap();
             assert!(returned_value == value);
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let deleted = db.delete(key.as_ref());
             assert!(deleted);
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let returned_value = db.get(key.as_ref());
             assert!(returned_value.is_none());
         }
@@ -1140,7 +1187,7 @@ mod tests {
 
         {
             let db_config = DbConfig::builder().block_size(block_size).build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             for i in 0u64..=size {
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
             }
@@ -1148,14 +1195,14 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             for i in (0..(size + 1)).rev() {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
@@ -1168,7 +1215,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
@@ -1185,7 +1232,7 @@ mod tests {
         let db_path = file_path.to_str().unwrap();
         {
             let db_config = DbConfig::builder().block_size(block_size).build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             for i in 0u64..=size {
                 db.put(&i.to_le_bytes(), &i.to_le_bytes());
             }
@@ -1193,14 +1240,14 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
                 assert_eq!(u64::from_le_bytes(returned_value.try_into().unwrap()), i);
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             for i in (0..(size + 1)).rev() {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
                 assert_eq!(u64::from_le_bytes(returned_value.try_into().unwrap()), i);
@@ -1213,7 +1260,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_le_bytes());
             assert!(returned_value.is_none());
@@ -1229,7 +1276,7 @@ mod tests {
         let db_path = file_path.to_str().unwrap();
         {
             let db_config = DbConfig::builder().block_size(block_size).build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             let deleted = db.delete(&0u64.to_be_bytes());
             assert!(!deleted);
             let mut numbers: Vec<u64> = (0..=size).collect();
@@ -1244,14 +1291,14 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1265,7 +1312,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
@@ -1281,7 +1328,7 @@ mod tests {
         let db_path = file_path.to_str().unwrap();
         {
             let db_config = DbConfig::builder().block_size(block_size).build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1292,7 +1339,7 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
 
             for i in 0u64..=size {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
@@ -1300,7 +1347,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1314,7 +1361,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_le_bytes());
             assert!(returned_value.is_none());
@@ -1333,7 +1380,7 @@ mod tests {
             let db_config = DbConfig::builder()
                 .compressor_type(CompressorType::None)
                 .build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1346,7 +1393,7 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
 
             for i in 0u64..=size {
                 let mut k = key.to_vec();
@@ -1356,7 +1403,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let mut numbers: Vec<u64> = (0..=size).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1379,7 +1426,7 @@ mod tests {
         let db_path = file_path.to_str().unwrap();
         {
             let db_config = DbConfig::builder().block_size(block_size).build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             let mut numbers: Vec<u64> = (0..=256).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1390,14 +1437,14 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             db.clear();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let mut numbers: Vec<u64> = (0..=256).collect();
             let mut rng = rng();
             numbers.shuffle(&mut rng);
@@ -1432,7 +1479,7 @@ mod tests {
         let db_path = file_path.to_str().unwrap();
         {
             let db_config = DbConfig::builder().block_size(block_size).build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             for i in 0u64..size {
                 db.put(&i.to_be_bytes(), &i.to_be_bytes());
                 for j in 0u64..i {
@@ -1444,7 +1491,7 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_be_bytes());
                 if returned_value.is_none() {
@@ -1457,7 +1504,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_be_bytes()).unwrap();
                 assert_eq!(u64::from_be_bytes(returned_value.try_into().unwrap()), i);
@@ -1470,7 +1517,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_be_bytes());
             assert!(returned_value.is_none());
@@ -1486,7 +1533,7 @@ mod tests {
         let db_path = file_path.to_str().unwrap();
         {
             let db_config = DbConfig::builder().block_size(block_size).build();
-            let mut db = Db::create(db_path, None, &db_config).unwrap();
+            let mut db = Db::create(db_path, None, None, &db_config).unwrap();
             for i in 0u64..size {
                 db.put(&i.to_le_bytes(), &i.to_le_bytes());
                 for j in 0u64..i {
@@ -1500,7 +1547,7 @@ mod tests {
         // The new scope essentially closes the DB - when Files run out of scope then
         // they are close, Rust bizairely does not allow error handling on close!
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_le_bytes());
                 if returned_value.is_none() {
@@ -1513,7 +1560,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             for i in 0u64..size {
                 let returned_value = db.get(&i.to_le_bytes()).unwrap();
                 assert_eq!(u64::from_le_bytes(returned_value.try_into().unwrap()), i);
@@ -1526,7 +1573,7 @@ mod tests {
             }
         }
         {
-            let mut db = Db::open(db_path, None).unwrap();
+            let mut db = Db::open(db_path, None, None).unwrap();
             let i: u64 = 0;
             let returned_value = db.get(&i.to_le_bytes());
             assert!(returned_value.is_none());

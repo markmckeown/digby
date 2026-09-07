@@ -18,19 +18,19 @@ fn test_db_store_large_key_value_incompressible() {
     rng.fill_bytes(&mut value);
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         db.put(key.as_ref(), value.as_ref());
     }
     // The new scope essentially closes the DB - when Files run out of scope then
     // they are close, Rust bizairely does not allow error handling on close!
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         let returned_value = db.get(key.as_ref()).unwrap();
         assert!(returned_value == value);
         assert!(db.delete(&key));
     }
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         let returned_value = db.get(key.as_ref());
         assert!(returned_value.is_none());
     }
@@ -49,19 +49,19 @@ fn test_db_store_small_key_large_value_incompressible() {
     rng.fill_bytes(&mut value);
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         db.put(key.as_ref(), value.as_ref());
     }
     // The new scope essentially closes the DB - when Files run out of scope then
     // they are close, Rust bizairely does not allow error handling on close!
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         let returned_value = db.get(key.as_ref()).unwrap();
         assert!(returned_value == value);
         assert!(db.delete(&key));
     }
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         let returned_value = db.get(key.as_ref());
         assert!(returned_value.is_none());
     }
@@ -77,19 +77,19 @@ fn test_db_store_large_key_value_compressible() {
     let value: Vec<u8> = vec![56u8; 18192];
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         db.put(key.as_ref(), value.as_ref());
     }
     // The new scope essentially closes the DB - when Files run out of scope then
     // they are close, Rust bizairely does not allow error handling on close!
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         let returned_value = db.get(key.as_ref()).unwrap();
         assert!(returned_value == value);
         assert!(db.delete(&key));
     }
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         let returned_value = db.get(key.as_ref());
         assert!(returned_value.is_none());
     }
@@ -110,7 +110,7 @@ fn test_db_clear_large_tuples() {
 
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         for i in &numbers {
             let mut key = vec![0u8; 512];
             key[0..8].copy_from_slice(i.to_be_bytes().as_ref());
@@ -120,7 +120,7 @@ fn test_db_clear_large_tuples() {
     // The new scope essentially closes the DB - when Files run out of scope then
     // they are close, Rust bizairely does not allow error handling on close!
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         numbers.shuffle(&mut rng);
         for i in &numbers {
             let mut key = vec![0u8; 512];
@@ -135,7 +135,7 @@ fn test_db_clear_large_tuples() {
         assert!(returned_value.is_none());
     }
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         let mut numbers: Vec<u64> = (0..=size).collect();
         numbers.shuffle(&mut rng);
         for i in &numbers {

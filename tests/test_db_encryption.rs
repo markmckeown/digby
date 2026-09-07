@@ -16,20 +16,20 @@ fn test_db_store_value_with_encryption() {
         let db_config = DbConfig::builder()
             .block_sanity(BlockSanity::Aes128Gcm)
             .build();
-        let mut db = Db::create(db_path, Some(enc_key.to_vec()), &db_config).unwrap();
+        let mut db = Db::create(db_path, None, Some(enc_key.to_vec()), &db_config).unwrap();
         db.put(key.as_ref(), value.as_ref());
     }
     // The new scope essentially closes the DB - when Files run out of scope then
     // they are close, Rust bizairely does not allow error handling on close!
     {
-        let mut db = Db::open(db_path, Some(enc_key.to_vec())).unwrap();
+        let mut db = Db::open(db_path, None, Some(enc_key.to_vec())).unwrap();
         let returned_value = db.get(key.as_ref()).unwrap();
         assert!(returned_value == value);
     }
 }
 
 #[test]
-#[should_panic(expected = "Failed to decrypt page")]
+#[should_panic(expected = "Block sanity failed for block 1, Aes128EncryptionError")]
 fn test_db_store_value_with_encryption_wrong_key() {
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
@@ -42,13 +42,13 @@ fn test_db_store_value_with_encryption_wrong_key() {
         let db_config = DbConfig::builder()
             .block_sanity(BlockSanity::Aes128Gcm)
             .build();
-        let mut db = Db::create(db_path, Some(enc_key.to_vec()), &db_config).unwrap();
+        let mut db = Db::create(db_path, None, Some(enc_key.to_vec()), &db_config).unwrap();
         db.put(key.as_ref(), value.as_ref());
     }
     // The new scope essentially closes the DB - when Files run out of scope then
     // they are close, Rust bizairely does not allow error handling on close!
     {
-        let mut db = Db::open(db_path, Some(b"bad_encryption_key".to_vec())).unwrap();
+        let mut db = Db::open(db_path, None, Some(b"bad_encryption_key".to_vec())).unwrap();
         let returned_value = db.get(key.as_ref()).unwrap();
         assert!(returned_value == value);
     }
@@ -68,13 +68,13 @@ fn test_db_store_value_with_encryption_no_key() {
         let db_config = DbConfig::builder()
             .block_sanity(BlockSanity::Aes128Gcm)
             .build();
-        let mut db = Db::create(db_path, Some(enc_key.to_vec()), &db_config).unwrap();
+        let mut db = Db::create(db_path, None, Some(enc_key.to_vec()), &db_config).unwrap();
         db.put(key.as_ref(), value.as_ref());
     }
     // The new scope essentially closes the DB - when Files run out of scope then
     // they are close, Rust bizairely does not allow error handling on close!
     {
-        Db::open(db_path, None).unwrap();
+        Db::open(db_path, None, None).unwrap();
     }
 }
 
@@ -91,19 +91,19 @@ fn test_db_store_large_key_value_compressible_encryption() {
         let db_config = DbConfig::builder()
             .block_sanity(BlockSanity::Aes128Gcm)
             .build();
-        let mut db = Db::create(db_path, Some(enc_key.to_vec()), &db_config).unwrap();
+        let mut db = Db::create(db_path, None, Some(enc_key.to_vec()), &db_config).unwrap();
         db.put(key.as_ref(), value.as_ref());
     }
     // The new scope essentially closes the DB - when Files run out of scope then
     // they are close, Rust bizairely does not allow error handling on close!
     {
-        let mut db = Db::open(db_path, Some(enc_key.to_vec())).unwrap();
+        let mut db = Db::open(db_path, None, Some(enc_key.to_vec())).unwrap();
         let returned_value = db.get(key.as_ref()).unwrap();
         assert!(returned_value == value);
         assert!(db.delete(&key));
     }
     {
-        let mut db = Db::open(db_path, Some(enc_key.to_vec())).unwrap();
+        let mut db = Db::open(db_path, None, Some(enc_key.to_vec())).unwrap();
         let returned_value = db.get(key.as_ref());
         assert!(returned_value.is_none());
     }

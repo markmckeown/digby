@@ -185,7 +185,7 @@ mod tests {
         // Set up the page_cache
         let file_layer: crate::FileLayer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
         let block_layer: crate::PageContainerLayer =
-            crate::PageContainerLayer::new(file_layer, DB_CONFIG);
+            crate::PageContainerLayer::new(file_layer, None, DB_CONFIG);
         let mut page_cache: crate::PageCache = crate::PageCache::new(block_layer);
 
         // Setup the free page infrastructure

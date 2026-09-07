@@ -51,23 +51,33 @@ pub struct PageContainerLayer {
 }
 
 impl PageContainerLayer {
-    pub fn open(file_layer: FileLayer, db_config: DbConfig, key: Option<Vec<u8>>) -> Self {
+    pub fn open(
+        file_layer: FileLayer,
+        mirror: Option<FileLayer>,
+        db_config: DbConfig,
+        key: Option<Vec<u8>>,
+    ) -> Self {
         match key {
-            Some(value) => PageContainerLayer::new_with_key(file_layer, db_config, value),
-            None => PageContainerLayer::new(file_layer, db_config),
+            Some(value) => PageContainerLayer::new_with_key(file_layer, mirror, db_config, value),
+            None => PageContainerLayer::new(file_layer, mirror, db_config),
         }
     }
 
-    pub fn new(file_layer: FileLayer, db_config: DbConfig) -> Self {
+    pub fn new(file_layer: FileLayer, mirror: Option<FileLayer>, db_config: DbConfig) -> Self {
         PageContainerLayer {
-            wrt_mgr: WriteManager::new(file_layer),
+            wrt_mgr: WriteManager::open(file_layer, mirror),
             db_config,
             block_sanity: db_config.block_sanity,
             key: Vec::new(),
         }
     }
 
-    pub fn new_with_key(file_layer: FileLayer, db_config: DbConfig, key: Vec<u8>) -> Self {
+    pub fn new_with_key(
+        file_layer: FileLayer,
+        mirror: Option<FileLayer>,
+        db_config: DbConfig,
+        key: Vec<u8>,
+    ) -> Self {
         let mut enc_key = vec![0u8; 16];
         // Note we only use the first 16 bytes of the key for AES-128-GCM
         if key.len() >= 16 {
@@ -77,7 +87,7 @@ impl PageContainerLayer {
             enc_key[0..key.len()].copy_from_slice(&key[..]);
         }
         PageContainerLayer {
-            wrt_mgr: WriteManager::new(file_layer),
+            wrt_mgr: WriteManager::open(file_layer, mirror),
             block_sanity: BlockSanity::Aes128Gcm,
             db_config,
             key: enc_key,
@@ -93,7 +103,7 @@ impl PageContainerLayer {
         self.wrt_mgr
             .read_page_from_disk(&mut page, &page_no)
             .expect("Failed to read page");
-        self.check_sanity(&mut page);
+        self.check_sanity(&mut page, page_no);
         assert_eq!(page_no, page.get_page_number());
         page
     }
@@ -106,7 +116,7 @@ impl PageContainerLayer {
         self.wrt_mgr
             .read_page_from_disk(&mut page, &PageNo::new(PageType::Null, 0, 0))
             .expect("Failed to read root page");
-        XxHashSanity::verify_checksum(&page);
+        XxHashSanity::verify_checksum(&page).expect("Root page checksum mismatch");
         page
     }
 
@@ -171,8 +181,38 @@ impl PageContainerLayer {
         self.block_sanity.set_block_sanity(page, &self.key);
     }
 
-    fn check_sanity(&self, page: &mut Page) {
-        self.block_sanity.check_block_sanity(page, &self.key);
+    fn check_sanity(&mut self, page: &mut Page, page_no: PageNo) {
+        if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
+            if !self.wrt_mgr.has_mirror() {
+                panic!(
+                    "Block sanity failed for block {}, {:?}",
+                    page_no.get_blk_offset(),
+                    e
+                );
+            }
+            // Write manager has a mirror, get page from mirror
+            self.wrt_mgr
+                .read_page_from_mirror(page, &page_no)
+                .expect("Failed to read page from mirror");
+            // Is the page from the mirror sane?
+            if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
+                panic!(
+                    "Block sanity failed for block {} from mirror, {:?}",
+                    page_no.get_blk_offset(),
+                    e
+                );
+            }
+            // Repair the primary. Take a copy of the page from the mirror, it may be
+            // unencrypted and will need to be written back in encrypted form.
+            let mut page_copy = Page::create_new(&self.db_config, page_no.get_blk_cnt());
+            page_copy
+                .get_pg_ctr_bytes_mut()
+                .copy_from_slice(page.get_pg_ctr_bytes());
+            self.set_sanity(&mut page_copy);
+            self.wrt_mgr
+                .write_page_to_primary(&page_copy, &page_no)
+                .expect("Failed to repair primary page");
+        }
     }
 
     pub fn sync_data(&mut self) {
@@ -203,7 +243,7 @@ mod tests {
     fn test_block_layer_put_get() {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
-        let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
+        let mut block_layer = PageContainerLayer::new(file_layer, None, DB_CONFIG);
         let page_number = 0;
         block_layer.generate_free_pages(10, 0);
         let mut page = Page::create_new(block_layer.get_db_config(), 1);
@@ -222,6 +262,7 @@ mod tests {
         let key = [0u8; 32].to_vec(); // Key for AES-128-GCM
         let mut block_layer = PageContainerLayer::new_with_key(
             file_layer,
+            None,
             DbConfig::builder()
                 .block_size(4096)
                 .block_sanity_size(BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm))
@@ -247,6 +288,7 @@ mod tests {
         let key = [0u8; 8].to_vec(); // Key for AES-128-GCM
         let mut block_layer = PageContainerLayer::new_with_key(
             file_layer,
+            None,
             DbConfig::builder()
                 .block_size(4096)
                 .block_sanity_size(BlockSanity::get_bytes_used(BlockSanity::Aes128Gcm))
@@ -269,7 +311,7 @@ mod tests {
     fn test_block_out_side_page_range() {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
-        let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
+        let mut block_layer = PageContainerLayer::new(file_layer, None, DB_CONFIG);
         let mut page = Page::create_new(block_layer.get_db_config(), 1);
         page.set_page_number(PageNo::from_u64(4));
         // This should panic as out of range of file.
@@ -280,7 +322,7 @@ mod tests {
     fn test_create_new_pages() {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
-        let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
+        let mut block_layer = PageContainerLayer::new(file_layer, None, DB_CONFIG);
         let mut free_pages = block_layer.generate_free_pages(1, 0);
         assert!(free_pages.len() == 1);
         free_pages = block_layer.generate_free_pages(2, 0);
@@ -293,7 +335,7 @@ mod tests {
     fn test_create_root_page() {
         let temp_file = tempfile().expect("Failed to create temp file");
         let file_layer = FileLayer::new(temp_file, DB_CONFIG.block_size);
-        let mut block_layer = PageContainerLayer::new(file_layer, DB_CONFIG);
+        let mut block_layer = PageContainerLayer::new(file_layer, None, DB_CONFIG);
         let mut page = DbRootPage::create_new(block_layer.get_db_config());
         block_layer.generate_free_pages(1, 0);
         block_layer.write_page(page.get_page(), PageNo::from_u64(0));

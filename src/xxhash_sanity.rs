@@ -1,3 +1,4 @@
+use crate::block_sanity::BlockSanityError;
 use crate::page::Page;
 use crate::page::PageTrait;
 use byteorder::LittleEndian;
@@ -18,17 +19,16 @@ impl XxHashSanity {
             .expect("Failed to write checksum");
     }
 
-    pub fn verify_checksum(page: &Page) {
+    pub fn verify_checksum(page: &Page) -> Result<(), BlockSanityError> {
         let calculated_checksum = xxh32(&page.get_page_bytes()[0..], 0);
         let offset = page.get_pg_ctr_bytes().len() as u64 - 4;
         let mut cursor = std::io::Cursor::new(page.get_pg_ctr_bytes());
         cursor.set_position(offset);
         let stored_checksum = cursor.read_u32::<LittleEndian>().unwrap();
-        assert!(
-            stored_checksum == calculated_checksum,
-            "Calculated checksum does not match stored checksum for page {:?}",
-            page.get_page_number()
-        );
+        if stored_checksum != calculated_checksum {
+            return Err(BlockSanityError::ChecksumMisMatch);
+        }
+        Ok(())
     }
 }
 
@@ -38,14 +38,21 @@ mod tests {
     use crate::page_no::PageNo;
 
     #[test]
-    #[should_panic(expected = "Calculated checksum does not match stored checksum")]
-    fn test_checksum() {
+    fn test_checksum_ok() {
         let mut page = Page::new(4096, 4092);
         page.set_page_number(PageNo::from_u64(42));
         XxHashSanity::set_checksum(&mut page);
-        XxHashSanity::verify_checksum(&page);
-        // Modify the page and verify that checksum verification fails
+        XxHashSanity::verify_checksum(&page).expect("Checksum match failed");
+    }
+
+    #[test]
+    #[should_panic(expected = "Calculated checksum does not match stored checksum")]
+    fn test_checksum_fail() {
+        let mut page = Page::new(4096, 4092);
+        page.set_page_number(PageNo::from_u64(42));
+        XxHashSanity::set_checksum(&mut page);
         page.set_version(34); // Corrupt the page
-        XxHashSanity::verify_checksum(&page); // This should panic due to checksum mismatch
+        XxHashSanity::verify_checksum(&page)
+            .expect("Calculated checksum does not match stored checksum");
     }
 }

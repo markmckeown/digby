@@ -11,7 +11,7 @@ fn test_db_create_table() {
     let name = b"the_table".to_vec();
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_none());
         db.create_table(name.as_ref());
         assert!(db.get_table_tree_root(name.as_ref()).is_some());
@@ -28,7 +28,7 @@ fn test_db_create_table_name_too_big_get() {
     let name = vec![b'a'; 257];
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_none());
     }
 }
@@ -42,7 +42,7 @@ fn test_db_create_table_name_too_big_create() {
     let name = vec![b'a'; 257];
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         db.create_table(name.as_ref());
     }
 }
@@ -58,7 +58,7 @@ fn test_db_create_table_name_too_big_put() {
     let value = b"the_value".to_vec();
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         db.put_table_entry(name.as_ref(), key.as_ref(), value.as_ref());
     }
 }
@@ -72,7 +72,7 @@ fn test_db_clear_table_name_too_big_put() {
     let name = vec![b'a'; 257];
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         db.clear_table_with_delete(name.as_ref(), true);
     }
 }
@@ -85,7 +85,7 @@ fn test_db_clear_table_name_that_does_not_exist() {
     let name = vec![b'a'; 25];
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         db.clear_table_with_delete(name.as_ref(), true);
         assert!(db.get_table_tree_root(name.as_ref()).is_none());
     }
@@ -99,7 +99,7 @@ fn test_db_clear_table_name_that_does_not_exist_without_delete() {
     let name = vec![b'a'; 25];
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         db.clear_table_with_delete(name.as_ref(), false);
         assert!(db.get_table_tree_root(name.as_ref()).is_none());
     }
@@ -115,7 +115,7 @@ fn test_db_create_put_table_create_table() {
     let name = b"the_table".to_vec();
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         // Attmpt to delete from a table that does not exist - should return false but not panic
         assert!(!db.delete_table_entry(name.as_ref(), key.as_ref()));
         assert!(db.get_table_tree_root(name.as_ref()).is_none());
@@ -127,7 +127,7 @@ fn test_db_create_put_table_create_table() {
         assert!(returned_value == value);
     }
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_some());
         let returned_value = db.get_table_entry(name.as_ref(), key.as_ref()).unwrap();
         assert!(returned_value == value);
@@ -150,14 +150,14 @@ fn test_db_create_put_table() {
     let name = b"the_table".to_vec();
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_none());
         db.create_table(name.as_ref());
         db.put_table_entry(name.as_ref(), key.as_ref(), value.as_ref());
         assert!(db.get_table_tree_root(name.as_ref()).is_some());
     }
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_some());
         let returned_value = db.get_table_entry(name.as_ref(), key.as_ref()).unwrap();
         assert!(returned_value == value);
@@ -175,14 +175,14 @@ fn test_db_table_clear() {
     let name = b"the_table".to_vec();
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_none());
         db.create_table(name.as_ref());
         db.put_table_entry(name.as_ref(), key.as_ref(), value.as_ref());
         assert!(db.get_table_tree_root(name.as_ref()).is_some());
     }
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_some());
         let returned_value = db.get_table_entry(name.as_ref(), key.as_ref()).unwrap();
         assert!(returned_value == value);
@@ -193,7 +193,7 @@ fn test_db_table_clear() {
         assert!(db.get_table_tree_root(name.as_ref()).is_none());
     }
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_none());
     }
 }
@@ -209,21 +209,21 @@ fn test_db_create_put_delete_table() {
     let name = b"the_table".to_vec();
     {
         let db_config = DbConfig::builder().build();
-        let mut db = Db::create(db_path, None, &db_config).unwrap();
+        let mut db = Db::create(db_path, None, None, &db_config).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_none());
         db.create_table(name.as_ref());
         db.put_table_entry(name.as_ref(), key.as_ref(), value.as_ref());
         assert!(db.get_table_tree_root(name.as_ref()).is_some());
     }
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_some());
         let returned_value = db.get_table_entry(name.as_ref(), key.as_ref()).unwrap();
         assert!(returned_value == value);
         assert!(db.delete_table_entry(name.as_ref(), key.as_ref()))
     }
     {
-        let mut db = Db::open(db_path, None).unwrap();
+        let mut db = Db::open(db_path, None, None).unwrap();
         assert!(db.get_table_tree_root(name.as_ref()).is_some());
         let returned_value = db.get_table_entry(name.as_ref(), key.as_ref());
         assert!(returned_value.is_none());

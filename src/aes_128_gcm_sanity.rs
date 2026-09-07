@@ -1,4 +1,5 @@
 use crate::Page;
+use crate::block_sanity::BlockSanityError;
 use crate::page::PageTrait;
 use aes::cipher::generic_array::typenum::U12;
 use aes_gcm::{
@@ -33,17 +34,18 @@ impl Aes128GcmSanity {
         page.get_pg_ctr_bytes_mut()[block_size - 12..block_size].copy_from_slice(&nonce);
     }
 
-    pub fn decrypt_page(page: &mut Page, input_key: &Vec<u8>) {
+    pub fn decrypt_page(page: &mut Page, input_key: &Vec<u8>) -> Result<(), BlockSanityError> {
         assert!(input_key.len() == 16, "Key is incorrect size");
         let block_size = page.get_pg_ctr_bytes().len();
         let key: &Key<Aes128Gcm> = input_key.as_slice().into();
         let cipher = Aes128Gcm::new(key);
         let nonce: &Nonce<U12> = (&page.get_pg_ctr_bytes()[block_size - 12..block_size]).into();
         let plaintext = cipher.decrypt(nonce, &page.get_pg_ctr_bytes()[0..block_size - 12]);
-        let mut plaintext = plaintext.expect("Failed to decrypt page");
+        let mut plaintext = plaintext.map_err(|_e| BlockSanityError::Aes128EncryptionError)?;
         // Pad the plaintext to the block size if necessary
         plaintext.resize(page.get_pg_ctr_bytes().len(), 0);
         // Copy the unencrypted bytes back into the page.
         page.replace_bytes(plaintext);
+        Ok(())
     }
 }
