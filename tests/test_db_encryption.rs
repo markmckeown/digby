@@ -29,7 +29,7 @@ fn test_db_store_value_with_encryption() {
 }
 
 #[test]
-#[should_panic(expected = "Block sanity failed for block 1, Aes128EncryptionError")]
+#[should_panic(expected = "Block sanity failed for block 1")]
 fn test_db_store_value_with_encryption_wrong_key() {
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");

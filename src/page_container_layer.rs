@@ -182,37 +182,42 @@ impl PageContainerLayer {
     }
 
     fn check_sanity(&mut self, page: &mut Page, page_no: PageNo) {
-        if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
-            if !self.wrt_mgr.has_mirror() {
-                panic!(
-                    "Block sanity failed for block {}, {:?}",
-                    page_no.get_blk_offset(),
-                    e
-                );
-            }
-            // Write manager has a mirror, get page from mirror
-            self.wrt_mgr
-                .read_page_from_mirror(page, &page_no)
-                .expect("Failed to read page from mirror");
-            // Is the page from the mirror sane?
-            if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
-                panic!(
-                    "Block sanity failed for block {} from mirror, {:?}",
-                    page_no.get_blk_offset(),
-                    e
-                );
-            }
-            // Repair the primary. Take a copy of the page from the mirror, it may be
-            // unencrypted and will need to be written back in encrypted form.
-            let mut page_copy = Page::create_new(&self.db_config, page_no.get_blk_cnt());
-            page_copy
-                .get_pg_ctr_bytes_mut()
-                .copy_from_slice(page.get_pg_ctr_bytes());
-            self.set_sanity(&mut page_copy);
-            self.wrt_mgr
-                .write_page_to_primary(&page_copy, &page_no)
-                .expect("Failed to repair primary page");
+        if let Err(_e) = self.block_sanity.check_block_sanity(page, &self.key) {
+            self.repair_page(page, page_no);
+            return;
         }
+
+        if page_no.to_u64() != page.get_page_number().to_u64() {
+            self.repair_page(page, page_no);
+        }
+    }
+
+    pub fn repair_page(&mut self, page: &mut Page, page_no: PageNo) {
+        if !self.wrt_mgr.has_mirror() {
+            panic!("Block sanity failed for block {}", page_no.get_blk_offset());
+        }
+        // Write manager has a mirror, get page from mirror
+        self.wrt_mgr
+            .read_page_from_mirror(page, &page_no)
+            .expect("Failed to read page from mirror");
+        // Is the page from the mirror sane?
+        if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
+            panic!(
+                "Block sanity failed for block {} from mirror, {:?}",
+                page_no.get_blk_offset(),
+                e
+            );
+        }
+        // Repair the primary. Take a copy of the page from the mirror, it may be
+        // unencrypted and will need to be written back in encrypted form.
+        let mut page_copy = Page::create_new(&self.db_config, page_no.get_blk_cnt());
+        page_copy
+            .get_pg_ctr_bytes_mut()
+            .copy_from_slice(page.get_pg_ctr_bytes());
+        self.set_sanity(&mut page_copy);
+        self.wrt_mgr
+            .write_page_to_primary(&page_copy, &page_no)
+            .expect("Failed to repair primary page");
     }
 
     pub fn sync_data(&mut self) {

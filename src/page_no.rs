@@ -26,9 +26,11 @@ impl PageNo {
 
     pub fn new(pg_type: PageType, pg_blk_cnt_shift: u8, pg_blk_offset: u64) -> Self {
         assert!(pg_blk_cnt_shift <= crate::db_config::DbConfig::MAX_BLK_SHIFT);
+        let pg_version: u8 = 0;
         Self(
             (u64::from(pg_type as u8 & 0x0F) << 60)
                 | (u64::from(pg_blk_cnt_shift & 0x0F) << 56)
+                | (u64::from(pg_version) << 48)
                 | (pg_blk_offset & 0x0000_FFFF_FFFF_FFFF),
         )
     }
@@ -71,6 +73,18 @@ impl PageNo {
         block_size * self.get_blk_cnt() as usize
     }
 
+    pub fn get_pg_parity(&self) -> u8 {
+        (self.0 >> 48) as u8
+    }
+
+    pub fn set_pg_parity(&mut self, new_version: u8) {
+        self.0 = (self.0 & 0xFF00_FFFF_FFFF_FFFF) | (u64::from(new_version) << 48);
+    }
+
+    pub fn bump_pg_parity(&mut self) {
+        self.set_pg_parity(self.get_pg_parity().wrapping_add(1));
+    }
+
     pub fn set_blk_offset(&mut self, file_blk_offset: u64) {
         self.0 = (self.0 & 0xFFFF_0000_0000_0000) | (file_blk_offset & 0x0000_FFFF_FFFF_FFFF);
     }
@@ -96,7 +110,15 @@ mod tests {
         assert_eq!(page_no.get_blk_offset(), 34);
         assert_eq!(page_no.get_bytes(), [34, 0, 0, 0, 0, 0, 0, 0]);
 
-        let page_no_2 = PageNo::new(PageType::LeafPage, 1, 57);
+        let mut page_no_2 = PageNo::new(PageType::LeafPage, 1, 57);
+        assert_eq!(page_no_2.get_blk_cnt(), 2);
+        assert_eq!(page_no_2.get_pg_blk_size(4096), 4096 * 2);
+        assert_eq!(page_no_2.get_blk_offset(), 57);
+        assert_eq!(page_no_2.get_pg_type(), PageType::LeafPage);
+
+        assert_eq!(page_no_2.get_pg_parity(), 0);
+        page_no_2.bump_pg_parity();
+        assert_eq!(page_no_2.get_pg_parity(), 1);
         assert_eq!(page_no_2.get_blk_cnt(), 2);
         assert_eq!(page_no_2.get_pg_blk_size(4096), 4096 * 2);
         assert_eq!(page_no_2.get_blk_offset(), 57);
