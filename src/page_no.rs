@@ -22,8 +22,6 @@ pub struct PageNo(pub u64);
 //
 // Note there is no hard coded block size.
 impl PageNo {
-    const TOP_BYTE_MASK: u64 = 0xFF00_0000_0000_0000;
-    const BOTTOM_56_MASK: u64 = 0x00FF_FFFF_FFFF_FFFF;
     const BOTTOM_60_MASK: u64 = 0x0FFF_FFFF_FFFF_FFFF;
 
     pub fn new(pg_type: PageType, pg_blk_cnt_shift: u8, pg_blk_offset: u64) -> Self {
@@ -31,7 +29,7 @@ impl PageNo {
         Self(
             (u64::from(pg_type as u8 & 0x0F) << 60)
                 | (u64::from(pg_blk_cnt_shift & 0x0F) << 56)
-                | (pg_blk_offset & Self::BOTTOM_56_MASK),
+                | (pg_blk_offset & 0x0000_FFFF_FFFF_FFFF),
         )
     }
 
@@ -74,11 +72,11 @@ impl PageNo {
     }
 
     pub fn set_blk_offset(&mut self, file_blk_offset: u64) {
-        self.0 = (self.0 & Self::TOP_BYTE_MASK) | (file_blk_offset & Self::BOTTOM_56_MASK);
+        self.0 = (self.0 & 0xFFFF_0000_0000_0000) | (file_blk_offset & 0x0000_FFFF_FFFF_FFFF);
     }
 
     pub fn get_blk_offset(&self) -> u64 {
-        self.0 & Self::BOTTOM_56_MASK
+        self.0 & 0x0000_FFFF_FFFF_FFFF
     }
 }
 
