@@ -7,6 +7,7 @@ use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::page_no::PageNo;
 use crate::write_manager::WriteManager;
+use log::error;
 
 // The DB is divided into pages, for example leaf
 // pages (which hold key/values) or directory pages
@@ -182,17 +183,38 @@ impl PageContainerLayer {
     }
 
     fn check_sanity(&mut self, page: &mut Page, page_no: PageNo) {
-        if let Err(_e) = self.block_sanity.check_block_sanity(page, &self.key) {
+        if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
+            error!(
+                "Page sanity check failed {}, {:?}",
+                page_no.get_blk_offset(),
+                e
+            );
             self.repair_page(page, page_no);
             return;
         }
 
-        if page_no.to_u64() != page.get_page_number().to_u64() {
+        let page_no_from_page = page.get_page_number();
+        if page_no.to_u64() != page_no_from_page.to_u64() {
+            if page_no.get_blk_offset() != page_no_from_page.get_blk_offset() {
+                error!(
+                    "Page at wrong offset. Read from offset {}, embedded offset {}",
+                    page_no.get_blk_offset(),
+                    page_no_from_page.get_blk_offset()
+                );
+            }
+            if page_no.get_pg_parity() != page_no_from_page.get_pg_parity() {
+                error!(
+                    "Page parity mismatch at blk pffset{}, expected {} but got {}",
+                    page_no.get_blk_offset(),
+                    page_no.get_pg_parity(),
+                    page_no_from_page.get_pg_parity()
+                );
+            }
             self.repair_page(page, page_no);
         }
     }
 
-    pub fn repair_page(&mut self, page: &mut Page, page_no: PageNo) {
+    fn repair_page(&mut self, page: &mut Page, page_no: PageNo) {
         if !self.wrt_mgr.has_mirror() {
             panic!("Block sanity failed for block {}", page_no.get_blk_offset());
         }
@@ -208,6 +230,29 @@ impl PageContainerLayer {
                 e
             );
         }
+        let page_no_from_page = page.get_page_number();
+        if page_no.to_u64() != page_no_from_page.to_u64() {
+            if page_no.get_blk_offset() != page_no_from_page.get_blk_offset() {
+                error!(
+                    "Mirror page at wrong offset. Read from mirror block offset {}, embedded offset {}",
+                    page_no.get_blk_offset(),
+                    page_no_from_page.get_blk_offset()
+                );
+            }
+            if page_no.get_pg_parity() != page_no_from_page.get_pg_parity() {
+                error!(
+                    "Mirror page parity mismatch at mirror block offset{}, expected {} but got {}",
+                    page_no.get_blk_offset(),
+                    page_no.get_pg_parity(),
+                    page_no_from_page.get_pg_parity()
+                );
+            }
+            panic!(
+                "Mirror page at offset {}, embedded page number does not match.",
+                page_no.get_blk_offset()
+            );
+        }
+
         // Repair the primary. Take a copy of the page from the mirror, it may be
         // unencrypted and will need to be written back in encrypted form.
         let mut page_copy = Page::create_new(&self.db_config, page_no.get_blk_cnt());

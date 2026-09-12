@@ -98,7 +98,9 @@ impl BaseFreePageTracker {
     // commit and should not be used in this commit.
     pub fn return_free_page_no(&mut self, page_no: PageNo) {
         assert!(!self.free_dir_page_list.is_empty());
-        self.returned_pages.push(page_no);
+        let mut bumped_pg_no = PageNo::from_u64(page_no.to_u64());
+        bumped_pg_no.bump_pg_parity();
+        self.returned_pages.push(bumped_pg_no);
     }
 
     // The commit wants to write back the free_dir_page - no more free page no will be
