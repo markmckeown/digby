@@ -18,6 +18,9 @@ pub enum BlockSanity {
 pub enum BlockSanityError {
     ChecksumMisMatch,
     Aes128EncryptionError,
+    PageNoMisMatch,
+    PageNoParityError,
+    PageNoBlockOffsetError,
 }
 
 impl TryFrom<u8> for BlockSanity {

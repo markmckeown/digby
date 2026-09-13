@@ -1,5 +1,6 @@
 use crate::XxHashSanity;
 use crate::block_sanity::BlockSanity;
+use crate::block_sanity::BlockSanityError;
 use crate::db_config::DbConfig;
 use crate::file_layer::FileLayer;
 use crate::page::Page;
@@ -189,34 +190,40 @@ impl PageContainerLayer {
                 page_no.get_blk_offset(),
                 e
             );
-            self.repair_page(page, page_no);
+            self.repair_page(page, page_no, e);
             return;
         }
 
         let page_no_from_page = page.get_page_number();
         if page_no.to_u64() != page_no_from_page.to_u64() {
+            let mut err: BlockSanityError = BlockSanityError::PageNoMisMatch;
             if page_no.get_blk_offset() != page_no_from_page.get_blk_offset() {
                 error!(
                     "Page at wrong offset. Read from offset {}, embedded offset {}",
                     page_no.get_blk_offset(),
                     page_no_from_page.get_blk_offset()
                 );
-            }
-            if page_no.get_pg_parity() != page_no_from_page.get_pg_parity() {
+                err = BlockSanityError::PageNoBlockOffsetError;
+            } else if page_no.get_pg_parity() != page_no_from_page.get_pg_parity() {
                 error!(
                     "Page parity mismatch at blk pffset{}, expected {} but got {}",
                     page_no.get_blk_offset(),
                     page_no.get_pg_parity(),
                     page_no_from_page.get_pg_parity()
                 );
+                err = BlockSanityError::PageNoParityError;
             }
-            self.repair_page(page, page_no);
+            self.repair_page(page, page_no, err);
         }
     }
 
-    fn repair_page(&mut self, page: &mut Page, page_no: PageNo) {
+    fn repair_page(&mut self, page: &mut Page, page_no: PageNo, err: BlockSanityError) {
         if !self.wrt_mgr.has_mirror() {
-            panic!("Block sanity failed for block {}", page_no.get_blk_offset());
+            panic!(
+                "Block sanity failed for block {}, {:?}",
+                page_no.get_blk_offset(),
+                err
+            );
         }
         // Write manager has a mirror, get page from mirror
         self.wrt_mgr
