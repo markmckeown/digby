@@ -1,16 +1,16 @@
 # Digby: A Rust-based Key-Value Store
 
-Digby is an embedded key-value store written in Rust. It was built as a project to learn Rust and explore advanced database implementation concepts, utilizing a B+ Tree as its core data structure.
+Digby is an embedded key-value store written in Rust. It was built as a project to learn Rust and explore database implementation concepts. It uses a Copy on Write (COW) B+ Tree as its core data structure.
 
 
 ## Features
 
-*   **B+ Tree Core**: Uses a robust B+ tree for storing key-value pairs.
+*   **B+ Tree Core**: Uses a B+ tree for storing key-value pairs.
 *   **Global & Table-based Stores**: Supports a root global B+ tree as well as independent B+ trees (tables), all stored in a single file.
 *   **Large Item Support**: Capable of storing large keys and values (up to 64-bit sizes).
     *   Large items are stored using overflow pages and can optionally be compressed with LZ4 (conceptually similar to TOAST in PostgreSQL).
     *   Large keys are indexed using a combination of their prefix (first 223 bytes) and a SHA-256 hash (32 bytes), allowing lexical sorting up to 223 bytes.
-    *   Overflow pages can be up to 1MB in size and chain together to support larger objects, optimized to minimize page reads.
+    *   Overflow pages can be up to 1MB in size and chain together to support larger objects, optimized to minimize page reads rather than pack data.
 *   **Configurable Block & Page Sizes**:
     *   The base block size is configurable (e.g., 4K for typical Linux atomic write compatibility).
     *   Pages consist of one or more blocks, sized in powers of two (4K, 8K, 16K... 1024K).
@@ -18,16 +18,18 @@ Digby is an embedded key-value store written in Rust. It was built as a project 
     *   Key metadata pages (root page, master pages, free directory pages) are fixed at a single block.
     *   Overflow pages use the minimum number of blocks required (similar to ZFS), managed by a slab allocator.
 *   **Copy-On-Write (COW)**: Implements shadowing/clones based on the *"B-trees, Shadowing, and Clones"* paper, similar to the approaches used in ZFS, Bcachefs, and LMDB.
-*   **Simplified Deletion**: Implements deletion without requiring complex tree rebalancing, based on the *"Deletion Without Rebalancing in Multiway Search Trees"* paper.
+*   **Simplified Deletion**: Implements deletion without tree rebalancing, based on the *"Deletion Without Rebalancing in Multiway Search Trees"* paper.
 *   **Data Integrity and Security**:
     *   **Checksums**: Option to use either `xxhash32` (32 bits) or `xxhash3` (64 bits) for page integrity verification.
     *   **Encryption**: Optional AES-128-GCM encryption for all stored content, leveraging its built-in cryptographic integrity checks.
+    *   **Embedded Physical Identity**: Detects mis-directed writes and allows recovery if using a mirror, based on *"Parity Lost and Parity Regained"*.
+    *   **Page Version Mirror**: Detects lost-writes and allows recovery if using a mirror, based on *"Parity Lost and Parity Regained"*.
+    *   **Built in RAID-0/Mirror**: Support for a mirror of the database were all blocks are duplicated on write to another file within COW. Allows automatic repair of page corruption, lost writes and mis-directed writes similar to ZFS.
 *   **Compression**: 
-    *   Head and tail compression in B+ tree nodes per "B-trees Are Back: Engineering Fast and Pageable Node Layouts" and "An Evaluation of B-tree Compression Techniques".
+    *   Head and tail compression in B+ tree nodes per *"B-trees Are Back: Engineering Fast and Pageable Node Layouts"* and *"An Evaluation of B-tree Compression Techniques".*
     *   Optional LZ4 compression for large keys and values.
-*   **Large Scale**: 64-bit page numbers support extremely large databases (56 bits for effective addressing, 4 bits used to encode page block count and 4 bits for page type).
-*   **Transactions**: Supports ACID transactions to make multiple atomic changes isolated from readers. Currently supports a single concurrent writer (RCU-style via COW) with durable updates synced to disk.
-*  **RAID-0 Mirror Support**: Support for block duplication to a mirror file, all block writes are duplicated to the mirror. If a block becomes corrupt and checksum fails the block will be repaired from the mirror, functionality is similar to ZFS ability to repair itself.
+*   **Large Scale**: 64-bit page numbers support extremely large databases (58 bits for block addressing, 4 bits used to encode page block count exponent, 4 bits for page type and 8 bits page mirror version). With 4K blocks this allows 1EiB database.
+*   **Transactions**: Supports ACID transactions to make multiple atomic changes isolated from readers. Currently supports a single concurrent writer (RCU-style via COW) with durable updates synced to disk. AD are 
 
 ## Getting Started
 
@@ -50,10 +52,14 @@ Copy-On-Write (COW) is used in filesystems like ZFS and Bcachefs, as well as dat
 
 Within Digby, transactions are supported via `_txn` methods. The client starts a transaction with `db.new_transaction` and passes the transaction context to subsequent operations. When ready, the client calls `db.commit`. Operations modify the tree during the transaction but do not update the master page until the commit. 
 
-Because Digby uses COW, it naturally supports multiple readers that do not block each other or the writer, but it restricts writes to a single concurrent writer. Readers can use version information in pages/tuples to detect stale state and retry. Supporting complex transactions with multiple concurrent writers and rollbacks would likely require an ARIES-type approach. If switching to an ARIES approach, can the log be efficiently maintained in the same file as the tree? 
+Because Digby uses COW, it naturally supports multiple readers that do not block each other or the writer, but it restricts writes to a single concurrent writer. Readers can use version information in pages/tuples to detect stale state and retry, also it would be possible to add support for multiple snapshots so a reader never encounters stale state. Supporting complex transactions with multiple concurrent writers and rollbacks would likely require an ARIES-type approach. If switching to an ARIES approach, can the log be efficiently maintained in the same file as the tree? 
 
 ### Checksums and Merkle Trees
-Both ZFS and Bcachefs store the checksum for a page in the pointer to the page/object rather than in the page itself, except for the supernblock. This forms a Merkle tree (similar to Git) and catches complex errors like phantom writes, misdirected I/O, and DMA parity errors better than simple bit rot checks. bcachefs stores checksums for the blocks in a seperate tree. (Is it a challenge for a FS to store the checksum in the page, making serving the page to clients tricky).
+Both ZFS and Bcachefs store the checksum for a page in the pointer to the page/object rather than in the page itself, except for the supernblock. This forms a Merkle tree (similar to Git) and catches complex errors like lost or phantom writes, misdirected I/O, and DMA parity errors better than simple bit rot checks. bcachefs stores checksums for the blocks in a seperate tree, this causes write amplification. 
+
+Is it a challenge for a FS to store the checksum in the page, making serving the pages to clients tricky?
+
+
 
 In Digby, embedding the checksum in the page pointer presents challenges:
 *   **Checksum Size**: A fixed size (e.g., 32-bit `xxhash32` or 64-bit `xxhash3`) would be needed. 
@@ -62,9 +68,9 @@ In Digby, embedding the checksum in the page pointer presents challenges:
 
 Another challenge with embedding the checksum in the page pointer is that it prevents the optimisations in "B-trees, Shadowing and Clones" - in this approach as you descend the tree you write out new pages, ie directory pages, as you descend the tree including pro-actively splitting directory nodes. This allows crabbing the locks as you descend the tree. However, if embedding the checksum in the page pointer you cannot create the directory entries if you do not know the checksum for the child page until it is created.
 
-digby uses an approach similar to that outlined in "Parity Lost and Parity Regained". The page pointer contains the page type encoded as 4 bits, the number of blocks that make up the page as a power of two shift encoded as 4 bits, a version number encoded as a byte that is incremented each time the page is written called the parity and 48 bits for the block offset. The page number is also stored into the page, meaning the page number is stored in two locations. This means the page contains a checksum to detect corruption, a physical identify to detect misdirected writes and a version mirror to detect lost writes (the version is mirrored in the page and in the page pointer). The version is encoded as a byte but could be encoded as a single bit. 
+digby uses an approach similar to that outlined in *"Parity Lost and Parity Regained"*. The page pointer contains the page type encoded as 4 bits, the number of blocks that make up the page as a power of two shift encoded as 4 bits, a version number encoded as a byte that is incremented each time the page is written called the parity and 48 bits for the block offset. The page number is also stored into the page, meaning the page number is stored in two locations. This means the page contains a checksum to detect corruption, a physical identify to detect misdirected writes and a version mirror to detect lost writes (the version is mirrored in the page and in the page pointer stored in the parent page). The version is encoded as a byte but could be encoded as a single bit, this is possible as the page has to be read by a client to be written - is a disk RAID the page could be read during a scrub and a single bit is not enough, see *"Parity Lost and Parity Regained"*.
 
-Using this approach digby can detect corrupt pages (checksum), lost writes (page parity version) and mis-directed writes (physical identity) making it comparable to the Merkle tree without the disadvantages outlined above. With a mirror it can recover from these errors and detect double failures (both primary and mirror corrupt for a page).
+Using this approach digby can detect corrupt pages (checksum), lost writes (page parity version) and mis-directed writes (physical identity) making it as robust as the Merkle tree without the disadvantages outlined above. With a mirror it can recover from these errors and detect double failures (both primary and mirror corrupt for a page).
 
 With 48 bits for addressing and 4K blocks the size limit for digby is 1EiB.
 
@@ -72,7 +78,7 @@ With 48 bits for addressing and 4K blocks the size limit for digby is 1EiB.
 It is relatively easy to take a clone/snapshot of a COW b-tree, the tricky part is to know which blocks can be reused after a snapshot is deleted. Note the brtfs paper points out a difference in functionality between itself and ZFS, in both you can make a clone of a filesystem, a writeable snapshot, but in brtfs you can clone a clone while in ZFS you cannot.
 
 "B-trees, Shadowing and Clones" outlines an approach for efficiently taking a snapshot of a b-tree, when you take a snapshot you increment the reference count of the child nodes of the root of the tree. You do not initally need to increment the reference count of any other nodes, there are set of rules for when the reference count for other nodes can be incremented or decremented. brtfs uses this approach. 
-brtfs uses a b-tree called the extent tree to track block reference counts, see https://josefbacik.github.io/kernel/btrfs/2021/12/16/btrfs-extent-reference-counting.html - brtfs reference counts every block so there is a lot of write amplification. It's not clear from "B-trees, Shadowing and Clones" whether a form of sparse reference counting could be used whereby entries for blocks are only counted when the reference count goes about one (see Efficient Free Space Reclamation in WAFL).
+brtfs uses a b-tree called the extent tree to track block reference counts, see https://josefbacik.github.io/kernel/btrfs/2021/12/16/btrfs-extent-reference-counting.html - brtfs reference counts every block so there is a lot of write amplification. It's not clear from "B-trees, Shadowing and Clones" whether a form of sparse reference counting could be used whereby entries for blocks are only counted when the reference count goes above one (see Efficient Free Space Reclamation in WAFL).
 
 Filesystems have traditionally used bitmaps to track free blocks, in NetApp WAFL filesystem they initially used 32 bits instead of a bit to support up to 32 snapshots for a volume. A bit set in the 32 bits would indicate the block was in use in the corresponding snapshot - if no bits were set then the block was free, the approach is described in "File System Design for an NFS File Server Applicance". This approach did not scale and was replaced by different approach, a volume has a bitmap (called the active map) tracking which blocks are free with one bit per 4K block, the bitmap is updated using copy on write. When a snapshot is taken the active map now becomes a snap map and is no longer changed in the snapshot (COW), to determine if a block is free, for example when a snapshot is deleted, then active map and snap maps are OR'd to see if the bit is still set in any of the snapshots or the current volume.
 
@@ -80,10 +86,12 @@ ZFS takes a different approach, in each block pointer it records the birthday of
 
 bcachefs approach is described here https://bcachefs.org/Snapshots/.
 
-As off version 0.6 digby has efficitively two snapshots, these are managed by the two master pages (current and previous). When an update is started the current master page is copied and used to find the tree roots, new blocks are written out and a set of no longer used blocks is collected. When the transaction commits the freed blocks are added to the free lists. The previous master page is overwritten with the new master copy (previous now becomes current) leaving two versions of the db. We can extend this to N versions, when a transaction completes write the freed blocks to a ring buffer of pages in an object with the transaction id (reuse a tuple). When we have completed N transactions we can remove the freed blocks from the ring buffer and add them to free pages lists and the first snapshot is no longer available, iterate forward in this manner. Its not clear if clones (writeable) snapshots can be created with this approach. Note also each page has a version number, similar to ZFS, so a variation of the ZFS approach could be used.
+As off version 0.6 digby has two snapshots: the current and previous, these are managed by the two master pages (current and previous). When an update is started the current master page is copied and used to find the tree roots, new blocks are written out and a set of no longer used blocks is collected. When the transaction commits the freed blocks are added to the free lists. The previous master page is overwritten with the new master copy (previous now becomes current) leaving two versions of the db. We can extend this to N versions, when a transaction completes write the freed blocks to a ring buffer of pages in an object with the transaction id (reuse a tuple). When we have completed N transactions we can remove the freed blocks from the ring buffer and add them to free pages lists and the first snapshot is no longer available, iterate forward in this manner. Its not clear if clones (writeable) snapshots can be created with this approach. Note also each page has a version number, similar to ZFS, so a variation of the ZFS approach could be used.
+
+Note creating a ring buffer of pages or a doubly linked list of pages is difficult in COW, When a page needs to be modified a version is created and written at a different location, this means anything that pointed to this page now has a broken pointer. 
 
 ### Fast Paxos & Flexible Paxos
-Integrating Paxos into the database could provide an interesting alternative to a traditional WAL. For instance, if Paxos outputs a queue of agreed work, this could serve as the transaction log. Fast Paxos can reach agreement in a single round but suffers under high contention, requiring larger quorums. Flexible Paxos helps mitigate phase 2 quorum bottlenecks.
+Integrating Paxos into the database could provide an interesting alternative to a traditional WAL. For instance, if Paxos outputs a queue of agreed work, this could serve as the transaction log or an intend log. Fast Paxos can reach agreement in a single round but suffers under high contention, requiring larger quorums. Flexible Paxos helps mitigate phase 2 quorum bottlenecks.
 
 In a sharded architecture, Digby could use thousands of Paxos state machines for replication by partitioning the key namespace using a hash function. For example, 2,000 state machines could map to 2,000 independent B+ trees rooted in a single file, each utilizing COW. This could heavily leverage the parallel I/O capabilities of NVMe drives, with cross-shard transactions utilizing Paxos Commit. A forest of trees would mean losing range queries.
 
@@ -94,12 +102,12 @@ In a sharded architecture, Digby could use thousands of Paxos state machines for
 *   **MVCC (Multi-Version Concurrency Control)**: Extend the existing rudimentary versioning system to support more complex concurrent transactions.
 *   **Performance Optimizations**:
     *   **Page Cache**: Enhance the rudimentary page cache and reduce unnecessary page copying when dealing with encrypted pages.
-    *   **Asynchronous I/O**: Investigate `io_uring` (via Rust's `tokio`) for async I/O. Currently, new pages overwrite existing free pages synchronously, followed by a double `sync_data` around the master page write. `io_uring` could schedule page write-backs and `sync_file_range` asynchronously, waiting on the batch before writing the master page.
+    *   **Asynchronous I/O**: Investigate `io_uring` (via Rust's `tokio`) for async I/O, investigate support for direct IO. Currently, new pages overwrite existing free pages synchronously, followed by a double `sync_data` around the master page write. `io_uring` could schedule page write-backs and `sync_file_range` asynchronously, waiting on the batch before writing the master page.
     *   **Log-Structured Leaves**: Explore update optimizations similar to Bcachefs (e.g., logging changes into 256K leaf page chunks and compacting/splitting them when full) to reduce the write amplification of standard COW B-trees.
 *   **Concurrency**: Add support for multi-threaded access. The current COW design supports a single writer and multiple readers. Moving to top-down tree writing would be the first step toward better concurrent writer scaling.
 *   **Untorn Writes**: Investigate leveraging Linux untorn writes (atomic writes of multiple aligned blocks, like 16K on NVMe SSDs). This avoids the double-write penalty of traditional WALs. MySQL saw performance degradation with 16K untorn writes due to write amplification on its 512-byte log blocks, so integrating this effectively into Digby requires careful design.
 *   **Direct NVMe Access**: Explore bypassing the filesystem to access NVMe as a raw KV store for Digby blocks (e.g., referencing *"SAKER: A Software Accelerated Key-value Service via the NVMe Interface"*).
-*   **Support for Close**: Add support for tree clones following "B-trees, Shadowing and Clones".
+*   **Support for Clones or more Snapshots**: Add support for tree clones following "B-trees, Shadowing and Clones".
 
 ## License
 
