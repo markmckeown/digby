@@ -88,7 +88,7 @@ bcachefs approach is described here https://bcachefs.org/Snapshots/.
 
 As off version 0.6 digby has two snapshots: the current and previous, these are managed by the two master pages (current and previous). When an update is started the current master page is copied and used to find the tree roots, new blocks are written out and a set of no longer used blocks is collected. When the transaction commits the freed blocks are added to the free lists. The previous master page is overwritten with the new master copy (previous now becomes current) leaving two versions of the db. We can extend this to N versions, when a transaction completes write the freed blocks to a ring buffer of pages in an object with the transaction id (reuse a tuple). When we have completed N transactions we can remove the freed blocks from the ring buffer and add them to free pages lists and the first snapshot is no longer available, iterate forward in this manner. Its not clear if clones (writeable) snapshots can be created with this approach. Note also each page has a version number, similar to ZFS, so a variation of the ZFS approach could be used.
 
-Note creating a ring buffer of pages or a doubly linked list of pages is difficult in COW, When a page needs to be modified a version is created and written at a different location, this means anything that pointed to this page now has a broken pointer. 
+Note creating a ring buffer of pages or a doubly linked list of pages is difficult in COW. When a page needs to be modified a new version is created and written at a different location, this means anything that pointed to this page now has a broken pointer. An approach to addressing this is to use a method based on bcachefs, use a tree to store the pages that can be freed in the future. The leaf pages in this case will be written using an LSM like approach, pages that can be freed are appended to the leaf page by treating the leaf page as a log. The leaf page could be 256K, eg 64 blocks of 4K (with directory nodes being 1 block), each update uses the next block in the page and when the page is filled it can be compacted and written out to disk using COW. When the page is full after compaction a new page can be added to the table. This would allow a ring buffer to be implemented using a tree with LSM nodes. Care would be needed to maintain the fault detection and repair: page corruption, lost writes and re-directed writes.
 
 ### Fast Paxos & Flexible Paxos
 Integrating Paxos into the database could provide an interesting alternative to a traditional WAL. For instance, if Paxos outputs a queue of agreed work, this could serve as the transaction log or an intend log. Fast Paxos can reach agreement in a single round but suffers under high contention, requiring larger quorums. Flexible Paxos helps mitigate phase 2 quorum bottlenecks.
@@ -108,6 +108,24 @@ In a sharded architecture, Digby could use thousands of Paxos state machines for
 *   **Untorn Writes**: Investigate leveraging Linux untorn writes (atomic writes of multiple aligned blocks, like 16K on NVMe SSDs). This avoids the double-write penalty of traditional WALs. MySQL saw performance degradation with 16K untorn writes due to write amplification on its 512-byte log blocks, so integrating this effectively into Digby requires careful design.
 *   **Direct NVMe Access**: Explore bypassing the filesystem to access NVMe as a raw KV store for Digby blocks (e.g., referencing *"SAKER: A Software Accelerated Key-value Service via the NVMe Interface"*).
 *   **Support for Clones or more Snapshots**: Add support for tree clones following "B-trees, Shadowing and Clones".
+
+## References
+
+*   *"B-trees, Shadowing, and Clones"*
+*   *"Deletion Without Rebalancing in Multiway Search Trees"*
+*   *"Parity Lost and Parity Regained"*
+*   *"B-trees Are Back: Engineering Fast and Pageable Node Layouts"*
+*   *"An Evaluation of B-tree Compression Techniques"*
+*   *"Efficient Free Space Reclamation in WAFL"*
+*   *"File System Design for an NFS File Server Appliance"*
+*   *"BTRFS: The Linux B-tree Filesystem"*
+*   *"SAKER: A Software Accelerated Key-value Service via the NVMe Interface"*
+*   *"ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging"*
+*   *"Repeating History Beyond ARIES"*
+*   *"The Zettabyte File System"*
+*   [Btrfs extent reference counting](https://josefbacik.github.io/kernel/btrfs/2021/12/16/btrfs-extent-reference-counting.html)
+*   [How ZFS Snapshots Really Work](https://papers.freebsd.org/2019/bsdcan/ahrens-how_zfs_snapshots_really_work/)
+*   [bcachefs Snapshots](https://bcachefs.org/Snapshots/)
 
 ## License
 
