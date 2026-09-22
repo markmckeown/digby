@@ -123,6 +123,11 @@ In a sharded architecture, Digby could use thousands of Paxos state machines for
 *   *"ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging"*
 *   *"Repeating History Beyond ARIES"*
 *   *"The Zettabyte File System"*
+*   *"Paxos made simple"*
+*   *"Consensus on Transaction Commit"*
+*   *"Fast Paxos"*
+*   *"Flexible Paxos: Quorum intersection revisited"*
+*   *"Relaxing Quorum Intersection for Fast Paxos"*
 *   [Btrfs extent reference counting](https://josefbacik.github.io/kernel/btrfs/2021/12/16/btrfs-extent-reference-counting.html)
 *   [How ZFS Snapshots Really Work](https://papers.freebsd.org/2019/bsdcan/ahrens-how_zfs_snapshots_really_work/)
 *   [bcachefs Snapshots](https://bcachefs.org/Snapshots/)
