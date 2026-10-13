@@ -365,7 +365,7 @@ impl Db {
                 // Found tuple, but it may be an overflow tuple (ie it has
                 // a small key but a large value). Need to get overflow tuple
                 // from the overflow pages.
-                if tuple.get_overflow() != Overflow::None {
+                if tuple.get_overflow().has_overflow_pages() {
                     return self.get_overflow_tuple_value(key, &tuple);
                 }
                 return Some(self.get_tuple_value(&tuple));
@@ -388,7 +388,7 @@ impl Db {
     // a reference to where the real tuple is, this function
     // resolves the overflow tuple to get the real tuple.
     fn get_overflow_tuple_value(&mut self, key: &[u8], tuple: &Tuple) -> Option<Vec<u8>> {
-        assert!(tuple.get_overflow() != Overflow::None);
+        assert!(tuple.get_overflow().has_overflow_pages());
         // Tuple exists, the value will be a page number for the overflow page.
         let overflow_page_no = PageNo::from_bytes(&tuple.get_value()[0..8]);
         let overflow_tuple: OverflowTuple =

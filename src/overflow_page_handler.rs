@@ -5,49 +5,17 @@ use crate::PageCache;
 use crate::PageNo;
 use crate::page::PageTrait;
 use crate::page::PageType;
-use crate::tuple::Overflow;
 use crate::tuple::Tuple;
 use crate::tuple::TupleTrait;
 
 pub struct OverflowPageHandler {}
 
 impl OverflowPageHandler {
+    // Store a tuple in a chain of overflow pages. Full pages use the largest
+    // overflow page size, the remainder uses the smallest page size it fits
+    // in, so a tuple uses the fewest pages and wastes at most one page's
+    // worth of blocks.
     pub fn store_overflow_tuple(
-        tuple: OverflowTuple,
-        page_cache: &mut PageCache,
-        free_pg_mgr: &mut FreePageManager,
-        version: u64,
-    ) -> PageNo {
-        // We write the buffer backwards as we want to create a linked list
-        // of pages. The last page we write will be the head of the list
-        // and contain the start of the OverflowTuple.
-        let buffer = tuple.get_serialized();
-        let mut end = tuple.get_byte_size();
-
-        let mut previous = PageNo::from_u64(0);
-        let mut next_page: PageNo;
-        loop {
-            // TODO - pick block size
-            next_page = free_pg_mgr.get_free_page(page_cache, 0);
-            next_page.set_type(PageType::Overflow);
-            let mut page = OverflowPage::create_new(page_cache.get_db_config(), next_page, version);
-            page.set_next_page(previous);
-
-            let free_space = page.get_free_space();
-            let bytes_to_write: usize = if end < free_space { end } else { free_space };
-            page.add_bytes(&buffer[end - bytes_to_write..end], bytes_to_write);
-            page_cache.put_page(page.get_page());
-            end -= bytes_to_write;
-            if end == 0 {
-                break;
-            }
-            previous = next_page;
-        }
-
-        next_page
-    }
-
-    pub fn store_overflow_tuple2(
         tuple: OverflowTuple,
         page_cache: &mut PageCache,
         free_pg_mgr: &mut FreePageManager,
@@ -127,7 +95,7 @@ impl OverflowPageHandler {
             return 0;
         }
         let tuple = tuple_option.unwrap();
-        if tuple.get_overflow() == Overflow::None {
+        if !tuple.get_overflow().has_overflow_pages() {
             return 0;
         }
         // A tuple has been deleted that points to a overflow page.
@@ -160,6 +128,7 @@ impl OverflowPageHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tuple::Overflow;
     use crate::{DbMasterPage, db_config::DbConfig, page::PageType};
 
     const DB_CONFIG: DbConfig = DbConfig::builder()
@@ -201,7 +170,7 @@ mod tests {
         let key: Vec<u8> = vec![111u8; 300];
         let value: Vec<u8> = (0..value_size).map(|i| (i % 251) as u8).collect();
         let tuple = OverflowTuple::new(&key, &value, 90, Overflow::KeyValueOverflow);
-        let page_no = OverflowPageHandler::store_overflow_tuple2(
+        let page_no = OverflowPageHandler::store_overflow_tuple(
             tuple,
             &mut page_cache,
             &mut free_pg_mgr,
@@ -214,13 +183,13 @@ mod tests {
 
     // Uses a single page larger than 64K.
     #[test]
-    fn store_overflow_tuple2_100k() {
+    fn store_overflow_tuple_100k() {
         store_and_reload(100_000);
     }
 
     // Uses a chain of maximum size pages.
     #[test]
-    fn store_overflow_tuple2_3m() {
+    fn store_overflow_tuple_3m() {
         store_and_reload(3_000_000);
     }
 
@@ -270,7 +239,7 @@ mod tests {
         let value: Vec<u8> = vec![56u8; 18192];
         let tuple = OverflowTuple::new(&key, &value, new_version, Overflow::KeyValueOverflow);
 
-        let overflow_tuple_page_no = OverflowPageHandler::store_overflow_tuple2(
+        let overflow_tuple_page_no = OverflowPageHandler::store_overflow_tuple(
             tuple,
             &mut page_cache,
             &mut free_pg_mgr,

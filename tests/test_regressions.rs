@@ -309,3 +309,86 @@ fn test_open_with_out_of_date_mirror() {
         Ok(_) => panic!("open should fail with an out of date mirror"),
     }
 }
+
+fn pattern(len: usize, seed: u8) -> Vec<u8> {
+    (0..len).map(|i| (i % 251) as u8 ^ seed).collect()
+}
+
+fn check_large_values(db_config: &DbConfig, key: Option<Vec<u8>>) {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("db").to_str().unwrap().to_string();
+    let mirror = dir.path().join("mirror").to_str().unwrap().to_string();
+    // Sizes needing one block, a multi-block page, a page over 64K and a
+    // chain of maximum size pages.
+    let sizes = [2_000usize, 20_000, 100_000, 3_000_000];
+    {
+        let mut db = Db::create(&path, Some(&mirror), key.clone(), db_config).unwrap();
+        for (i, size) in sizes.iter().enumerate() {
+            db.put(format!("k{}", i).as_bytes(), &pattern(*size, 1));
+        }
+        // Large key as well as large value.
+        db.put(&vec![b'K'; 1000], &pattern(200_000, 2));
+    }
+    let mut db = Db::open(&path, Some(&mirror), key).unwrap();
+    for (i, size) in sizes.iter().enumerate() {
+        assert_eq!(db.get(format!("k{}", i).as_bytes()), Some(pattern(*size, 1)), "size {}", size);
+    }
+    assert_eq!(db.get(&vec![b'K'; 1000]), Some(pattern(200_000, 2)));
+
+    // Overwriting and deleting frees the overflow pages for reuse, the file
+    // should not keep growing.
+    let file_size = std::fs::metadata(&path).unwrap().len();
+    for round in 0..4u8 {
+        for (i, size) in sizes.iter().enumerate() {
+            db.put(format!("k{}", i).as_bytes(), &pattern(*size, round));
+        }
+    }
+    for (i, size) in sizes.iter().enumerate() {
+        assert_eq!(db.get(format!("k{}", i).as_bytes()), Some(pattern(*size, 3)), "size {}", size);
+    }
+    assert!(db.delete(b"k3"));
+    assert_eq!(db.get(b"k3"), None);
+    db.put(b"k3", &pattern(3_000_000, 9));
+    assert_eq!(db.get(b"k3"), Some(pattern(3_000_000, 9)));
+    let grown = std::fs::metadata(&path).unwrap().len();
+    assert!(
+        grown <= file_size * 2,
+        "file grew from {} to {} bytes",
+        file_size,
+        grown
+    );
+}
+
+// Overflow tuples are stored in pages sized to fit them, up to 1M.
+#[test]
+fn test_large_values_no_compression() {
+    check_large_values(&no_compression(), None);
+}
+
+#[test]
+fn test_large_values_lz4() {
+    check_large_values(&DbConfig::builder().build(), None);
+}
+
+#[test]
+fn test_large_values_encrypted() {
+    let db_config = DbConfig::builder()
+        .block_sanity(digby::block_sanity::BlockSanity::Aes128Gcm)
+        .build();
+    check_large_values(&db_config, Some(b"0123456789abcdef".to_vec()));
+}
+
+// A large value that LZ4 compresses small enough is stored in the leaf as
+// ValueCompressed. Its compressed bytes were treated as an overflow page
+// number when reading, overwriting or deleting it.
+#[test]
+fn test_compressed_value_in_leaf() {
+    let (_dir, _path, mut db) = create_db(&DbConfig::builder().build());
+    let value = vec![7u8; 5000];
+    db.put(b"a", &value);
+    assert_eq!(db.get(b"a"), Some(value.clone()));
+    db.put(b"a", &[8u8; 5000]);
+    assert_eq!(db.get(b"a"), Some(vec![8u8; 5000]));
+    assert!(db.delete(b"a"));
+    assert_eq!(db.get(b"a"), None);
+}

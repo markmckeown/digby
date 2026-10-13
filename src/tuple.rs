@@ -47,6 +47,18 @@ pub enum Overflow {
     KeyValueCompressed = 5,
 }
 
+impl Overflow {
+    // True if a tuple in the tree holds the page number of overflow pages
+    // as its value. A ValueCompressed tuple holds its compressed value
+    // directly, KeyValueCompressed is only used for tuples in overflow pages.
+    pub fn has_overflow_pages(self) -> bool {
+        matches!(
+            self,
+            Overflow::ValueOverflow | Overflow::KeyOverflow | Overflow::KeyValueOverflow
+        )
+    }
+}
+
 impl TryFrom<u8> for Overflow {
     type Error = ();
 
