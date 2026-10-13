@@ -32,11 +32,15 @@ impl TupleProcessor {
         if !TupleProcessor::is_oversized_key(key) && value.len() < TupleProcessor::MAX_VALUE_SIZE {
             return Tuple::new(key, value, version);
         }
-        assert!(key.len() < u32::MAX as usize, "key is too large");
-        assert!(value.len() < u32::MAX as usize, "value is too large");
+        // LZ4 stores the uncompressed length as a u32, a key or value too
+        // large for that is stored uncompressed. The key and value of an
+        // overflow tuple are either both compressed or both not.
+        let compress = compressor.compressor_type != CompressorType::None
+            && key.len() < u32::MAX as usize
+            && value.len() < u32::MAX as usize;
 
         let mut compressed_value: Vec<u8> = Vec::new();
-        if compressor.compressor_type != CompressorType::None {
+        if compress {
             compressed_value = compressor.compress(value);
             // We can store it with the value compressed.
             if !TupleProcessor::is_oversized_key(key)
@@ -61,7 +65,7 @@ impl TupleProcessor {
             Overflow::ValueOverflow
         };
 
-        let overflow_tuple: OverflowTuple = if compressor.compressor_type != CompressorType::None {
+        let overflow_tuple: OverflowTuple = if compress {
             let overflow_key = compressor.compress(key);
             let overflow_value = compressed_value;
             OverflowTuple::new(
