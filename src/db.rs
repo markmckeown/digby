@@ -912,19 +912,10 @@ impl Db {
 // Functions to either create or to initialise the database.
 impl Db {
     fn check_db_integrity(&mut self) -> std::io::Result<()> {
-        let root_page = DbRootPage::from_page(self.page_cache.get_root_page());
         // There is no sanity check for sanity type, if the db was created with
         // encryption and then opened without a key then we will not be able to open
         // the root_page as the checksum will not match.
         // This could be avoided if the root page was not encrypted.
-        let stored_compressor_type = root_page.get_compression_type();
-        if stored_compressor_type != self.compressor.compressor_type {
-            panic!(
-                "Db compression mis-match, stored type is {:?}, requested type {:?}",
-                root_page.get_compression_type(),
-                self.compressor.compressor_type
-            );
-        }
         // Determine which is the current master.
         let current_master = self.get_master_page();
         let current_version = current_master.get_version();
