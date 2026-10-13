@@ -254,3 +254,39 @@ fn test_page_with_wrong_type() {
     let mut db = Db::open(&path, None, None).unwrap();
     db.get(b"k0000");
 }
+
+// The root page checksum is checked on open.
+#[test]
+#[should_panic(expected = "Root page checksum mismatch")]
+fn test_open_corrupt_root_page() {
+    common::init_logger();
+    let dir = TempDir::new().unwrap();
+    let (path, _) = paths(&dir);
+    create_db(&path, None);
+    // Corrupt bytes after the config fields so only the checksum is wrong.
+    corrupt_block(&path, 0);
+    let _ = Db::open(&path, None, None);
+}
+
+// The root page magic number is checked on open.
+#[test]
+#[should_panic(expected = "Invalid magic number for RootPage")]
+fn test_open_root_page_bad_magic_number() {
+    common::init_logger();
+    let dir = TempDir::new().unwrap();
+    let (path, _) = paths(&dir);
+    create_db(&path, None);
+    // Change the magic number and recompute the checksum.
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&path)
+        .unwrap();
+    let mut page = digby::Page::new(BLOCK_SIZE as usize, BLOCK_SIZE as usize - 4);
+    file.read_exact_at(page.get_pg_ctr_bytes_mut(), 0).unwrap();
+    page.get_pg_ctr_bytes_mut()[16..20].copy_from_slice(&1u32.to_le_bytes());
+    digby::XxHashSanity::set_checksum(&mut page);
+    file.write_all_at(page.get_pg_ctr_bytes(), 0).unwrap();
+    drop(file);
+    let _ = Db::open(&path, None, None);
+}

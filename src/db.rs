@@ -912,6 +912,9 @@ impl Db {
 // Functions to either create or to initialise the database.
 impl Db {
     fn check_db_integrity(&mut self) -> std::io::Result<()> {
+        // The config was read from the root page before its checksum was
+        // checked. Check the root page checksum, page number and magic number.
+        let _root_page = DbRootPage::from_page(self.page_cache.get_root_page());
         // There is no sanity check for sanity type, if the db was created with
         // encryption and then opened without a key then we will not be able to open
         // the root_page as the checksum will not match.
