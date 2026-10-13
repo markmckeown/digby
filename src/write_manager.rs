@@ -115,6 +115,18 @@ mod tests {
     use tempfile::tempfile;
 
     #[test]
+    #[should_panic(expected = "Attempt to read page mirror when there is no mirror")]
+    fn test_read_page_from_mirror_without_mirror() {
+        let primary_file = tempfile().expect("Failed to create temp file");
+        let mut wrt_mgr = WriteManager::new(FileLayer::new(primary_file, BLOCK_SIZE));
+        let page_no = PageNo::new(PageType::Null, 0, 0);
+        wrt_mgr.append_new_page(&Page::new(BLOCK_SIZE, BLOCK_SIZE - 4), &page_no);
+        assert!(!wrt_mgr.has_mirror());
+        let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4);
+        let _ = wrt_mgr.read_page_from_mirror(&mut page, &page_no);
+    }
+
+    #[test]
     fn test_write_manager_write_and_read() {
         let primary_file = tempfile().expect("Failed to create temp file");
         let mirror_file = tempfile().expect("Failed to create temp file");
