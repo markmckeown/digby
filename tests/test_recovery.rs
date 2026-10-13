@@ -1,3 +1,4 @@
+mod common;
 use digby::Db;
 use digby::db_config::DbConfig;
 use digby::file_layer::FileLayer;
@@ -24,6 +25,7 @@ use tempfile::TempDir;
 #[test]
 #[should_panic(expected = "Block sanity failed for block 12, PageNoParityError")]
 fn test_db_lost_write() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();
@@ -82,6 +84,7 @@ fn test_db_lost_write() {
 // the mirror.
 #[test]
 fn test_db_lost_write_with_mirror() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();
@@ -142,6 +145,7 @@ fn test_db_lost_write_with_mirror() {
 #[test]
 #[should_panic(expected = "Mirror page at offset 12, embedded page number does not match.")]
 fn test_db_lost_write_corrupt_mirror() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();
@@ -215,6 +219,7 @@ fn test_db_lost_write_corrupt_mirror() {
 #[test]
 #[should_panic(expected = "Block sanity failed for block 12, PageNoBlockOffsetError")]
 fn test_db_mis_directed_write() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();
@@ -283,6 +288,7 @@ fn test_db_mis_directed_write() {
 // and allow the primary to be repaired.
 #[test]
 fn test_db_mis_directed_write_mirror() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();
@@ -359,6 +365,7 @@ fn test_db_mis_directed_write_mirror() {
 #[test]
 #[should_panic(expected = "Mirror page at offset 12, embedded page number does not match.")]
 fn test_db_mis_directed_write_corrupt_mirror() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();

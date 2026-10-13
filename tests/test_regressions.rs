@@ -1,3 +1,4 @@
+mod common;
 use digby::Db;
 use digby::compressor::CompressorType;
 use digby::db_config::DbConfig;
@@ -157,6 +158,7 @@ fn test_multi_block_pages_large_transaction() {
 // master page should be used instead.
 #[test]
 fn test_open_with_corrupt_master() {
+    common::init_logger();
     use std::os::unix::fs::FileExt;
     let (dir, path, mut db) = create_db(&no_compression());
     db.put(b"a", b"1");
@@ -293,6 +295,7 @@ fn test_open_with_partial_block() {
 // mirror out of date, opening with it must fail rather than panic later.
 #[test]
 fn test_open_with_out_of_date_mirror() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, mirror) = create_mirrored_db(&dir);
     let mut db = Db::open(&path, None, None).unwrap();

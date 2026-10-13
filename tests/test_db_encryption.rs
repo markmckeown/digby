@@ -1,3 +1,4 @@
+mod common;
 use digby::BlockSanity;
 use digby::Db;
 use digby::db_config::DbConfig;
@@ -5,6 +6,7 @@ use tempfile::TempDir;
 
 #[test]
 fn test_db_store_value_with_encryption() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();
@@ -31,6 +33,7 @@ fn test_db_store_value_with_encryption() {
 #[test]
 #[should_panic(expected = "Block sanity failed for block 1")]
 fn test_db_store_value_with_encryption_wrong_key() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();
@@ -57,6 +60,7 @@ fn test_db_store_value_with_encryption_wrong_key() {
 #[test]
 #[should_panic(expected = "Key is incorrect size")]
 fn test_db_store_value_with_encryption_no_key() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();
@@ -80,6 +84,7 @@ fn test_db_store_value_with_encryption_no_key() {
 
 #[test]
 fn test_db_store_large_key_value_compressible_encryption() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();

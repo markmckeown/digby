@@ -1,3 +1,4 @@
+mod common;
 use digby::BlockSanity;
 use digby::Db;
 use digby::db_config::DbConfig;
@@ -9,6 +10,7 @@ use tempfile::TempDir;
 
 #[test]
 fn test_basic_mirror() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();
@@ -36,6 +38,7 @@ fn test_basic_mirror() {
 
 #[test]
 fn test_corrupt_primary() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();
@@ -95,6 +98,7 @@ fn test_corrupt_primary() {
 
 #[test]
 fn test_corrupt_primary_enc() {
+    common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
     let file_path = dir.path().join("db");
     let db_path = file_path.to_str().unwrap();

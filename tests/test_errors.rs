@@ -1,5 +1,6 @@
 // Tests for errors from creating and opening a database, and for handling
 // corrupt pages.
+mod common;
 use digby::block_sanity::BlockSanity;
 use digby::db::DigbyError;
 use digby::db_config::DbConfig;
@@ -60,6 +61,7 @@ fn corrupt_block(path: &str, blk_offset: u64) {
 
 #[test]
 fn test_create_aes_without_key() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, _) = paths(&dir);
     let db_config = DbConfig::builder()
@@ -72,6 +74,7 @@ fn test_create_aes_without_key() {
 
 #[test]
 fn test_create_xxhash32_with_key() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, _) = paths(&dir);
     let db_config = DbConfig::builder()
@@ -83,6 +86,7 @@ fn test_create_xxhash32_with_key() {
 
 #[test]
 fn test_create_xxhash64_with_key() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, _) = paths(&dir);
     let db_config = DbConfig::builder()
@@ -94,6 +98,7 @@ fn test_create_xxhash64_with_key() {
 
 #[test]
 fn test_create_file_exists() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, _) = paths(&dir);
     std::fs::write(&path, b"existing").unwrap();
@@ -105,6 +110,7 @@ fn test_create_file_exists() {
 
 #[test]
 fn test_create_mirror_exists() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, mirror) = paths(&dir);
     std::fs::write(&mirror, b"existing").unwrap();
@@ -117,6 +123,7 @@ fn test_create_mirror_exists() {
 
 #[test]
 fn test_open_missing_file() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, _) = paths(&dir);
     let result = Db::open(&path, None, None);
@@ -125,6 +132,7 @@ fn test_open_missing_file() {
 
 #[test]
 fn test_open_empty_file() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, _) = paths(&dir);
     std::fs::write(&path, b"").unwrap();
@@ -134,6 +142,7 @@ fn test_open_empty_file() {
 
 #[test]
 fn test_open_missing_mirror() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, mirror) = paths(&dir);
     create_db(&path, Some(&mirror));
@@ -144,6 +153,7 @@ fn test_open_missing_mirror() {
 
 #[test]
 fn test_open_empty_mirror() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, mirror) = paths(&dir);
     create_db(&path, Some(&mirror));
@@ -155,6 +165,7 @@ fn test_open_empty_mirror() {
 // The database file is shorter than the committed block count.
 #[test]
 fn test_open_truncated_file() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, _) = paths(&dir);
     create_db(&path, None);
@@ -170,6 +181,7 @@ fn test_open_truncated_file() {
 // has a block count of zero, extra blocks at the end of its file are kept.
 #[test]
 fn test_open_without_committed_block_count() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, _) = paths(&dir);
     create_db(&path, None);
@@ -199,6 +211,7 @@ fn test_open_without_committed_block_count() {
 #[test]
 #[should_panic(expected = "from mirror, ChecksumMisMatch")]
 fn test_page_corrupt_in_primary_and_mirror() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, mirror) = paths(&dir);
     create_db(&path, Some(&mirror));
@@ -220,6 +233,7 @@ fn test_page_corrupt_in_primary_and_mirror() {
 #[test]
 #[should_panic(expected = "PageNoMisMatch")]
 fn test_page_with_wrong_type() {
+    common::init_logger();
     let dir = TempDir::new().unwrap();
     let (path, _) = paths(&dir);
     create_db(&path, None);
