@@ -10,8 +10,10 @@ use sha2::{Digest, Sha256};
 
 pub struct TupleProcessor {}
 
-// If key is over 255 bytes then it is stored as [ first 223 bytes of key | SHA256 of Key],
-// to allow the key length to be stored as u8,
+// If key is 255 bytes or more then it is stored as [ first 223 bytes of key | SHA256 of Key],
+// to allow the key length to be stored as u8. Keys of exactly 255 bytes are
+// included so a user key can never be the same as the stored form of a
+// larger key.
 // The tuple will be stored in an Overflow page with the full key.
 // If keys are larger 255 bytes then lexical sorting will break down - another option
 // would be just to store the SHA256 as the comppressed key.
@@ -99,14 +101,14 @@ impl TupleProcessor {
     }
 
     pub fn is_oversized_key(key: &[u8]) -> bool {
-        if key.len() > u8::MAX as usize {
+        if key.len() >= u8::MAX as usize {
             return true;
         }
         false
     }
 
     pub fn generate_short_key(key: &[u8]) -> Vec<u8> {
-        assert!(key.len() > u8::MAX as usize);
+        assert!(key.len() >= u8::MAX as usize);
         let key_hash = Sha256::digest(key);
         let mut new_key: Vec<u8> = Vec::with_capacity(u8::MAX as usize);
         new_key.extend_from_slice(&key[0..u8::MAX as usize - 32]);
@@ -136,10 +138,10 @@ mod tests {
 
     #[test]
     fn test_tuple_processor_oversized_key() {
-        let small_key = vec![0u8; 255];
+        let small_key = vec![0u8; 254];
         assert!(!TupleProcessor::is_oversized_key(&small_key));
 
-        let large_key = vec![0u8; 256];
+        let large_key = vec![0u8; 255];
         assert!(TupleProcessor::is_oversized_key(&large_key));
     }
 

@@ -24,7 +24,7 @@ use crate::version_holder::VersionHolder;
 // 4. Key and value overflow - store SHA256 of key and page number
 //    of overflow page as value.
 //
-// If the key overflows we store the first 223 bytes of the key followed
+// If the key overflows (255 bytes or more) we store the first 223 bytes of the key followed
 // by the 32 bytes of the SHA256 of the key to allow key length
 // to be stored in u8. This mean lexical sorting works up to 223 bytes.
 //
