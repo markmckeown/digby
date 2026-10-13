@@ -305,7 +305,7 @@ impl Db {
 
     // Delete a key from the DB, returns a bool to indicate if the key was deleted.
     // If false the key did not exist.
-    fn delete_txn(&mut self, key: &[u8], tx_ctx: &mut TxCtx) -> bool {
+    pub fn delete_txn(&mut self, key: &[u8], tx_ctx: &mut TxCtx) -> bool {
         // If the key is very large then a short version with a SHA256
         // hash will to stored as a reference in the DB tree. Need
         // to create a key that will be used for the operations.
