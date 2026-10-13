@@ -229,3 +229,41 @@ fn test_db_create_put_delete_table() {
         assert!(returned_value.is_none());
     }
 }
+
+// Entries written in a transaction are visible to get_table_entry_txn in
+// that transaction, and only visible to get_table_entry after the commit.
+#[test]
+fn test_db_get_table_entry_txn() {
+    let dir = TempDir::new().expect("Failed to create temp dir");
+    let file_path = dir.path().join("db");
+    let db_path = file_path.to_str().unwrap();
+
+    let name = b"the_table".to_vec();
+    let db_config = DbConfig::builder().build();
+    let mut db = Db::create(db_path, None, None, &db_config).unwrap();
+
+    let mut tx_ctx = db.new_transaction();
+    // The table does not exist yet.
+    assert!(db.get_table_entry_txn(&name, b"k1", &tx_ctx).is_none());
+
+    db.create_table_txn(&name, &mut tx_ctx);
+    db.put_table_entry_txn(&name, b"k1", b"v1", &mut tx_ctx);
+    db.put_table_entry_txn(&name, b"k2", &[7u8; 5000], &mut tx_ctx);
+
+    assert_eq!(
+        db.get_table_entry_txn(&name, b"k1", &tx_ctx),
+        Some(b"v1".to_vec())
+    );
+    assert_eq!(
+        db.get_table_entry_txn(&name, b"k2", &tx_ctx),
+        Some(vec![7u8; 5000])
+    );
+    // The key does not exist in the table.
+    assert!(db.get_table_entry_txn(&name, b"k3", &tx_ctx).is_none());
+    // Not visible outside the transaction until it is committed.
+    assert!(db.get_table_entry(&name, b"k1").is_none());
+
+    db.commit(tx_ctx);
+    assert_eq!(db.get_table_entry(&name, b"k1"), Some(b"v1".to_vec()));
+    assert_eq!(db.get_table_entry(&name, b"k2"), Some(vec![7u8; 5000]));
+}

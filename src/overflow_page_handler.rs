@@ -223,10 +223,8 @@ mod tests {
                 0,
             );
             page_cache.put_page(free_dir_page.get_page());
-            master_page.set_free_page_dir_page_no(
-                i as u8,
-                PageNo::new(PageType::FreeDir, 0, offset + i),
-            );
+            master_page
+                .set_free_page_dir_page_no(i as u8, PageNo::new(PageType::FreeDir, 0, offset + i));
         }
 
         let mut free_pg_mgr = FreePageManager::new(&master_page, &mut page_cache, new_version);

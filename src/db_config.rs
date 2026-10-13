@@ -182,6 +182,17 @@ mod tests {
     }
 
     #[test]
+    fn test_builder_default() {
+        assert_eq!(
+            format!("{:?}", DbConfigBuilder::default()),
+            format!("{:?}", DbConfig::builder())
+        );
+        let config = DbConfigBuilder::default().build();
+        assert_eq!(config.block_size, 4096);
+        assert_eq!(config.page_size, 4092);
+    }
+
+    #[test]
     fn test_64k_tree_pages() {
         let config = DbConfig::builder()
             .leaf_pg_blk_cnt_shift(4)
