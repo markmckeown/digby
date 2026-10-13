@@ -165,7 +165,32 @@ impl Db {
         };
 
         db.init_db_file()?;
+
+        // Sync the directories holding the new files, otherwise after a crash
+        // the files may not exist even though their contents were synced.
+        Db::sync_parent_dir(path)?;
+        if let Some(mirror_value) = mirror {
+            Db::sync_parent_dir(mirror_value)?;
+        }
         Ok(db)
+    }
+
+    // Sync the directory containing the file at path so the directory entry
+    // for the file is durable.
+    #[cfg(unix)]
+    fn sync_parent_dir(path: &str) -> std::io::Result<()> {
+        use std::path::Path;
+        let parent = match Path::new(path).parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => parent,
+            _ => Path::new("."),
+        };
+        std::fs::File::open(parent)?.sync_all()
+    }
+
+    // Directories cannot be opened and synced this way on other platforms.
+    #[cfg(not(unix))]
+    fn sync_parent_dir(_path: &str) -> std::io::Result<()> {
+        Ok(())
     }
 
     // Open an existing DB, error if:
@@ -1027,6 +1052,17 @@ impl Drop for Db {
 mod tests {
     use super::*;
     use crate::compressor::CompressorType;
+
+    #[test]
+    fn test_sync_parent_dir() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let path = dir.path().join("db");
+        Db::sync_parent_dir(path.to_str().unwrap()).unwrap();
+        // A path with no directory uses the current directory.
+        Db::sync_parent_dir("db").unwrap();
+        // The parent directory must exist.
+        assert!(Db::sync_parent_dir(dir.path().join("missing/db").to_str().unwrap()).is_err());
+    }
     use rand::{rng, seq::SliceRandom};
     use tempfile::TempDir;
 
