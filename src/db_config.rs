@@ -44,7 +44,7 @@ impl DbConfig {
             }
             i += 1;
         }
-        8
+        panic!("Size is larger than the largest overflow page");
     }
 
     pub const fn get_max_overflow_exp_size(&self) -> u8 {
@@ -179,6 +179,23 @@ mod tests {
         assert!(matches!(config.compressor_type, CompressorType::LZ4));
         assert_eq!(config.leaf_pg_blk_cnt_shift, 1);
         assert_eq!(config.dir_pg_blk_cnt_shift, 2);
+    }
+
+    #[test]
+    fn test_blk_cnt_shift_for_size() {
+        let config = DbConfig::builder().build();
+        assert_eq!(config.get_blk_cnt_shift_for_size(1), 0);
+        assert_eq!(
+            config.get_blk_cnt_shift_for_size(config.get_max_overflow_pg_free_space()),
+            8
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Size is larger than the largest overflow page")]
+    fn test_blk_cnt_shift_for_size_too_large() {
+        let config = DbConfig::builder().build();
+        config.get_blk_cnt_shift_for_size(config.get_max_overflow_pg_free_space() + 1);
     }
 
     #[test]
