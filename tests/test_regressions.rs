@@ -223,3 +223,34 @@ fn test_short_key_does_not_alias_large_key() {
     assert_eq!(db.get(&big), Some(b"big".to_vec()));
     assert_eq!(db.get(&short), Some(b"short".to_vec()));
 }
+
+// As above but with a deeper tree, so directory pages above the leaf
+// parents are also left without separator keys. Long keys keep the
+// directory fan out small so the tree is deep with few keys.
+#[test]
+fn test_insert_through_empty_dir_pages_deep_tree() {
+    let (_dir, _path, mut db) = create_db(&no_compression());
+    let key = |i: u32| format!("k{:06}{}", i, "x".repeat(200)).into_bytes();
+    let n = 600u32;
+    let value = [1u8; 1000];
+    for i in 0..n {
+        db.put(&key(i), &value);
+    }
+    for i in (100..n).rev() {
+        assert!(db.delete(&key(i)));
+    }
+    for i in (100..n).step_by(13) {
+        db.put(&key(i), &[2u8; 1000]);
+    }
+    for i in 0..100u32 {
+        assert_eq!(db.get(&key(i)), Some(value.to_vec()));
+    }
+    for i in 100..n {
+        let expected = if (i - 100) % 13 == 0 {
+            Some(vec![2u8; 1000])
+        } else {
+            None
+        };
+        assert_eq!(db.get(&key(i)), expected, "i {}", i);
+    }
+}

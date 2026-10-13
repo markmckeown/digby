@@ -21,9 +21,10 @@ impl TreeDirHandler {
         let mut tree_dir_pages: Vec<DirPageRef> = Vec::new();
 
         if dir_page.store_child_pages(&entries) {
+            let left_key = TreeDirHandler::locator_key(&dir_page, &entries);
             tree_dir_pages.push(DirPageRef {
                 page: dir_page,
-                left_key: None,
+                left_key,
             });
             return tree_dir_pages;
         }
@@ -48,6 +49,17 @@ impl TreeDirHandler {
         });
 
         tree_dir_pages
+    }
+
+    // The key used to find the page in its parent is normally the first key
+    // in the page. Deletion without rebalancing can leave a dir page with no
+    // keys (only the page to the left), in that case use the key of the child
+    // that was just stored as it is within the page's range.
+    fn locator_key(dir_page: &DirPage, entries: &[TreeDirEntry]) -> Option<Vec<u8>> {
+        if dir_page.get_dir_left_key().is_some() {
+            return None;
+        }
+        Some(entries.first().unwrap().get_key().to_vec())
     }
 
     pub fn map_dir_pages(
@@ -78,9 +90,10 @@ impl TreeDirHandler {
         let mut tree_dir_pages: Vec<DirPageRef> = Vec::new();
 
         if parent_dir_page.store_child_pages(&entries) {
+            let left_key = TreeDirHandler::locator_key(&parent_dir_page, &entries);
             tree_dir_pages.push(DirPageRef {
                 page: parent_dir_page,
-                left_key: None,
+                left_key,
             });
             return tree_dir_pages;
         }
