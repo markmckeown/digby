@@ -66,7 +66,8 @@ impl BaseFreePageTracker {
             // There is another free_dir_page, replace entry in the list with
             // with next free_dir_page and put last into the list
             // of returned pages.
-            self.returned_pages.push(last.get_page_number());
+            let last_page_no = last.get_page_number();
+            self.return_free_page_no(last_page_no);
             self.free_dir_page_list.pop(); // The last page is now out of scope and no longer used.
             self.free_dir_page_list.push(FreeDirPage::from_page(
                 page_cache.get_page(next_free_dir_page_no),
@@ -113,9 +114,10 @@ impl BaseFreePageTracker {
         assert!(self.free_dir_page_list.len() == 1);
 
         let mut next_free_page_no = self.get_free_page(page_cache);
-        let mut last = self.free_dir_page_list.last_mut().unwrap();
         // Get a free_page_no for last to be written to.
-        self.returned_pages.push(last.get_page_number());
+        let last_page_no = self.free_dir_page_list.last().unwrap().get_page_number();
+        self.return_free_page_no(last_page_no);
+        let mut last = self.free_dir_page_list.last_mut().unwrap();
         next_free_page_no.set_type(PageType::FreeDir);
         last.set_page_number(next_free_page_no);
         last.set_version(self.new_version);

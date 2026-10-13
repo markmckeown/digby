@@ -120,8 +120,10 @@ impl FreePageTracker {
         let mut next_free_page_no = base_free_pg_tracker.get_free_page(page_cache);
         next_free_page_no.set_type(PageType::FreeDir);
         let mut last = self.free_dir_page_list.last_mut().unwrap();
-        // Get a free_page_no for last to be written to.
-        self.returned_pages.push(last.get_page_number());
+        // Get a free_page_no for last to be written to. The old location of
+        // last is a single block FreeDir page so it must be returned to the
+        // base tracker, not to this tracker's multi-block free pages.
+        base_free_pg_tracker.return_free_page_no(last.get_page_number());
         last.set_page_number(next_free_page_no);
         last.set_version(self.new_version);
 
@@ -138,7 +140,8 @@ impl FreePageTracker {
         while !self.returned_pages.is_empty() {
             // We create a new free page for the new free_page_dir page we need - we do not want to use a returned page no
             // as that could cause corruption. Returned pages are still in use until the commit is complete.
-            let next_free_page_no = base_free_pg_tracker.get_free_page(page_cache);
+            let mut next_free_page_no = base_free_pg_tracker.get_free_page(page_cache);
+            next_free_page_no.set_type(PageType::FreeDir);
             let mut next_free_dir_page = FreeDirPage::create_new(
                 page_cache.get_db_config(),
                 next_free_page_no,
