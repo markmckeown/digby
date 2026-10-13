@@ -299,7 +299,7 @@ impl Db {
     pub fn delete(&mut self, key: &[u8]) -> bool {
         let mut tx_ctx = self.new_transaction();
         let deleted = self.delete_txn(key, &mut tx_ctx);
-        self.commit(&mut tx_ctx);
+        self.commit(tx_ctx);
         deleted
     }
 
@@ -405,7 +405,7 @@ impl Db {
     pub fn put(&mut self, key: &[u8], value: &[u8]) {
         let mut tx_ctx = self.new_transaction();
         self.put_txn(key, value, &mut tx_ctx);
-        self.commit(&mut tx_ctx);
+        self.commit(tx_ctx);
     }
 
     // Store a key and value in the db.
@@ -444,7 +444,7 @@ impl Db {
     pub fn clear(&mut self) {
         let mut tx_ctx = self.new_transaction();
         self.clear_txn(&mut tx_ctx);
-        self.commit(&mut tx_ctx);
+        self.commit(tx_ctx);
     }
 
     // Remove all entries in the root tree.
@@ -479,7 +479,7 @@ impl Db {
     pub fn create_table(&mut self, name: &[u8]) {
         let mut tx_ctx = self.new_transaction();
         self.create_table_txn(name, &mut tx_ctx);
-        self.commit(&mut tx_ctx);
+        self.commit(tx_ctx);
     }
 
     pub fn create_table_txn(&mut self, name: &[u8], tx_ctx: &mut TxCtx) {
@@ -534,7 +534,21 @@ impl Db {
         );
     }
 
-    pub fn commit(&mut self, tx_ctx: &mut TxCtx) {
+    /// Commit the transaction. Commit takes ownership of the transaction so
+    /// it cannot be used after it has been committed:
+    ///
+    /// ```compile_fail,E0382
+    /// # use digby::Db;
+    /// # use digby::db_config::DbConfig;
+    /// # let dir = tempfile::TempDir::new().unwrap();
+    /// # let path = dir.path().join("db");
+    /// let mut db = Db::create(path.to_str().unwrap(), None, None, &DbConfig::builder().build()).unwrap();
+    /// let mut tx_ctx = db.new_transaction();
+    /// db.put_txn(b"a", b"1", &mut tx_ctx);
+    /// db.commit(tx_ctx);
+    /// db.put_txn(b"b", b"2", &mut tx_ctx);
+    /// ```
+    pub fn commit(&mut self, mut tx_ctx: TxCtx) {
         self.finalise_db_changes(
             &mut tx_ctx.master_page,
             tx_ctx.new_version,
@@ -618,7 +632,7 @@ impl Db {
     pub fn put_table_entry(&mut self, table_name: &[u8], key: &[u8], value: &[u8]) {
         let mut tx_ctx = self.new_transaction();
         self.put_table_entry_txn(table_name, key, value, &mut tx_ctx);
-        self.commit(&mut tx_ctx);
+        self.commit(tx_ctx);
     }
 
     // Put a key value into a table. If the table does not exist then create it.
@@ -709,7 +723,7 @@ impl Db {
     pub fn clear_table_with_delete(&mut self, table_name: &[u8], delete: bool) {
         let mut tx_ctx = self.new_transaction();
         self.clear_table_with_delete_txn(table_name, delete, &mut tx_ctx);
-        self.commit(&mut tx_ctx);
+        self.commit(tx_ctx);
     }
 
     // Clear the contents of a table. If delete is true then the table will be deleted, if false
@@ -820,7 +834,7 @@ impl Db {
     pub fn delete_table_entry(&mut self, table_name: &[u8], key: &[u8]) -> bool {
         let mut tx_ctx = self.new_transaction();
         let deleted = self.delete_table_entry_txn(table_name, key, &mut tx_ctx);
-        self.commit(&mut tx_ctx);
+        self.commit(tx_ctx);
         deleted
     }
 

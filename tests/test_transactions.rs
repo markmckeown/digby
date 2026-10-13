@@ -19,7 +19,7 @@ fn test_basic_transaction() {
         assert!(db.get(key.as_ref()).is_none());
         // Inside the txn scope the key is in the DB.
         assert!(db.get_txn(key.as_ref(), &tx_ctx).is_some());
-        db.commit(&mut tx_ctx);
+        db.commit(tx_ctx);
         // After the txn is committed the key is available.
         assert!(db.get(key.as_ref()).is_some());
     }

@@ -143,7 +143,7 @@ fn test_multi_block_pages_large_transaction() {
                 &mut tx_ctx,
             );
         }
-        db.commit(&mut tx_ctx);
+        db.commit(tx_ctx);
     }
     for i in (0..4000u32).step_by(7) {
         assert_eq!(
