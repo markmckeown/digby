@@ -49,14 +49,14 @@ impl TupleProcessor {
             }
         }
 
-        let overflow_type: Overflow;
-        if TupleProcessor::is_oversized_key(key) && value.len() > TupleProcessor::MAX_VALUE_SIZE {
-            overflow_type = Overflow::KeyValueOverflow;
+        
+        let overflow_type: Overflow = if TupleProcessor::is_oversized_key(key) && value.len() > TupleProcessor::MAX_VALUE_SIZE {
+            Overflow::KeyValueOverflow
         } else if key.len() > u8::MAX as usize {
-            overflow_type = Overflow::KeyOverflow;
+            Overflow::KeyOverflow
         } else {
-            overflow_type = Overflow::ValueOverflow
-        }
+            Overflow::ValueOverflow
+        };
 
         let overflow_tuple: OverflowTuple = if compressor.compressor_type != CompressorType::None {
             let overflow_key = compressor.compress(key);
