@@ -165,6 +165,14 @@ impl PageContainerLayer {
         self.wrt_mgr.get_block_count()
     }
 
+    pub fn get_mirror_block_count(&self) -> Option<u64> {
+        self.wrt_mgr.get_mirror_block_count()
+    }
+
+    pub fn truncate(&mut self, block_count: u64) {
+        self.wrt_mgr.truncate(block_count);
+    }
+
     pub fn write_page(&mut self, page: &mut Page, page_no: PageNo) {
         assert!(
             page_no.get_blk_offset() < self.wrt_mgr.get_block_count(),

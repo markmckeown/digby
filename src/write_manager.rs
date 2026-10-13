@@ -37,6 +37,18 @@ impl WriteManager {
         self.primary.get_block_count()
     }
 
+    pub fn get_mirror_block_count(&self) -> Option<u64> {
+        self.mirror.as_ref().map(|mirror| mirror.get_block_count())
+    }
+
+    // Truncate the primary and the mirror to block_count blocks.
+    pub fn truncate(&mut self, block_count: u64) {
+        if let Some(mirror) = &mut self.mirror {
+            mirror.truncate(block_count);
+        }
+        self.primary.truncate(block_count);
+    }
+
     pub fn append_new_page(&mut self, page: &Page, page_no: &PageNo) {
         if let Some(mirror) = &mut self.mirror {
             mirror.append_new_page(page, page_no);

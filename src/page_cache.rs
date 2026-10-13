@@ -141,6 +141,19 @@ impl PageCache {
         self.pg_ctr_layer.get_total_page_count()
     }
 
+    pub fn get_mirror_block_count(&self) -> Option<u64> {
+        self.pg_ctr_layer.get_mirror_block_count()
+    }
+
+    // Truncate the files, any cached pages after the new end are dropped.
+    pub fn truncate(&mut self, block_count: u64) {
+        self.pg_ctr_layer.truncate(block_count);
+        self.page_map
+            .retain(|page_no, _| page_no.get_blk_offset() < block_count);
+        self.deque
+            .retain(|page_no| page_no.get_blk_offset() < block_count);
+    }
+
     pub fn sync_data(&mut self) {
         self.pg_ctr_layer.sync_data()
     }

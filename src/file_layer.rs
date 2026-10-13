@@ -11,10 +11,9 @@ impl FileLayer {
     pub fn new(file: std::fs::File, block_size: usize) -> Self {
         let metadata = file.metadata().expect("Failed to get metadata for file.");
         let file_size = metadata.len();
-        assert!(
-            file_size.is_multiple_of(block_size as u64),
-            "File size is not a multiple of block size."
-        );
+        // A crash while extending the file can leave a partial block at the
+        // end, it is not referenced by the database so ignore it. Appending
+        // a page will overwrite it.
         let block_count: u64 = file_size / block_size as u64;
         FileLayer {
             file,
@@ -25,6 +24,16 @@ impl FileLayer {
 
     pub fn get_block_count(&self) -> u64 {
         self.block_count
+    }
+
+    // Remove blocks from the end of the file.
+    pub fn truncate(&mut self, block_count: u64) {
+        assert!(block_count <= self.block_count);
+        self.file
+            .set_len(block_count * self.block_size as u64)
+            .expect("Failed to truncate file");
+        self.file.sync_all().expect("Failed to sync");
+        self.block_count = block_count;
     }
 
     pub fn append_new_page(&mut self, page: &Page, page_no: &PageNo) {
@@ -154,12 +163,25 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "File size is not a multiple of block size.")]
     fn test_file_layer_non_block_size_file() {
+        // A partial block at the end of the file is ignored.
         let temp_file = tempfile().expect("Failed to create temp file");
         temp_file
-            .write_all_at(b"Hello, Rust!", 0)
+            .write_all_at(&[1u8; BLOCK_SIZE + 12], 0)
             .expect("Failed to write to temp file");
-        let _file_layer = FileLayer::new(temp_file, BLOCK_SIZE);
+        let file_layer = FileLayer::new(temp_file, BLOCK_SIZE);
+        assert_eq!(file_layer.get_block_count(), 1);
+    }
+
+    #[test]
+    fn test_file_layer_truncate() {
+        let temp_file = tempfile().expect("Failed to create temp file");
+        temp_file
+            .write_all_at(&[1u8; 3 * BLOCK_SIZE], 0)
+            .expect("Failed to write to temp file");
+        let mut file_layer = FileLayer::new(temp_file, BLOCK_SIZE);
+        file_layer.truncate(1);
+        assert_eq!(file_layer.get_block_count(), 1);
+        assert_eq!(file_layer.file.metadata().unwrap().len(), BLOCK_SIZE as u64);
     }
 }

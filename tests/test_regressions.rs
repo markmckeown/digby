@@ -230,3 +230,82 @@ fn test_insert_through_empty_dir_pages_deep_tree() {
         assert_eq!(db.get(&key(i)), expected, "i {}", i);
     }
 }
+
+fn append_bytes(path: &str, len: usize) {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new().append(true).open(path).unwrap();
+    file.write_all(&vec![0x5Au8; len]).unwrap();
+}
+
+fn create_mirrored_db(dir: &TempDir) -> (String, String) {
+    let path = dir.path().join("db").to_str().unwrap().to_string();
+    let mirror = dir.path().join("mirror").to_str().unwrap().to_string();
+    let mut db = Db::create(&path, Some(&mirror), None, &no_compression()).unwrap();
+    db.put(b"a", b"1");
+    (path, mirror)
+}
+
+// A crash while extending the files can leave uncommitted blocks at the end
+// of the primary and mirror, with different lengths and a partial block.
+// Growing the files afterwards panicked as the lengths did not match.
+#[test]
+fn test_open_after_crash_extending_files() {
+    let dir = TempDir::new().unwrap();
+    let (path, mirror) = create_mirrored_db(&dir);
+    append_bytes(&mirror, 3 * 4096);
+    append_bytes(&path, 4096 + 100);
+
+    let mut db = Db::open(&path, Some(&mirror), None).unwrap();
+    for i in 0..200u32 {
+        db.put(format!("k{:04}", i).as_bytes(), &[1u8; 1000]);
+    }
+    drop(db);
+
+    assert_eq!(
+        std::fs::metadata(&path).unwrap().len(),
+        std::fs::metadata(&mirror).unwrap().len()
+    );
+    let mut db = Db::open(&path, Some(&mirror), None).unwrap();
+    assert_eq!(db.get(b"a"), Some(b"1".to_vec()));
+    for i in 0..200u32 {
+        assert_eq!(
+            db.get(format!("k{:04}", i).as_bytes()),
+            Some(vec![1u8; 1000])
+        );
+    }
+}
+
+// A partial block at the end of a database without a mirror.
+#[test]
+fn test_open_with_partial_block() {
+    let (_dir, path, mut db) = create_db(&no_compression());
+    db.put(b"a", b"1");
+    drop(db);
+    append_bytes(&path, 100);
+
+    let mut db = Db::open(&path, None, None).unwrap();
+    for i in 0..200u32 {
+        db.put(format!("k{:04}", i).as_bytes(), &[1u8; 1000]);
+    }
+    assert_eq!(db.get(b"a"), Some(b"1".to_vec()));
+    assert_eq!(db.get(b"k0199"), Some(vec![1u8; 1000]));
+}
+
+// Opening a mirrored database without its mirror and committing leaves the
+// mirror out of date, opening with it must fail rather than panic later.
+#[test]
+fn test_open_with_out_of_date_mirror() {
+    let dir = TempDir::new().unwrap();
+    let (path, mirror) = create_mirrored_db(&dir);
+    let mut db = Db::open(&path, None, None).unwrap();
+    for i in 0..200u32 {
+        db.put(format!("k{:04}", i).as_bytes(), &[1u8; 1000]);
+    }
+    drop(db);
+
+    match Db::open(&path, Some(&mirror), None) {
+        Err(digby::db::DigbyError::MirrorOutOfDate(_)) => (),
+        Err(e) => panic!("unexpected error {:?}", e),
+        Ok(_) => panic!("open should fail with an out of date mirror"),
+    }
+}

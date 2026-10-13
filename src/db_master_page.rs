@@ -103,6 +103,25 @@ impl DbMasterPage {
         self.set_pg_no_offset(DbMasterPage::TABLE_DIR_PAGE, page_no);
     }
 
+    // The number of blocks in the file when the master page was committed,
+    // blocks after this are not referenced by the database. Zero for
+    // databases created before the block count was stored.
+    const BLK_COUNT_OFFSET: usize = 104;
+    pub fn get_blk_count(&self) -> u64 {
+        let offset = DbMasterPage::BLK_COUNT_OFFSET;
+        u64::from_le_bytes(
+            self.page.get_page_bytes()[offset..offset + 8]
+                .try_into()
+                .unwrap(),
+        )
+    }
+
+    pub fn set_blk_count(&mut self, blk_count: u64) {
+        let offset = DbMasterPage::BLK_COUNT_OFFSET;
+        self.page.get_page_bytes_mut()[offset..offset + 8]
+            .copy_from_slice(&blk_count.to_le_bytes());
+    }
+
     fn set_pg_no_offset(&mut self, offset: usize, value: PageNo) {
         self.page.get_page_bytes_mut()[offset..offset + 8].copy_from_slice(&value.get_bytes());
     }

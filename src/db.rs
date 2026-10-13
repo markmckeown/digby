@@ -37,6 +37,12 @@ pub enum DigbyError {
 
     #[error("Provided configuration is inconsistent.")]
     ConfigurationError,
+
+    #[error("Database file '{0}' is shorter than the committed database, it is corrupt.")]
+    DbFileTruncated(String),
+
+    #[error("Mirror file '{0}' is shorter than the database, it is out of date.")]
+    MirrorOutOfDate(String),
 }
 
 // Layers in the Db are:
@@ -253,7 +259,41 @@ impl Db {
         };
 
         db.check_db_integrity()?;
+        db.remove_uncommitted_blocks(path, mirror)?;
         Ok(db)
+    }
+
+    // A crash during a transaction can leave blocks at the end of the database
+    // and mirror files that are not referenced by the committed master page,
+    // and the files can have different lengths if the crash happened between
+    // extending the mirror and extending the primary. Truncate both files to
+    // the committed block count so they match.
+    fn remove_uncommitted_blocks(
+        &mut self,
+        path: &str,
+        mirror: Option<&str>,
+    ) -> Result<(), DigbyError> {
+        let committed_blk_count = self.get_master_page().get_blk_count();
+        if committed_blk_count == 0 {
+            // Created before the block count was stored, set by the next commit.
+            return Ok(());
+        }
+        if self.page_cache.get_total_page_count() < committed_blk_count {
+            error!(
+                "Database file '{}' is shorter than the committed database.",
+                path
+            );
+            return Err(DigbyError::DbFileTruncated(path.to_string()));
+        }
+        if let Some(mirror_blk_count) = self.page_cache.get_mirror_block_count()
+            && mirror_blk_count < committed_blk_count
+        {
+            let mirror_path = mirror.unwrap();
+            error!("Mirror file '{}' is out of date.", mirror_path);
+            return Err(DigbyError::MirrorOutOfDate(mirror_path.to_string()));
+        }
+        self.page_cache.truncate(committed_blk_count);
+        Ok(())
     }
 
     pub fn delete(&mut self, key: &[u8]) -> bool {
@@ -535,6 +575,8 @@ impl Db {
         master_page.set_global_tree_root_page_no(new_root_page_no);
         master_page.set_table_dir_page_no(new_table_tree_root_no);
         master_page.set_version(new_version);
+        // All pages for the commit have been allocated, record the size of the file.
+        master_page.set_blk_count(self.page_cache.get_total_page_count());
 
         // Flip the page number to overrwrite the non-current master
         // page and make it the new current master.
@@ -936,7 +978,7 @@ impl Db {
             LeafPage::create_new(self.page_cache.get_db_config(), table_dir_page_no, 0);
         self.page_cache.put_page(table_dir_page.get_page());
 
-        // Write first master page at page number 1.
+        // Create the first master page at page number 1.
         let mut master_page1: DbMasterPage = DbMasterPage::create_new(
             self.page_cache.get_db_config(),
             PageNo::new(PageType::DbMaster, 0, 1),
@@ -948,9 +990,8 @@ impl Db {
         Self::update_master_free_pg_dirs(&mut master_page1, 3);
         master_page1.set_table_dir_page_no(table_dir_page_no);
         master_page1.set_global_tree_root_page_no(global_tree_root_page_no);
-        self.page_cache.put_page(master_page1.get_page());
 
-        // Write second master page at page number 2, the version
+        // Create the second master page at page number 2, the version
         // is 1 - this makes master_page 2 the current master page.
         let mut master_page2: DbMasterPage = DbMasterPage::create_new(
             self.page_cache.get_db_config(),
@@ -960,6 +1001,11 @@ impl Db {
         Self::update_master_free_pg_dirs(&mut master_page2, 3);
         master_page2.set_table_dir_page_no(table_dir_page_no);
         master_page2.set_global_tree_root_page_no(global_tree_root_page_no);
+        // All pages have been allocated, record the size of the file.
+        let blk_count = self.page_cache.get_total_page_count();
+        master_page1.set_blk_count(blk_count);
+        master_page2.set_blk_count(blk_count);
+        self.page_cache.put_page(master_page1.get_page());
         self.page_cache.put_page(master_page2.get_page());
 
         // Flush all pages so far, don't sync the db metadata page yet.
