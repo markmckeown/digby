@@ -8,7 +8,7 @@ Digby is an embedded key-value store written in Rust. It was built as a project 
 *   **B+ Tree Core**: Uses a B+ tree for storing key-value pairs.
 *   **Global & Table-based Stores**: Supports a root global B+ tree as well as independent B+ trees (tables), all stored in a single file.
 *   **Large Item Support**: Capable of storing large keys and values (up to 64-bit sizes).
-    *   Large items are stored using overflow pages and can optionally be compressed with LZ4 (conceptually similar to TOAST in PostgreSQL).
+    *   Large items are stored using overflow pages and can optionally be compressed with LZ4 (conceptually similar to TOAST in PostgreSQL). LZ4 can only compress values less than 4GB, value greater than 4GB would need to be stored uncompressed.
     *   Large keys (255 bytes or more) are indexed using a combination of their prefix (first 223 bytes) and a SHA-256 hash (32 bytes), allowing lexical sorting up to 223 bytes.
     *   Overflow pages can be up to 1MB in size and chain together to support larger objects, optimized to minimize page reads rather than pack data.
 *   **Configurable Block & Page Sizes**:
