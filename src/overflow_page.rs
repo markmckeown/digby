@@ -85,10 +85,6 @@ impl OverflowPage {
             .expect("Failed to write used size");
     }
 
-    pub fn get_free_space(&self) -> usize {
-        self.get_pg_size() - (self.get_used_size() as usize + OverflowPage::HEADER_SIZE)
-    }
-
     pub fn add_bytes(&mut self, bytes: &[u8], size: usize) {
         self.get_page().get_page_bytes_mut()
             [OverflowPage::HEADER_SIZE..OverflowPage::HEADER_SIZE + size]

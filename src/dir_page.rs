@@ -1082,16 +1082,8 @@ impl DirPage {
             return;
         }
 
-        // Now check if its the first entry we need to remove
         let prefix_length = self.get_prefix_length() as usize;
         let key_suffix = &key[prefix_length..];
-        let slot = self.get_slot_at_index(0);
-        let first_key = self.get_key_at_slot(&slot);
-        if key_suffix < first_key {
-            assert_eq!(page_no, self.get_page_no_at_index(0));
-            self.remove_key_value_at_index(0);
-            return;
-        }
 
         // Now get the index for the key and remove the entry.
         let (found, index) = self.get_index_for_key(key_suffix);
