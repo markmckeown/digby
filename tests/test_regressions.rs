@@ -400,3 +400,24 @@ fn test_compressed_value_in_leaf() {
     assert!(db.delete(b"a"));
     assert_eq!(db.get(b"a"), None);
 }
+
+// 64K leaf and directory pages, the largest allowed, work through splits.
+#[test]
+fn test_64k_tree_pages() {
+    let db_config = DbConfig::builder()
+        .compressor_type(CompressorType::None)
+        .leaf_pg_blk_cnt_shift(4)
+        .dir_pg_blk_cnt_shift(4)
+        .build();
+    let (_dir, path, mut db) = create_db(&db_config);
+    let mut tx_ctx = db.new_transaction();
+    for i in 0..3000u32 {
+        db.put_txn(format!("key{:08}", i).as_bytes(), &[3u8; 1000], &mut tx_ctx);
+    }
+    db.commit(tx_ctx);
+    drop(db);
+    let mut db = Db::open(&path, None, None).unwrap();
+    for i in (0..3000u32).step_by(7) {
+        assert_eq!(db.get(format!("key{:08}", i).as_bytes()), Some(vec![3u8; 1000]));
+    }
+}

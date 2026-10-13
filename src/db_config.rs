@@ -16,6 +16,9 @@ pub struct DbConfig {
 
 impl DbConfig {
     pub const MAX_BLK_SHIFT: u8 = 8;
+    // Leaf and directory pages store offsets and free space as u16, so
+    // their page containers cannot be larger than 64K.
+    pub const MAX_TREE_PAGE_SIZE: usize = 64 * 1024;
 
     pub const fn builder() -> DbConfigBuilder {
         DbConfigBuilder::new()
@@ -114,6 +117,16 @@ impl DbConfigBuilder {
     }
 
     pub const fn build(mut self) -> DbConfig {
+        assert!(
+            self.leaf_pg_blk_cnt_shift <= DbConfig::MAX_BLK_SHIFT
+                && (self.block_size << self.leaf_pg_blk_cnt_shift) <= DbConfig::MAX_TREE_PAGE_SIZE,
+            "Leaf pages cannot be larger than 64K."
+        );
+        assert!(
+            self.dir_pg_blk_cnt_shift <= DbConfig::MAX_BLK_SHIFT
+                && (self.block_size << self.dir_pg_blk_cnt_shift) <= DbConfig::MAX_TREE_PAGE_SIZE,
+            "Directory pages cannot be larger than 64K."
+        );
         self.overflow_pg_free_space[0] =
             self.block_size - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
         self.overflow_pg_free_space[1] =
@@ -166,6 +179,33 @@ mod tests {
         assert!(matches!(config.compressor_type, CompressorType::LZ4));
         assert_eq!(config.leaf_pg_blk_cnt_shift, 1);
         assert_eq!(config.dir_pg_blk_cnt_shift, 2);
+    }
+
+    #[test]
+    fn test_64k_tree_pages() {
+        let config = DbConfig::builder()
+            .leaf_pg_blk_cnt_shift(4)
+            .dir_pg_blk_cnt_shift(4)
+            .build();
+        assert_eq!(config.block_size << config.leaf_pg_blk_cnt_shift, 64 * 1024);
+    }
+
+    #[test]
+    #[should_panic(expected = "Leaf pages cannot be larger than 64K.")]
+    fn test_leaf_page_over_64k() {
+        DbConfig::builder().leaf_pg_blk_cnt_shift(5).build();
+    }
+
+    #[test]
+    #[should_panic(expected = "Directory pages cannot be larger than 64K.")]
+    fn test_dir_page_over_64k() {
+        DbConfig::builder().dir_pg_blk_cnt_shift(5).build();
+    }
+
+    #[test]
+    #[should_panic(expected = "Leaf pages cannot be larger than 64K.")]
+    fn test_block_size_over_64k() {
+        DbConfig::builder().block_size(128 * 1024).build();
     }
 
     #[test]
