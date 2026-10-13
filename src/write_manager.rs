@@ -74,6 +74,10 @@ impl WriteManager {
         self.primary.write_page_to_disk(page, page_no)
     }
 
+    pub fn sync_primary_data(&mut self) {
+        self.primary.sync_data()
+    }
+
     pub fn sync_all(&mut self) {
         if let Some(mirror) = &mut self.mirror {
             mirror.sync_all()

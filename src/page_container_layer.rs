@@ -303,6 +303,10 @@ impl PageContainerLayer {
         self.wrt_mgr
             .write_page_to_primary(&page_copy, &page_no)
             .expect("Failed to repair primary page");
+        // Sync the repair, otherwise a crash could lose it and the page would
+        // need to be repaired again, which fails if the mirror copy has since
+        // been corrupted.
+        self.wrt_mgr.sync_primary_data();
         Ok(())
     }
 
