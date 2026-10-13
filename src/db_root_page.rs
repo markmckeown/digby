@@ -299,6 +299,14 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Invalid page type for RootPage")]
+    fn test_from_page_invalid_type() {
+        let mut page = Page::new(4096, 4092);
+        page.set_page_number(PageNo::new(PageType::LeafPage, 0, 0));
+        let _ = DbRootPage::from_page(page);
+    }
+
+    #[test]
     #[should_panic(expected = "Invalid page number for RootPage")]
     fn test_from_page_invalid_page_number() {
         let mut page = Page::new(4096, 4092);

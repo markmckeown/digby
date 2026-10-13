@@ -76,6 +76,18 @@ mod tests {
     }
 
     #[test]
+    fn test_from_page() {
+        let db_config = DbConfig::builder().build();
+        let mut page = Page::create_new(&db_config, 1);
+        page.set_page_number(PageNo::new(PageType::Free, 0, 42));
+        let free_page = FreePage::from_page(page);
+        assert_eq!(
+            free_page.get_page_number(),
+            PageNo::new(PageType::Free, 0, 42)
+        );
+    }
+
+    #[test]
     #[should_panic(expected = "Invalid page type for FreePage")]
     fn test_from_page_invalid() {
         let page = Page::new(4096, 4092);

@@ -418,6 +418,9 @@ fn test_64k_tree_pages() {
     drop(db);
     let mut db = Db::open(&path, None, None).unwrap();
     for i in (0..3000u32).step_by(7) {
-        assert_eq!(db.get(format!("key{:08}", i).as_bytes()), Some(vec![3u8; 1000]));
+        assert_eq!(
+            db.get(format!("key{:08}", i).as_bytes()),
+            Some(vec![3u8; 1000])
+        );
     }
 }

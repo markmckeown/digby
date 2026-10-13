@@ -182,6 +182,14 @@ mod tests {
         .build();
 
     #[test]
+    #[should_panic(expected = "Invalid page type for FreePageDir")]
+    fn test_from_page_invalid_type() {
+        let mut page = Page::create_new(&DB_CONFIG, 1);
+        page.set_page_number(PageNo::new(PageType::LeafPage, 0, 34));
+        let _ = FreeDirPage::from_page(page);
+    }
+
+    #[test]
     fn test_adding_entries() {
         let mut free_page_dir = FreeDirPage::create_new(
             &DB_CONFIG,
