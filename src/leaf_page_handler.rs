@@ -51,6 +51,10 @@ impl LeafPageHandler {
         // LeafPageHandler::add_to_leaf_page to be called recursively if
         // pages need to be split.
         let deleted_tuple = LeafPageHandler::add_to_leaf_page(db_config, tuple, &mut pages);
+        // A second split pushes pages out of key order, callers expect the
+        // original page (left key None) first followed by the new pages in
+        // key order. None sorts before Some.
+        pages.sort_by(|(_, a), (_, b)| a.cmp(b));
         UpdateResult {
             tree_leaf_pages: pages,
             deleted_tuple,
@@ -112,6 +116,24 @@ impl LeafPageHandler {
         if right_page.is_empty() {
             let (ok, _) = right_page.add_tuple(&tuple);
             assert!(ok);
+            // If the tuple is to the left of the existing entry then swap the
+            // page contents, but keep the page numbers so the original page
+            // number is still returned to the free page manager.
+            // TODO - the memory swap seems excessive, another approach
+            // would be to delete the single entry from the left page, add
+            // the new entry to the left page and add the old entry to the 
+            // right page. 
+            // AI detected issue, but can this happen in a b-tree?
+            let existing_key = left_page.get_left_key().unwrap().to_vec();
+            if tuple.get_key() < existing_key.as_slice() {
+                std::mem::swap(&mut left_page, &mut right_page);
+                let left_page_no = right_page.get_page_number();
+                right_page.set_page_number(left_page.get_page_number());
+                left_page.set_page_number(left_page_no);
+                leaf_page_stack.push((left_page, copy_page_left_key));
+                leaf_page_stack.push((right_page, Some(existing_key)));
+                return existing_tuple;
+            }
             // Push the two pages back on the stack to be written back.
             leaf_page_stack.push((left_page, copy_page_left_key));
             leaf_page_stack.push((right_page, Some(tuple.get_key().to_vec())));
