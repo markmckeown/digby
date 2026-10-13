@@ -72,10 +72,7 @@ fn test_corrupt_primary() {
         let result = std::panic::catch_unwind(|| {
             Db::open(db_path, None, None).unwrap();
         });
-        match result {
-            Ok(_) => panic!("Db should throw as corrupt"),
-            Err(_) => (),
-        }
+        assert!(result.is_err(), "Db should throw as corrupt");
     }
     {
         // Can get the value if the mirror is available.
@@ -141,10 +138,7 @@ fn test_corrupt_primary_enc() {
         let result = std::panic::catch_unwind(|| {
             Db::open(db_path, None, Some(enc_key.to_vec())).unwrap();
         });
-        match result {
-            Ok(_) => panic!("Db should throw as corrupt"),
-            Err(_) => (),
-        }
+        assert!(result.is_err(), "Db should throw as corrupt");
     }
     {
         // Can get the value if the mirror is available.

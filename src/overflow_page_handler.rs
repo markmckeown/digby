@@ -225,7 +225,7 @@ mod tests {
             page_cache.put_page(free_dir_page.get_page());
             master_page.set_free_page_dir_page_no(
                 i as u8,
-                PageNo::new(PageType::FreeDir, 0, offset + i as u64),
+                PageNo::new(PageType::FreeDir, 0, offset + i),
             );
         }
 
