@@ -167,4 +167,15 @@ mod tests {
         assert_eq!(config.leaf_pg_blk_cnt_shift, 1);
         assert_eq!(config.dir_pg_blk_cnt_shift, 2);
     }
+
+    #[test]
+    fn test_max_overflow_page() {
+        // 4K blocks, the largest overflow page is 1M.
+        let config = DbConfig::builder().build();
+        assert_eq!(config.get_max_overflow_exp_size(), 8);
+        assert_eq!(
+            config.get_max_overflow_pg_free_space(),
+            (1 << 20) - (OverflowPage::HEADER_SIZE + config.block_sanity_size)
+        );
+    }
 }

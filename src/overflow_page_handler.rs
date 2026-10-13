@@ -72,6 +72,7 @@ impl OverflowPageHandler {
                 page_cache,
                 page_cache.get_db_config().get_max_overflow_exp_size(),
             );
+            next_page.set_type(PageType::Overflow);
             let mut page = OverflowPage::create_new(page_cache.get_db_config(), next_page, version);
             page.set_next_page(previous);
 
@@ -166,6 +167,62 @@ mod tests {
         .block_sanity_size(4)
         .compressor_type(crate::compressor::CompressorType::None)
         .build();
+
+    // Set up a page cache and free page manager for overflow tests.
+    fn setup(temp_file: &tempfile::NamedTempFile) -> (PageCache, FreePageManager, DbMasterPage) {
+        let db_file = std::fs::OpenOptions::new()
+            .write(true)
+            .read(true)
+            .open(temp_file)
+            .expect("Failed to open DB file");
+        let file_layer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
+        let block_layer = crate::PageContainerLayer::new(file_layer, None, DB_CONFIG);
+        let mut page_cache = crate::PageCache::new(block_layer);
+        let _ = page_cache.generate_free_pages(11, 0);
+        let mut master_page =
+            DbMasterPage::create_new(&DB_CONFIG, PageNo::new(PageType::DbMaster, 0, 1), 89);
+        for i in 0..9u64 {
+            let mut free_dir_page = crate::FreeDirPage::create_new(
+                page_cache.get_db_config(),
+                PageNo::new(PageType::FreeDir, 0, 2 + i),
+                0,
+            );
+            page_cache.put_page(free_dir_page.get_page());
+            master_page
+                .set_free_page_dir_page_no(i as u8, PageNo::new(PageType::FreeDir, 0, 2 + i));
+        }
+        let free_pg_mgr = FreePageManager::new(&master_page, &mut page_cache, 90);
+        (page_cache, free_pg_mgr, master_page)
+    }
+
+    fn store_and_reload(value_size: usize) {
+        let temp_file = tempfile::NamedTempFile::new().expect("Failed to create temp file");
+        let (mut page_cache, mut free_pg_mgr, _master_page) = setup(&temp_file);
+        let key: Vec<u8> = vec![111u8; 300];
+        let value: Vec<u8> = (0..value_size).map(|i| (i % 251) as u8).collect();
+        let tuple = OverflowTuple::new(&key, &value, 90, Overflow::KeyValueOverflow);
+        let page_no = OverflowPageHandler::store_overflow_tuple2(
+            tuple,
+            &mut page_cache,
+            &mut free_pg_mgr,
+            90,
+        );
+        let reloaded_tuple = OverflowPageHandler::get_overflow_tuple(page_no, &mut page_cache);
+        assert_eq!(reloaded_tuple.get_key(), key);
+        assert_eq!(reloaded_tuple.get_value(), value);
+    }
+
+    // Uses a single page larger than 64K.
+    #[test]
+    fn store_overflow_tuple2_100k() {
+        store_and_reload(100_000);
+    }
+
+    // Uses a chain of maximum size pages.
+    #[test]
+    fn store_overflow_tuple2_3m() {
+        store_and_reload(3_000_000);
+    }
 
     #[test]
     fn store_overflow_tuple() {

@@ -5,8 +5,8 @@ use crate::page::PageType;
 use crate::page_no::PageNo;
 use byteorder::WriteBytesExt;
 
-// From Page Header - size 26
-// | Page No (8bytes) | VersionHolder (8 bytes) | Next Overflow Page (8 bytes) | SizeUsed (u16) |
+// From Page Header - size 28
+// | Page No (8bytes) | VersionHolder (8 bytes) | Next Overflow Page (8 bytes) | SizeUsed (u32) |
 //
 // |  OverflowTuple.... |
 //
@@ -43,7 +43,7 @@ impl PageTrait for OverflowPage {
 }
 
 impl OverflowPage {
-    pub const HEADER_SIZE: usize = 26;
+    pub const HEADER_SIZE: usize = 28;
 
     pub fn create_new(page_config: &DbConfig, pg_no: PageNo, version: u64) -> Self {
         assert!(pg_no.get_pg_type() == PageType::Overflow);
@@ -71,17 +71,17 @@ impl OverflowPage {
         self.page.get_page_bytes_mut()[16..16 + 8].copy_from_slice(&page_number.get_bytes());
     }
 
-    pub fn get_used_size(&self) -> u16 {
-        let slice = &self.page.get_page_bytes()[24..26];
-        let bytes: [u8; 2] = slice.try_into().unwrap();
-        u16::from_le_bytes(bytes)
+    pub fn get_used_size(&self) -> u32 {
+        let slice = &self.page.get_page_bytes()[24..28];
+        let bytes: [u8; 4] = slice.try_into().unwrap();
+        u32::from_le_bytes(bytes)
     }
 
-    pub fn set_used_size(&mut self, used_size: u16) {
+    pub fn set_used_size(&mut self, used_size: u32) {
         let mut cursor = std::io::Cursor::new(&mut self.page.get_page_bytes_mut()[..]);
         cursor.set_position(24);
         cursor
-            .write_u16::<byteorder::LittleEndian>(used_size)
+            .write_u32::<byteorder::LittleEndian>(used_size)
             .expect("Failed to write used size");
     }
 
@@ -93,7 +93,7 @@ impl OverflowPage {
         self.get_page().get_page_bytes_mut()
             [OverflowPage::HEADER_SIZE..OverflowPage::HEADER_SIZE + size]
             .copy_from_slice(bytes);
-        self.set_used_size(size as u16);
+        self.set_used_size(u32::try_from(size).expect("Overflow page used size must fit in a u32"));
     }
 
     pub fn get_tuple_bytes(&self) -> Vec<u8> {
