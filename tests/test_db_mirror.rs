@@ -52,13 +52,16 @@ fn test_corrupt_primary() {
         assert!(returned_value == value);
     }
     {
-        // Seek into the master page on the primary and corrupt it.
+        // Seek into both master pages on the primary and corrupt them, if only
+        // one is corrupt the other master page is used.
         let mut file = OpenOptions::new()
             .write(true)
             .open(db_path)
             .expect("File open failed.");
         file.seek(SeekFrom::Start(5000)).expect("File seek failed.");
         let my_byte: u8 = 42;
+        file.write_all(&[my_byte]).expect("File write failed.");
+        file.seek(SeekFrom::Start(9096)).expect("File seek failed.");
         file.write_all(&[my_byte]).expect("File write failed.");
     }
     {
@@ -117,13 +120,16 @@ fn test_corrupt_primary_enc() {
         assert!(returned_value == value);
     }
     {
-        // Seek into the master page on the primary and corrupt it.
+        // Seek into both master pages on the primary and corrupt them, if only
+        // one is corrupt the other master page is used.
         let mut file = OpenOptions::new()
             .write(true)
             .open(db_path)
             .expect("File open failed.");
         file.seek(SeekFrom::Start(5000)).expect("File seek failed.");
         let my_byte: u8 = 42;
+        file.write_all(&[my_byte]).expect("File write failed.");
+        file.seek(SeekFrom::Start(9096)).expect("File seek failed.");
         file.write_all(&[my_byte]).expect("File write failed.");
     }
     {

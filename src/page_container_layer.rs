@@ -10,6 +10,36 @@ use crate::page_no::PageNo;
 use crate::write_manager::WriteManager;
 use log::error;
 
+// Why a page could not be read.
+#[derive(Debug)]
+pub enum ReadPageError {
+    // The page failed its sanity check and there is no mirror.
+    Corrupt(BlockSanityError),
+    // The page and its copy in the mirror failed their sanity checks.
+    MirrorCorrupt(BlockSanityError),
+    // The page in the mirror has the wrong page number.
+    MirrorPageNoMisMatch,
+}
+
+impl ReadPageError {
+    fn message(&self, page_no: PageNo) -> String {
+        let blk_offset = page_no.get_blk_offset();
+        match self {
+            ReadPageError::Corrupt(e) => {
+                format!("Block sanity failed for block {}, {:?}", blk_offset, e)
+            }
+            ReadPageError::MirrorCorrupt(e) => format!(
+                "Block sanity failed for block {} from mirror, {:?}",
+                blk_offset, e
+            ),
+            ReadPageError::MirrorPageNoMisMatch => format!(
+                "Mirror page at offset {}, embedded page number does not match.",
+                blk_offset
+            ),
+        }
+    }
+}
+
 // The DB is divided into pages, for example leaf
 // pages (which hold key/values) or directory pages
 // (which hold pointer to other pages). Each page
@@ -101,13 +131,22 @@ impl PageContainerLayer {
     }
 
     pub fn read_page(&mut self, page_no: PageNo) -> Page {
+        match self.try_read_page(page_no) {
+            Ok(page) => page,
+            Err(e) => panic!("{}", e.message(page_no)),
+        }
+    }
+
+    // Read a page, if the page fails its sanity check and cannot be repaired
+    // from the mirror then return the error rather than panicking.
+    pub fn try_read_page(&mut self, page_no: PageNo) -> Result<Page, ReadPageError> {
         let mut page = Page::create_new(&self.db_config, page_no.get_blk_cnt());
         self.wrt_mgr
             .read_page_from_disk(&mut page, &page_no)
             .expect("Failed to read page");
-        self.check_sanity(&mut page, page_no);
+        self.check_sanity(&mut page, page_no)?;
         assert_eq!(page_no, page.get_page_number());
-        page
+        Ok(page)
     }
 
     pub fn read_root_page(&mut self) -> Page {
@@ -183,15 +222,14 @@ impl PageContainerLayer {
         self.block_sanity.set_block_sanity(page, &self.key);
     }
 
-    fn check_sanity(&mut self, page: &mut Page, page_no: PageNo) {
+    fn check_sanity(&mut self, page: &mut Page, page_no: PageNo) -> Result<(), ReadPageError> {
         if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
             error!(
                 "Page sanity check failed {}, {:?}",
                 page_no.get_blk_offset(),
                 e
             );
-            self.repair_page(page, page_no, e);
-            return;
+            return self.repair_page(page, page_no, e);
         }
 
         let page_no_from_page = page.get_page_number();
@@ -213,17 +251,19 @@ impl PageContainerLayer {
                 );
                 err = BlockSanityError::PageNoParityError;
             }
-            self.repair_page(page, page_no, err);
+            return self.repair_page(page, page_no, err);
         }
+        Ok(())
     }
 
-    fn repair_page(&mut self, page: &mut Page, page_no: PageNo, err: BlockSanityError) {
+    fn repair_page(
+        &mut self,
+        page: &mut Page,
+        page_no: PageNo,
+        err: BlockSanityError,
+    ) -> Result<(), ReadPageError> {
         if !self.wrt_mgr.has_mirror() {
-            panic!(
-                "Block sanity failed for block {}, {:?}",
-                page_no.get_blk_offset(),
-                err
-            );
+            return Err(ReadPageError::Corrupt(err));
         }
         // Write manager has a mirror, get page from mirror
         self.wrt_mgr
@@ -231,11 +271,7 @@ impl PageContainerLayer {
             .expect("Failed to read page from mirror");
         // Is the page from the mirror sane?
         if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
-            panic!(
-                "Block sanity failed for block {} from mirror, {:?}",
-                page_no.get_blk_offset(),
-                e
-            );
+            return Err(ReadPageError::MirrorCorrupt(e));
         }
         let page_no_from_page = page.get_page_number();
         if page_no.to_u64() != page_no_from_page.to_u64() {
@@ -254,10 +290,7 @@ impl PageContainerLayer {
                     page_no_from_page.get_pg_parity()
                 );
             }
-            panic!(
-                "Mirror page at offset {}, embedded page number does not match.",
-                page_no.get_blk_offset()
-            );
+            return Err(ReadPageError::MirrorPageNoMisMatch);
         }
 
         // Repair the primary. Take a copy of the page from the mirror, it may be
@@ -270,6 +303,7 @@ impl PageContainerLayer {
         self.wrt_mgr
             .write_page_to_primary(&page_copy, &page_no)
             .expect("Failed to repair primary page");
+        Ok(())
     }
 
     pub fn sync_data(&mut self) {

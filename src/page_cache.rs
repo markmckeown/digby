@@ -67,6 +67,21 @@ impl PageCache {
         }
     }
 
+    // Get a page, returning None rather than panicking if the page is
+    // corrupt and cannot be repaired. The page is not cached if corrupt.
+    pub fn try_get_page(&mut self, page_number: PageNo) -> Option<Page> {
+        if self.page_map.contains_key(&page_number) {
+            return Some(self.get_page(page_number));
+        }
+        let page = self.pg_ctr_layer.try_read_page(page_number).ok()?;
+        let mut page_for_cache = Page::create_new(self.get_db_config(), page_number.get_blk_cnt());
+        page_for_cache
+            .get_pg_ctr_bytes_mut()
+            .copy_from_slice(page.get_pg_ctr_bytes());
+        self.add_page_to_cache(page_number, page_for_cache);
+        Some(page)
+    }
+
     pub fn get_root_page(&mut self) -> Page {
         self.pg_ctr_layer.read_root_page()
     }

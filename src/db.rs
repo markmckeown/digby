@@ -844,23 +844,8 @@ impl Db {
                 self.compressor.compressor_type
             );
         }
-        // Get the two master pages.
-        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(
-            PageType::DbMaster,
-            0,
-            1,
-        )));
-        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(
-            PageType::DbMaster,
-            0,
-            2,
-        )));
         // Determine which is the current master.
-        let current_master = if master_page1.get_version() > master_page2.get_version() {
-            master_page1
-        } else {
-            master_page2
-        };
+        let current_master = self.get_master_page();
         let current_version = current_master.get_version();
         // Check the free_dir_page is sane.
         let free_dir_page_no = current_master.get_free_page_dir_page_no(0);
@@ -974,22 +959,35 @@ impl Db {
     //   Generate a new version number.
     //   Update the master page after making tree changes.
     //   Overwrite the non-current master page with the new version.
+    //
+    // If one master page is corrupt (for example a torn write of the master
+    // during a commit) then the other master page is used. The next commit
+    // will overwrite the corrupt master page.
     fn get_master_page(&mut self) -> DbMasterPage {
-        let master_page1 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(
-            PageType::DbMaster,
-            0,
-            1,
-        )));
-        let master_page2 = DbMasterPage::from_page(self.page_cache.get_page(PageNo::new(
-            PageType::DbMaster,
-            0,
-            2,
-        )));
+        let master_page1 = self
+            .page_cache
+            .try_get_page(PageNo::new(PageType::DbMaster, 0, 1))
+            .map(DbMasterPage::from_page);
+        let master_page2 = self
+            .page_cache
+            .try_get_page(PageNo::new(PageType::DbMaster, 0, 2))
+            .map(DbMasterPage::from_page);
 
-        if master_page1.get_version() > master_page2.get_version() {
-            master_page1
-        } else {
-            master_page2
+        match (master_page1, master_page2) {
+            (Some(master_page1), Some(master_page2)) => {
+                if master_page1.get_version() > master_page2.get_version() {
+                    master_page1
+                } else {
+                    master_page2
+                }
+            }
+            (Some(master_page), None) | (None, Some(master_page)) => {
+                error!("A master page is corrupt, using the other master page.");
+                master_page
+            }
+            (None, None) => panic!(
+                "Block sanity failed for block 1 and block 2, both master pages are corrupt."
+            ),
         }
     }
 
