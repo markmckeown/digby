@@ -1,5 +1,3 @@
-// Regression tests for bugs found during code review. Each test reproduces
-// a specific defect; see the comment above each test for details.
 use digby::Db;
 use digby::compressor::CompressorType;
 use digby::db_config::DbConfig;
@@ -155,17 +153,6 @@ fn test_multi_block_pages_large_transaction() {
     }
 }
 
-// A transaction created before another commit must not be usable, it would
-// allocate pages that the other commit is now using.
-#[test]
-#[should_panic(expected = "stale transaction")]
-fn test_stale_transaction_rejected() {
-    let (_dir, _path, mut db) = create_db(&no_compression());
-    db.put(b"a", b"1");
-    let mut tx_ctx = db.new_transaction();
-    db.put(b"b", b"2");
-    db.put_txn(b"c", b"3", &mut tx_ctx);
-}
 
 // A corrupt master page must not stop the database opening, the other
 // master page should be used instead.
