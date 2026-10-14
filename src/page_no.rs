@@ -5,17 +5,20 @@ pub struct PageNo(pub u64);
 
 // PageNo:
 //
-// | pg_ctr_blk_cnt_shift (1 byte) | file_blk_offset 7 bytes |
+// | pg_type (4 bits) | pg_ctr_blk_cnt_shift (4 bits) | pg_parity (1 byte) | file_blk_offset (6 bytes) |
 //
 // A Page Container is made up of one or more blocks. The number
-// if blocks is encoded as pg_ctr_blk_cnt_shift in the page number.
+// of blocks is encoded as pg_ctr_blk_cnt_shift in the page number.
 // The number of blocks in the page container is
 //
-//   2 << pg_ctr_blk_cnt_shift
+//   1 << pg_ctr_blk_cnt_shift
 //
 // So if pg_ctr_blk_cnt_shift is zero the page container contains
-// one block. pg_ctr_blk_cnt_exp is limited to 8, which limits
+// one block. pg_ctr_blk_cnt_shift is limited to 8, which limits
 // the size of a page container to 256 blocks.
+//
+// pg_parity is a version incremented each time the page is written,
+// mirrored in the page itself to detect lost writes.
 //
 // The file_blk_offset is the offset into the file where the
 // page container starts - the offset is in blocks.
