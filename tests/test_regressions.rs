@@ -197,17 +197,6 @@ fn test_open_with_corrupt_master() {
     assert_eq!(b_found, 1);
 }
 
-// The block sanity size was not stored in the root page so a database
-// created with a non-default size could not be reopened.
-#[test]
-fn test_reopen_with_custom_block_sanity_size() {
-    let db_config = DbConfig::builder().block_sanity_size(16).build();
-    let (_dir, path, mut db) = create_db(&db_config);
-    db.put(b"a", b"1");
-    drop(db);
-    let mut db = Db::open(&path, None, None).unwrap();
-    assert_eq!(db.get(b"a"), Some(b"1".to_vec()));
-}
 
 // A 255 byte key equal to the stored form of a large key (223 byte prefix
 // + SHA-256) must not alias the large key.

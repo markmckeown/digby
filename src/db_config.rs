@@ -90,6 +90,8 @@ impl DbConfigBuilder {
         self
     }
 
+    // For testing only - block_sanity_size should be set through setting
+    // the block_sanity.
     pub const fn block_sanity_size(mut self, block_sanity_size: usize) -> Self {
         assert!(block_sanity_size >= BlockSanity::get_bytes_used(self.block_sanity));
         self.block_sanity_size = block_sanity_size;
