@@ -170,12 +170,8 @@ mod tests {
         let key: Vec<u8> = vec![111u8; 300];
         let value: Vec<u8> = (0..value_size).map(|i| (i % 251) as u8).collect();
         let tuple = OverflowTuple::new(&key, &value, 90, Overflow::KeyValueOverflow);
-        let page_no = OverflowPageHandler::store_overflow_tuple(
-            tuple,
-            &mut page_cache,
-            &mut free_pg_mgr,
-            90,
-        );
+        let page_no =
+            OverflowPageHandler::store_overflow_tuple(tuple, &mut page_cache, &mut free_pg_mgr, 90);
         let reloaded_tuple = OverflowPageHandler::get_overflow_tuple(page_no, &mut page_cache);
         assert_eq!(reloaded_tuple.get_key(), key);
         assert_eq!(reloaded_tuple.get_value(), value);

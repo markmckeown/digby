@@ -51,8 +51,9 @@ impl TupleProcessor {
             }
         }
 
-        
-        let overflow_type: Overflow = if TupleProcessor::is_oversized_key(key) && value.len() > TupleProcessor::MAX_VALUE_SIZE {
+        let overflow_type: Overflow = if TupleProcessor::is_oversized_key(key)
+            && value.len() > TupleProcessor::MAX_VALUE_SIZE
+        {
             Overflow::KeyValueOverflow
         } else if key.len() > u8::MAX as usize {
             Overflow::KeyOverflow

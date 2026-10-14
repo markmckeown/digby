@@ -153,7 +153,6 @@ fn test_multi_block_pages_large_transaction() {
     }
 }
 
-
 // A corrupt master page must not stop the database opening, the other
 // master page should be used instead.
 #[test]
@@ -183,7 +182,6 @@ fn test_open_with_corrupt_master() {
     }
     assert_eq!(b_found, 1);
 }
-
 
 // A 255 byte key equal to the stored form of a large key (223 byte prefix
 // + SHA-256) must not alias the large key.
@@ -331,7 +329,12 @@ fn check_large_values(db_config: &DbConfig, key: Option<Vec<u8>>) {
     }
     let mut db = Db::open(&path, Some(&mirror), key).unwrap();
     for (i, size) in sizes.iter().enumerate() {
-        assert_eq!(db.get(format!("k{}", i).as_bytes()), Some(pattern(*size, 1)), "size {}", size);
+        assert_eq!(
+            db.get(format!("k{}", i).as_bytes()),
+            Some(pattern(*size, 1)),
+            "size {}",
+            size
+        );
     }
     assert_eq!(db.get(&vec![b'K'; 1000]), Some(pattern(200_000, 2)));
 
@@ -344,7 +347,12 @@ fn check_large_values(db_config: &DbConfig, key: Option<Vec<u8>>) {
         }
     }
     for (i, size) in sizes.iter().enumerate() {
-        assert_eq!(db.get(format!("k{}", i).as_bytes()), Some(pattern(*size, 3)), "size {}", size);
+        assert_eq!(
+            db.get(format!("k{}", i).as_bytes()),
+            Some(pattern(*size, 3)),
+            "size {}",
+            size
+        );
     }
     assert!(db.delete(b"k3"));
     assert_eq!(db.get(b"k3"), None);

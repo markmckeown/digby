@@ -121,8 +121,8 @@ impl LeafPageHandler {
             // number is still returned to the free page manager.
             // TODO - the memory swap seems excessive, another approach
             // would be to delete the single entry from the left page, add
-            // the new entry to the left page and add the old entry to the 
-            // right page. 
+            // the new entry to the left page and add the old entry to the
+            // right page.
             // AI detected issue, but can this happen in a b-tree?
             let existing_key = left_page.get_left_key().unwrap().to_vec();
             if tuple.get_key() < existing_key.as_slice() {
