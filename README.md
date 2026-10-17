@@ -163,6 +163,11 @@ BTrDB takes a different approach to implementing a time series database, it uses
 Storing time series data in Digby could use log leaf pages. Since the index, time, is increasing, new data to be added to the tree would be to the rightmost pages. Two of these pages could be open as log pages; these would be the two rightmost pages in the tree. In general, most data would arrive for the rightmost page, but due to out-of-order arrival of data some data might belong to the previous page which is why we keep two open. When the log page fills, a new one is opened and one of the existing ones is closed. When a page is closed, it will be compacted and an index built for the page to allow fast indexing into the page. This means the tree will have two types of pages: the compacted data file with index (i.e., similar to an SSTable in LSM) and two log pages, the log pages being the two rightmost leaf pages. Whenever pages are created and compacted the tree's COW is used to protect against corruption or lost data. Mapping to a conventional time series database, the leaf pages map to either the snapshot file or the log file; the leaf pages could be up to 128MB in size.
 
 
+### OLAP 
+PAX, "*Weaving Relations for Cache Performance*", page layout can be used to give good performance for OLTP and OLAP, a variation of it is used in ORC and Parquet files ("*An Empirical Evaluation of Columnar Storage Formats*"). DuckDB uses Data Blocks ("*Data Blocks: Hybrid OLTP and OLAP on Compressed Storage using both Vectorization and Compilation*"). 
+
+An alternative approach is "*A Case for Fractured Mirrors*" where data is stored in both row and column formats.
+
 
 ### Fast Paxos & Flexible Paxos
 Integrating Paxos into the database could provide an interesting alternative to a traditional WAL. For instance, if Paxos outputs a queue of agreed work, this could serve as the transaction log or an intent log. Fast Paxos can reach agreement in a single round but suffers under high contention, requiring larger quorums. Flexible Paxos helps mitigate phase 2 quorum bottlenecks.
@@ -210,6 +215,10 @@ In a sharded architecture, Digby could use thousands of Paxos state machines for
 *   *"Monarch: Google's Planet-Scale In-Memory Time Series Database"*
 *   *"Writing a Time Series Database from Scratch"* [link](https://web.archive.org/web/20180125094157/https://fabxc.org/tsdb/)
 *   *"InfluxDB’s TSM (Time-Structured Merge Tree) Design Docs"*
+*   *"Weaving Relations for Cache Performance"* PAX paper.
+*   *"A Case for Fractured Mirrors"*
+*   *"An Empirical Evaluation of Columnar Storage Formats"* Comparing Parquet and Orc.
+*   *"Dremel: Interactive Analysis of Web-Scale Datasets"* 
 
 ## License
 
