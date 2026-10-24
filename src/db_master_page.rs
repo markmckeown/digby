@@ -4,12 +4,15 @@ use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::page_no::PageNo;
 
-// | Page No (8 bytes) | VersionHolder (8 bytes) | GlobalTreeRootPage (8 bytes) |
-// | TableDirPage(8 bytes) | FreePageDir0 (8 bytes) |
-// | FreePageDir1 (8 bytes) | FreePageDir2 (8 bytes) | FreePageDir3 (8 bytes) |
-// | FreePageDir4 (8 bytes) | FreePageDir5 (8 bytes) | FreePageDir6 (8 bytes) |
-// | FreePageDir7 (8 bytes) | FreePageDir8 (8 bytes) | FreePageDir9 (8 bytes) |
-// Could have more FreePageDir in future.
+// 24  | Page No (8 bytes) | VersionHolder (8 bytes) | GlobalTreeRootPage (8 bytes) |
+// 40  | TableDirPage(8 bytes)  | BLK_COUNT_OFFSET (8 bytes) | 
+// 72  | Unused (8 bytes) | Unused (8 bytes) | Unused (8 bytes) | Unused (8 bytes) |  
+// 80  | FreePageDir0 (8 bytes) |
+// 104 | FreePageDir1 (8 bytes) | FreePageDir2 (8 bytes) | FreePageDir3 (8 bytes) |
+// 128 | FreePageDir4 (8 bytes) | FreePageDir5 (8 bytes) | FreePageDir6 (8 bytes) |
+// 152 | FreePageDir7 (8 bytes) | FreePageDir8 (8 bytes) | FreePageDir9 (8 bytes) |
+// 176 | FreePageDir10 (8 bytes) | FreePageDir11 (8 bytes) | FreePageDir12 (8 bytes) |
+// 200 | FreePageDir13 (8 bytes) | FreePageDir14 (8 bytes) | FreePageDir15 (8 bytes) |
 pub struct DbMasterPage {
     page: Page,
 }
@@ -73,6 +76,7 @@ impl DbMasterPage {
         DbMasterPage { page }
     }
 
+    // The global tree
     const GLOBAL_TREE_OFFSET: usize = 16;
     pub fn get_global_tree_root_page_no(&self) -> PageNo {
         self.get_pg_no_offset(DbMasterPage::GLOBAL_TREE_OFFSET)
@@ -82,18 +86,7 @@ impl DbMasterPage {
         self.set_pg_no_offset(DbMasterPage::GLOBAL_TREE_OFFSET, page_no);
     }
 
-    const FREE_PAGE_DIR_OFFSET: usize = 32;
-    pub fn get_free_page_dir_page_no(&self, bk_size_exp: u8) -> PageNo {
-        self.get_pg_no_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET + (bk_size_exp as usize) * 8)
-    }
-
-    pub fn set_free_page_dir_page_no(&mut self, bk_size_exp: u8, page_no: PageNo) {
-        self.set_pg_no_offset(
-            DbMasterPage::FREE_PAGE_DIR_OFFSET + (bk_size_exp as usize) * 8,
-            page_no,
-        );
-    }
-
+    // The tree will all the tables.
     const TABLE_DIR_PAGE: usize = 24;
     pub fn get_table_dir_page_no(&self) -> PageNo {
         self.get_pg_no_offset(DbMasterPage::TABLE_DIR_PAGE)
@@ -103,10 +96,8 @@ impl DbMasterPage {
         self.set_pg_no_offset(DbMasterPage::TABLE_DIR_PAGE, page_no);
     }
 
-    // The number of blocks in the file when the master page was committed,
-    // blocks after this are not referenced by the database. Zero for
-    // databases created before the block count was stored.
-    const BLK_COUNT_OFFSET: usize = 104;
+    // The number of blocks in the file when the master page was committed.
+    const BLK_COUNT_OFFSET: usize = 32;
     pub fn get_blk_count(&self) -> u64 {
         let offset = DbMasterPage::BLK_COUNT_OFFSET;
         u64::from_le_bytes(
@@ -121,6 +112,21 @@ impl DbMasterPage {
         self.page.get_page_bytes_mut()[offset..offset + 8]
             .copy_from_slice(&blk_count.to_le_bytes());
     }
+
+
+    // The free page directories
+    const FREE_PAGE_DIR_OFFSET: usize = 72;
+    pub fn get_free_page_dir_page_no(&self, bk_size_exp: u8) -> PageNo {
+        self.get_pg_no_offset(DbMasterPage::FREE_PAGE_DIR_OFFSET + (bk_size_exp as usize) * 8)
+    }
+
+    pub fn set_free_page_dir_page_no(&mut self, bk_size_exp: u8, page_no: PageNo) {
+        self.set_pg_no_offset(
+            DbMasterPage::FREE_PAGE_DIR_OFFSET + (bk_size_exp as usize) * 8,
+            page_no,
+        );
+    }
+
 
     fn set_pg_no_offset(&mut self, offset: usize, value: PageNo) {
         self.page.get_page_bytes_mut()[offset..offset + 8].copy_from_slice(&value.get_bytes());

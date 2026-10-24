@@ -61,10 +61,14 @@ fn test_corrupt_primary() {
             .write(true)
             .open(db_path)
             .expect("File open failed.");
-        file.seek(SeekFrom::Start(5000)).expect("File seek failed.");
         let my_byte: u8 = 42;
+        file.seek(SeekFrom::Start(5000)).expect("File seek failed.");
+        file.write_all(&[my_byte]).expect("File write failed.");
+        file.seek(SeekFrom::Start(5001)).expect("File seek failed.");
         file.write_all(&[my_byte]).expect("File write failed.");
         file.seek(SeekFrom::Start(9096)).expect("File seek failed.");
+        file.write_all(&[my_byte]).expect("File write failed.");
+        file.seek(SeekFrom::Start(9097)).expect("File seek failed.");
         file.write_all(&[my_byte]).expect("File write failed.");
     }
     {
