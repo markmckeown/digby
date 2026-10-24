@@ -23,7 +23,7 @@ use tempfile::TempDir;
 // Test a lost write can be detected, without a mirror this will cause
 // a Panic as DB is corrupt.
 #[test]
-#[should_panic(expected = "Block sanity failed for block 12, PageNoParityError")]
+#[should_panic(expected = "Block sanity failed for block 19, PageNoParityError")]
 fn test_db_lost_write() {
     common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
@@ -45,7 +45,7 @@ fn test_db_lost_write() {
         assert!(returned_value == value);
 
         // Open the db file and grab a page that will be reused in the next put,
-        // we know by debugging that the page at offset 12 will be used in the
+        // we know by debugging that the page at offset 19 will be used in the
         // next put.
         let db_file = OpenOptions::new()
             .read(true)
@@ -59,19 +59,19 @@ fn test_db_lost_write() {
         // The next put will overwrite it - so we grab a copy now, then do the update
         // and write this page back. Simulates a lost update for the page
         // during the put.
-        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 12));
+        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 19));
 
-        // Now do an update that will use the page at offset 12
+        // Now do an update that will use the page at offset 19
         db.put(key.as_ref(), new_value.as_ref());
-        // Now replace the page at offset 12 with the old version - the page has not
+        // Now replace the page at offset 19 with the old version - the page has not
         // changed so the checksum and block offset in the page are correct.
         page_cache.put_page(&mut root_page);
         page_cache.sync_all();
     }
     {
         let mut db = Db::open(db_path, None, None).unwrap();
-        // This will cause a panic as page at offset 12 will have the wrong parity - the write to
-        // it has been lost. The parity encoded in the page pointer at offset 12 will have a parity
+        // This will cause a panic as page at offset 19 will have the wrong parity - the write to
+        // it has been lost. The parity encoded in the page pointer at offset 19 will have a parity
         // that does not match the parity inside the page.
         let _ = db.get(key.as_ref()).unwrap();
     }
@@ -118,11 +118,11 @@ fn test_db_lost_write_with_mirror() {
         // The next put will overwrite it - so we grab a copy now, then do the update
         // and write this page back. It will look like a lost update for the page
         // during the put.
-        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 12));
+        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 19));
 
-        // Now do an update that will use the page at offset 12
+        // Now do an update that will use the page at offset 19
         db.put(key.as_ref(), new_value.as_ref());
-        // Now replace the page at offset 12 with the old version.
+        // Now replace the page at offset 19 with the old version.
         page_cache.put_page(&mut root_page);
         page_cache.sync_all();
     }
@@ -143,7 +143,7 @@ fn test_db_lost_write_with_mirror() {
 // Lost write and corrupt mirror will cause a panic. Lose the write
 // to both primary and mirror
 #[test]
-#[should_panic(expected = "Mirror page at offset 12, embedded page number does not match.")]
+#[should_panic(expected = "Mirror page at offset 19, embedded page number does not match.")]
 fn test_db_lost_write_corrupt_mirror() {
     common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
@@ -167,7 +167,7 @@ fn test_db_lost_write_corrupt_mirror() {
         assert!(returned_value == value);
 
         // Open the db file and grab a page that will be reused in the next put,
-        // we know by debugging that the page at offset 12 will be used in the
+        // we know by debugging that the page at offset 19 will be used in the
         // next put.
         let db_file = OpenOptions::new()
             .read(true)
@@ -188,11 +188,11 @@ fn test_db_lost_write_corrupt_mirror() {
         // The next put will overwrite it - so we grab a copy now, then do the update
         // and write this page back. Simulates a lost update for the page
         // during the put.
-        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 12));
+        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 19));
 
-        // Now do an update that will use the page at offset 12
+        // Now do an update that will use the page at offset 19
         db.put(key.as_ref(), new_value.as_ref());
-        // Now replace the page at offset 12 with the old version - the page has not
+        // Now replace the page at offset 19 with the old version - the page has not
         // changed so the checksum and block offset in the page are correct.
         // This will overwrite both primary and mirror
         page_cache.put_page(&mut root_page);
@@ -200,8 +200,8 @@ fn test_db_lost_write_corrupt_mirror() {
     }
     {
         let mut db = Db::open(db_path, Some(mirror_db_path), None).unwrap();
-        // This will cause a panic as page at offset 12 will have the wrong parity - the write to
-        // it has been lost. The parity encoded in the page pointer at offset 12 will have a parity
+        // This will cause a panic as page at offset 19 will have the wrong parity - the write to
+        // it has been lost. The parity encoded in the page pointer at offset 19 will have a parity
         // that does not match the parity inside the page.
         let _ = db.get(key.as_ref()).unwrap();
     }
@@ -217,7 +217,7 @@ fn test_db_lost_write_corrupt_mirror() {
 // to the page pointer used to access the page - if they do not match
 // and there is no mirror then there should be a panic.
 #[test]
-#[should_panic(expected = "Block sanity failed for block 12, PageNoBlockOffsetError")]
+#[should_panic(expected = "Block sanity failed for block 19, PageNoBlockOffsetError")]
 fn test_db_mis_directed_write() {
     common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
@@ -254,9 +254,9 @@ fn test_db_mis_directed_write() {
         // This block will be the root page of the global tree after the last update.
         // We directly read this page, change the block offset of the page that
         // that is stored in the page and write the page directly back to the file.
-        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 12));
+        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 19));
 
-        // Now do an update that will use the page at offset 12
+        // Now do an update that will use the page at offset 19
         db.put(key.as_ref(), new_value.as_ref());
 
         // Set the page to have an block offset of 8
@@ -265,9 +265,9 @@ fn test_db_mis_directed_write() {
         db_config
             .block_sanity
             .set_block_sanity(&mut root_page, &Vec::new());
-        // Directly write the page to file to offset 12 - we know this page
+        // Directly write the page to file to offset 19 - we know this page
         // will be read on any get to the global tree.
-        let offset = 12 * db_config.block_size as u64;
+        let offset = 19 * db_config.block_size as u64;
         db_file
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for append_new_page");
@@ -278,7 +278,7 @@ fn test_db_mis_directed_write() {
     }
     {
         let mut db = Db::open(db_path, None, None).unwrap();
-        // This will panic as the page read from offset 12 will have the
+        // This will panic as the page read from offset 19 will have the
         // wrong embedded offset (offset will be 8)
         let _ = db.get(key.as_ref()).unwrap();
     }
@@ -325,9 +325,9 @@ fn test_db_mis_directed_write_mirror() {
         // This block will be the root page of the global tree after the last update.
         // Grab a copy, modify the block offset embedded in the page and write directly
         // back to the primary.
-        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 12));
+        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 19));
 
-        // Now do an update that will use the page at offset 12
+        // Now do an update that will use the page at offset 19
         db.put(key.as_ref(), new_value.as_ref());
 
         // Change the block offset in the page to 8.
@@ -337,7 +337,7 @@ fn test_db_mis_directed_write_mirror() {
             .block_sanity
             .set_block_sanity(&mut root_page, &Vec::new());
         // Directly write the page to file but at the wrong location.
-        let offset = 12 * db_config.block_size as u64;
+        let offset = 19 * db_config.block_size as u64;
         db_file
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for append_new_page");
@@ -363,7 +363,7 @@ fn test_db_mis_directed_write_mirror() {
 // The offset is changed within a page to simulate a mis-directed write. The
 // mirros is also corrupted.
 #[test]
-#[should_panic(expected = "Mirror page at offset 12, embedded page number does not match.")]
+#[should_panic(expected = "Mirror page at offset 19, embedded page number does not match.")]
 fn test_db_mis_directed_write_corrupt_mirror() {
     common::init_logger();
     let dir = TempDir::new().expect("Failed to create temp dir");
@@ -402,9 +402,9 @@ fn test_db_mis_directed_write_corrupt_mirror() {
         // This block will be the root page of the global tree after the last update.
         // We directly read this page, change the block offset of the page that
         // that is stored in the page and write the page directly back to the file.
-        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 12));
+        let mut root_page = page_cache.get_page(PageNo::new(PageType::LeafPage, 0, 19));
 
-        // Now do an update that will use the page at offset 12
+        // Now do an update that will use the page at offset 19
         db.put(key.as_ref(), new_value.as_ref());
 
         // Set the page to have an block offset of 8
@@ -413,9 +413,9 @@ fn test_db_mis_directed_write_corrupt_mirror() {
         db_config
             .block_sanity
             .set_block_sanity(&mut root_page, &Vec::new());
-        // Directly write the page to file to offset 12 - we know this page
+        // Directly write the page to file to offset 19 - we know this page
         // will be read on any get to the global tree.
-        let offset = 12 * db_config.block_size as u64;
+        let offset = 19 * db_config.block_size as u64;
         db_file
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for append_new_page");
@@ -437,7 +437,7 @@ fn test_db_mis_directed_write_corrupt_mirror() {
     }
     {
         let mut db = Db::open(db_path, Some(mirror_db_path), None).unwrap();
-        // This will panic as the page read from offset 12 will have the
+        // This will panic as the page read from offset 19 will have the
         // wrong embedded offset (offset will be 8)
         let _ = db.get(key.as_ref()).unwrap();
     }

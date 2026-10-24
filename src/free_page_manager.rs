@@ -17,7 +17,7 @@ impl FreePageManager {
         let base_free_pg_tracker =
             BaseFreePageTracker::new(page_cache.get_page(base_free_pg_tracker_pg_no), version);
 
-        for i in 0..9 {
+        for i in 0..16 {
             og_free_pg_dir_pg_nos.push(db_master_page.get_free_page_dir_page_no(i));
         }
 

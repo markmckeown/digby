@@ -74,12 +74,19 @@ pub struct Db {
 // block 9, size 1 block - free page directory, blk_exp 6 (262144 bytes)
 // block 10, size 1 block - free page directory, blk_exp 7 (524288 bytes)
 // block 11, size 1 block - free page directory, blk_exp 8 (1048576 bytes)
+// block 12, size 1 block - free page directory, blk_exp 9 (2097152 bytes)
+// block 13, size 1 block - free page directory, blk_exp 10 (4194304 bytes)
+// block 14, size 1 block - free page directory, blk_exp 11 (8388608 bytes)
+// block 15, size 1 block - free page directory, blk_exp 12 (16777216 bytes)
+// block 16, size 1 block - free page directory, blk_exp 13 (33554432 bytes)
+// block 17, size 1 block - free page directory, blk_exp 14 (67108864 bytes)
+// block 18, size 1 block - free page directory, blk_exp 15 (134217728 bytes)
 //
-// Global Tree Leaf Page, block 12, size ? (depends on config) blocks.
+// Global Tree Leaf Page, block 19, size ? (depends on config) blocks.
 // Table Directory Tree Leaf Page, block ?, size ? blocks.
 //
 // Steps in cerating a DB.
-// Init blocks 3 to 11 as free page directories.
+// Init blocks 3 to 18 as free page directories.
 // Allocate Leaf Page for global tree root with leaf page block size
 // Init Global Tree Leaf Page
 // Allocate Leaf Page for table directory tree root leaf page block size
@@ -931,7 +938,7 @@ impl Db {
     }
 
     fn write_free_dir_pages(&mut self, offset: u64) {
-        for i in 0..9 {
+        for i in 0..16 {
             let mut free_dir_page = FreeDirPage::create_new(
                 self.page_cache.get_db_config(),
                 PageNo::new(PageType::FreeDir, 0, offset + i),
@@ -942,7 +949,7 @@ impl Db {
     }
 
     fn update_master_free_pg_dirs(master_page: &mut DbMasterPage, offset: u64) {
-        for i in 0..9 {
+        for i in 0..16 {
             master_page
                 .set_free_page_dir_page_no(i, PageNo::new(PageType::FreeDir, 0, offset + i as u64));
         }
@@ -957,10 +964,10 @@ impl Db {
         // Provides a list of free pages that can be modified or added
         // to the free page directory if not used in the init process -
         // the init process will generate some unused pages.
-        let free_pages: Vec<PageNo> = self.page_cache.generate_free_pages(12, 0);
-        assert!(free_pages.len() == 12, "There should be 12 free pages");
+        let free_pages: Vec<PageNo> = self.page_cache.generate_free_pages(19, 0);
+        assert!(free_pages.len() == 19, "There should be 19 free pages");
 
-        // Write the free page directory pages at page numbers 3 to 11.
+        // Write the free page directory pages at page numbers 3 to 18.
         // The free page dir for blk_exp 0 will be overwritten later.
         self.write_free_dir_pages(3);
 
@@ -969,7 +976,6 @@ impl Db {
             .generate_free_pages(2, self.db_config.leaf_pg_blk_cnt_shift);
         assert!(leaf_pages.len() == 2, "There should be 2 leaf pages");
 
-        // Write the global tree root page at page number 13.
         // The first page in a tree is a leaf page.
         let mut global_tree_root_page_no = *leaf_pages.first().unwrap();
         global_tree_root_page_no.set_type(PageType::LeafPage);
@@ -978,7 +984,6 @@ impl Db {
         // Write the global_tree_root_page to disk.
         self.page_cache.put_page(global_tree_root_page.get_page());
 
-        // Write the table directory page at page number 12.
         // The first page in a tree is a leaf page.
         let mut table_dir_page_no = *leaf_pages.get(1).unwrap();
         table_dir_page_no.set_type(PageType::LeafPage);
