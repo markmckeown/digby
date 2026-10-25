@@ -10,10 +10,10 @@ Digby is an embedded key-value store written in Rust. It was built as a project 
 *   **Large Item Support**: Capable of storing large keys and values (up to 64-bit sizes).
     *   Large items are stored using overflow pages and can optionally be compressed with LZ4 (conceptually similar to TOAST in PostgreSQL). LZ4 can only compress values less than 4GB; values greater than 4GB are stored uncompressed.
     *   Large keys (255 bytes or more) are indexed using a combination of their prefix (first 223 bytes) and a SHA-256 hash (32 bytes), allowing lexical sorting up to 223 bytes.
-    *   Overflow pages can be up to 256 blocks (1MB with 4K blocks) and chain together to support larger objects, optimized to minimize page reads rather than pack data.
+    *   Overflow pages can be up to 32768 blocks (128MB with 4K blocks) and chain together to support larger objects, optimized to minimize page reads rather than pack data.
 *   **Configurable Block & Page Sizes**:
     *   The base block size is configurable (default 4K, for typical Linux atomic write compatibility).
-    *   Pages consist of one or more blocks, sized in powers of two (1, 2, 4... 256 blocks).
+    *   Pages consist of one or more blocks, sized in powers of two (1, 2, 4, 8... 32768 blocks).
     *   Tree directory and leaf page sizes can be set independently, but are limited to 64K because in-page offsets are stored as `u16`. The default is a single block.
     *   Key metadata pages (root page, master pages, free directory pages) are fixed at a single block.
     *   Overflow pages use the minimum number of blocks required (similar to ZFS). Free pages are tracked in a separate free list for each page size class.
