@@ -137,19 +137,36 @@ mod tests {
         .compressor_type(crate::compressor::CompressorType::None)
         .build();
 
+    // Max page 2MB
+    const LG_DB_CONFIG: DbConfig = DbConfig::builder()
+        .block_size(4096)
+        .block_sanity_size(4)
+        .compressor_type(crate::compressor::CompressorType::None)
+        .max_blk_shift(9)
+        .build();
+
+
+    // Max page 512K
+    const SM_DB_CONFIG: DbConfig = DbConfig::builder()
+        .block_size(4096)
+        .block_sanity_size(4)
+        .compressor_type(crate::compressor::CompressorType::None)
+        .max_blk_shift(7)
+        .build();
+
     // Set up a page cache and free page manager for overflow tests.
-    fn setup(temp_file: &tempfile::NamedTempFile) -> (PageCache, FreePageManager, DbMasterPage) {
+    fn setup(temp_file: &tempfile::NamedTempFile, db_config: DbConfig) -> (PageCache, FreePageManager, DbMasterPage) {
         let db_file = std::fs::OpenOptions::new()
             .write(true)
             .read(true)
             .open(temp_file)
             .expect("Failed to open DB file");
-        let file_layer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
-        let block_layer = crate::PageContainerLayer::new(file_layer, None, DB_CONFIG);
+        let file_layer = crate::FileLayer::new(db_file, db_config.block_size);
+        let block_layer = crate::PageContainerLayer::new(file_layer, None, db_config);
         let mut page_cache = crate::PageCache::new(block_layer);
         let _ = page_cache.generate_free_pages(18, 0);
         let mut master_page =
-            DbMasterPage::create_new(&DB_CONFIG, PageNo::new(PageType::DbMaster, 0, 1), 89);
+            DbMasterPage::create_new(&db_config, PageNo::new(PageType::DbMaster, 0, 1), 89);
         for i in 0..16u64 {
             let mut free_dir_page = crate::FreeDirPage::create_new(
                 page_cache.get_db_config(),
@@ -164,9 +181,9 @@ mod tests {
         (page_cache, free_pg_mgr, master_page)
     }
 
-    fn store_and_reload(value_size: usize) {
+    fn store_and_reload(value_size: usize, db_config: DbConfig) {
         let temp_file = tempfile::NamedTempFile::new().expect("Failed to create temp file");
-        let (mut page_cache, mut free_pg_mgr, _master_page) = setup(&temp_file);
+        let (mut page_cache, mut free_pg_mgr, _master_page) = setup(&temp_file, db_config);
         let key: Vec<u8> = vec![111u8; 300];
         let value: Vec<u8> = (0..value_size).map(|i| (i % 251) as u8).collect();
         let tuple = OverflowTuple::new(&key, &value, 90, Overflow::KeyValueOverflow);
@@ -180,13 +197,34 @@ mod tests {
     // Uses a single page larger than 64K.
     #[test]
     fn store_overflow_tuple_100k() {
-        store_and_reload(100_000);
+        store_and_reload(100_000, DB_CONFIG);
+    }
+
+    #[test]
+    fn store_overflow_tuple_100k_sm() {
+        store_and_reload(100_000, SM_DB_CONFIG);
+    }
+
+    #[test]
+    fn store_overflow_tuple_100k_lg() {
+        store_and_reload(100_000, LG_DB_CONFIG);
     }
 
     // Uses a chain of maximum size pages.
     #[test]
     fn store_overflow_tuple_3m() {
-        store_and_reload(3_000_000);
+        store_and_reload(3_000_000, DB_CONFIG);
+    }
+
+
+    #[test]
+    fn store_overflow_tuple_3m_sm() {
+        store_and_reload(3_000_000, SM_DB_CONFIG);
+    }
+
+    #[test]
+    fn store_overflow_tuple_3m_lg() {
+        store_and_reload(3_000_000, LG_DB_CONFIG);
     }
 
     #[test]
