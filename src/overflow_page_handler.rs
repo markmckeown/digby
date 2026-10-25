@@ -147,10 +147,10 @@ mod tests {
         let file_layer = crate::FileLayer::new(db_file, DB_CONFIG.block_size);
         let block_layer = crate::PageContainerLayer::new(file_layer, None, DB_CONFIG);
         let mut page_cache = crate::PageCache::new(block_layer);
-        let _ = page_cache.generate_free_pages(11, 0);
+        let _ = page_cache.generate_free_pages(18, 0);
         let mut master_page =
             DbMasterPage::create_new(&DB_CONFIG, PageNo::new(PageType::DbMaster, 0, 1), 89);
-        for i in 0..9u64 {
+        for i in 0..16u64 {
             let mut free_dir_page = crate::FreeDirPage::create_new(
                 page_cache.get_db_config(),
                 PageNo::new(PageType::FreeDir, 0, 2 + i),

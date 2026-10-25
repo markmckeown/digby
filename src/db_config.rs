@@ -11,11 +11,12 @@ pub struct DbConfig {
     pub block_sanity: BlockSanity,
     pub leaf_pg_blk_cnt_shift: u8,
     pub dir_pg_blk_cnt_shift: u8,
-    pub overflow_pg_free_space: [usize; 9],
+    pub max_blk_shift: u8,
+    pub overflow_pg_free_space: [usize; 16],
 }
 
 impl DbConfig {
-    pub const MAX_BLK_SHIFT: u8 = 8;
+    pub const MAX_BLOCK_SHIFT_LIMIT: u8 = 15;
     // Leaf and directory pages store offsets and free space as u16, so
     // their page containers cannot be larger than 64K.
     pub const MAX_TREE_PAGE_SIZE: usize = 64 * 1024;
@@ -32,13 +33,13 @@ impl DbConfig {
         1 << self.dir_pg_blk_cnt_shift
     }
 
-    pub const fn get_max_overflow_pg_free_space(&self) -> usize {
-        self.overflow_pg_free_space[8]
+    pub fn get_max_overflow_pg_free_space(&self) -> usize {
+        self.overflow_pg_free_space[self.max_blk_shift as usize]
     }
 
-    pub const fn get_blk_cnt_shift_for_size(&self, size: usize) -> u8 {
+    pub fn get_blk_cnt_shift_for_size(&self, size: usize) -> u8 {
         let mut i = 0usize;
-        while i < self.overflow_pg_free_space.len() {
+        while i <= self.max_blk_shift as usize {
             if size <= self.overflow_pg_free_space[i] {
                 return i as u8;
             }
@@ -47,8 +48,8 @@ impl DbConfig {
         panic!("Size is larger than the largest overflow page");
     }
 
-    pub const fn get_max_overflow_exp_size(&self) -> u8 {
-        8
+    pub fn get_max_overflow_exp_size(&self) -> u8 {
+        self.max_blk_shift
     }
 }
 
@@ -60,7 +61,8 @@ pub struct DbConfigBuilder {
     block_sanity: BlockSanity,
     leaf_pg_blk_cnt_shift: u8,
     dir_pg_blk_cnt_shift: u8,
-    overflow_pg_free_space: [usize; 9],
+    overflow_pg_free_space: [usize; 16],
+    max_blk_shift: u8,
 }
 
 impl Default for DbConfigBuilder {
@@ -78,8 +80,14 @@ impl DbConfigBuilder {
             block_sanity: BlockSanity::XxH32Checksum,
             leaf_pg_blk_cnt_shift: 0,
             dir_pg_blk_cnt_shift: 0,
-            overflow_pg_free_space: [0; 9],
+            overflow_pg_free_space: [0; 16],
+            max_blk_shift: 8,
         }
+    }
+
+    pub const fn max_blk_shift(mut self, max_blk_shift: u8) -> Self {
+        self.max_blk_shift = max_blk_shift;
+        self
     }
 
     pub const fn block_size(mut self, block_size: usize) -> Self {
@@ -117,13 +125,16 @@ impl DbConfigBuilder {
     }
 
     pub const fn build(mut self) -> DbConfig {
+        assert!(self.max_blk_shift <= DbConfig::MAX_BLOCK_SHIFT_LIMIT,
+            "Max block shift is limited to 15."
+        ); 
         assert!(
-            self.leaf_pg_blk_cnt_shift <= DbConfig::MAX_BLK_SHIFT
+            self.leaf_pg_blk_cnt_shift <= self.max_blk_shift
                 && (self.block_size << self.leaf_pg_blk_cnt_shift) <= DbConfig::MAX_TREE_PAGE_SIZE,
             "Leaf pages cannot be larger than 64K."
         );
         assert!(
-            self.dir_pg_blk_cnt_shift <= DbConfig::MAX_BLK_SHIFT
+            self.dir_pg_blk_cnt_shift <= self.max_blk_shift
                 && (self.block_size << self.dir_pg_blk_cnt_shift) <= DbConfig::MAX_TREE_PAGE_SIZE,
             "Directory pages cannot be larger than 64K."
         );
@@ -145,6 +156,20 @@ impl DbConfigBuilder {
             (self.block_size * (1 << 7)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
         self.overflow_pg_free_space[8] =
             (self.block_size * (1 << 8)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[9] =
+            (self.block_size * (1 << 9)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[10] =
+            (self.block_size * (1 << 10)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[11] =
+            (self.block_size * (1 << 11)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[12] =
+            (self.block_size * (1 << 12)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[13] =
+            (self.block_size * (1 << 13)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[14] =
+            (self.block_size * (1 << 14)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
+        self.overflow_pg_free_space[15] =
+            (self.block_size * (1 << 15)) - (OverflowPage::HEADER_SIZE + self.block_sanity_size);
 
         DbConfig {
             block_size: self.block_size,
@@ -155,6 +180,7 @@ impl DbConfigBuilder {
             leaf_pg_blk_cnt_shift: self.leaf_pg_blk_cnt_shift,
             dir_pg_blk_cnt_shift: self.dir_pg_blk_cnt_shift,
             overflow_pg_free_space: self.overflow_pg_free_space,
+            max_blk_shift: self.max_blk_shift,
         }
     }
 }
