@@ -130,7 +130,33 @@ impl PageContainerLayer {
         &self.db_config
     }
 
+    pub fn read_slab(&mut self, page_no: PageNo) -> Page {
+        assert!(
+            page_no.get_pg_type() == PageType::Slab,
+            "For Slab read PageNo must be for Slab."
+        );
+        match self.try_read_slab(page_no) {
+            Ok(page) => page,
+            Err(e) => panic!("{}", e.message(page_no)),
+        }
+    }
+
+    // TODO - need to inject a check sanity method here to allow
+    // repair.
+    fn try_read_slab(&mut self, page_no: PageNo) -> Result<Page, ReadPageError> {
+        let mut page = Page::create_new(&self.db_config, page_no.get_blk_cnt());
+        // Will read the page from primary.
+        self.wrt_mgr
+            .read_page_from_disk(&mut page, &page_no)
+            .expect("Failed to read page");
+        Ok(page)
+    }
+
     pub fn read_page(&mut self, page_no: PageNo) -> Page {
+        assert!(
+            page_no.get_pg_type() != PageType::Slab,
+            "Cannot read Slab as a page."
+        );
         match self.try_read_page(page_no) {
             Ok(page) => page,
             Err(e) => panic!("{}", e.message(page_no)),
@@ -141,11 +167,14 @@ impl PageContainerLayer {
     // from the mirror then return the error rather than panicking.
     pub fn try_read_page(&mut self, page_no: PageNo) -> Result<Page, ReadPageError> {
         let mut page = Page::create_new(&self.db_config, page_no.get_blk_cnt());
+        // Will read the page from primary.
         self.wrt_mgr
             .read_page_from_disk(&mut page, &page_no)
             .expect("Failed to read page");
+        // Check the page is OK, if it is not read from mirror if there is one
+        // and repair. If not OK, no mirror or mirror is also corrupt then return
+        // error.
         self.check_sanity(&mut page, page_no)?;
-        assert_eq!(page_no, page.get_page_number());
         Ok(page)
     }
 
@@ -233,7 +262,14 @@ impl PageContainerLayer {
         self.block_sanity.set_block_sanity(page, &self.key);
     }
 
+    // Check the page is OK.
+    //  Is the checksum for the page OK?
+    //  Is the page number in the page correct? This could fail for two reasons:
+    //     - Page has been written at wrong place, block offset is wrong.
+    //     - Page was not writte, the parity is wrong.
+    //  If there is a problem attempt a repair.
     fn check_sanity(&mut self, page: &mut Page, page_no: PageNo) -> Result<(), ReadPageError> {
+        // Page checksum is wrong and page is corrupt.
         if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
             error!(
                 "Page sanity check failed {}, {:?}",
@@ -243,8 +279,12 @@ impl PageContainerLayer {
             return self.repair_page(page, page_no, e);
         }
 
+        // Check the page number in the page matches the page number we
+        // used to get it.
         let page_no_from_page = page.get_page_number();
         if page_no.to_u64() != page_no_from_page.to_u64() {
+            // Page numbers do not match - two possible reasons dealt with.
+            // TODO should we also have a branch for type mis-match?
             let mut err: BlockSanityError = BlockSanityError::PageNoMisMatch;
             if page_no.get_blk_offset() != page_no_from_page.get_blk_offset() {
                 error!(

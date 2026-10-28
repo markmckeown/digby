@@ -5,8 +5,8 @@ use crate::page::PageType;
 use crate::page_no::PageNo;
 
 // 24  | Page No (8 bytes) | VersionHolder (8 bytes) | GlobalTreeRootPage (8 bytes) |
-// 40  | TableDirPage(8 bytes)  | BLK_COUNT_OFFSET (8 bytes) | 
-// 72  | Unused (8 bytes) | Unused (8 bytes) | Unused (8 bytes) | Unused (8 bytes) |  
+// 40  | TableDirPage(8 bytes)  | BLK_COUNT_OFFSET (8 bytes) |
+// 72  | Unused (8 bytes) | Unused (8 bytes) | Unused (8 bytes) | Unused (8 bytes) |
 // 80  | FreePageDir0 (8 bytes) |
 // 104 | FreePageDir1 (8 bytes) | FreePageDir2 (8 bytes) | FreePageDir3 (8 bytes) |
 // 128 | FreePageDir4 (8 bytes) | FreePageDir5 (8 bytes) | FreePageDir6 (8 bytes) |
@@ -113,7 +113,6 @@ impl DbMasterPage {
             .copy_from_slice(&blk_count.to_le_bytes());
     }
 
-
     // The free page directories
     const FREE_PAGE_DIR_OFFSET: usize = 72;
     pub fn get_free_page_dir_page_no(&self, bk_size_exp: u8) -> PageNo {
@@ -126,7 +125,6 @@ impl DbMasterPage {
             page_no,
         );
     }
-
 
     fn set_pg_no_offset(&mut self, offset: usize, value: PageNo) {
         self.page.get_page_bytes_mut()[offset..offset + 8].copy_from_slice(&value.get_bytes());

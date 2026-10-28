@@ -145,7 +145,6 @@ mod tests {
         .max_blk_shift(9)
         .build();
 
-
     // Max page 512K
     const SM_DB_CONFIG: DbConfig = DbConfig::builder()
         .block_size(4096)
@@ -155,7 +154,10 @@ mod tests {
         .build();
 
     // Set up a page cache and free page manager for overflow tests.
-    fn setup(temp_file: &tempfile::NamedTempFile, db_config: DbConfig) -> (PageCache, FreePageManager, DbMasterPage) {
+    fn setup(
+        temp_file: &tempfile::NamedTempFile,
+        db_config: DbConfig,
+    ) -> (PageCache, FreePageManager, DbMasterPage) {
         let db_file = std::fs::OpenOptions::new()
             .write(true)
             .read(true)
@@ -215,7 +217,6 @@ mod tests {
     fn store_overflow_tuple_3m() {
         store_and_reload(3_000_000, DB_CONFIG);
     }
-
 
     #[test]
     fn store_overflow_tuple_3m_sm() {

@@ -125,9 +125,10 @@ impl DbConfigBuilder {
     }
 
     pub const fn build(mut self) -> DbConfig {
-        assert!(self.max_blk_shift <= DbConfig::MAX_BLOCK_SHIFT_LIMIT,
+        assert!(
+            self.max_blk_shift <= DbConfig::MAX_BLOCK_SHIFT_LIMIT,
             "Max block shift is limited to 15."
-        ); 
+        );
         assert!(
             self.leaf_pg_blk_cnt_shift <= self.max_blk_shift
                 && (self.block_size << self.leaf_pg_blk_cnt_shift) <= DbConfig::MAX_TREE_PAGE_SIZE,
