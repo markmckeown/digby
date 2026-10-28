@@ -5,9 +5,14 @@ use std::convert::TryFrom;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum PageType {
+    // Used for the root page.
     Null = 0,
     // A page that can be reused. Created when DB file grows.
     Free = 1,
+    // Slab of pages.
+    Slab = 2,
+    // Log page.
+    Log = 3,
     // There are two DbMaster pages - one is current and one is old.
     // These are flipped when a new version is committed.
     DbMaster = 4,
@@ -15,6 +20,7 @@ pub enum PageType {
     Overflow = 5,
     // Page to track free pages.
     FreeDir = 6,
+    // Leaf page in the B+ tree.
     LeafPage = 8,
     // B+ tree internal node page.
     DirPage = 9,
@@ -27,6 +33,8 @@ impl TryFrom<u8> for PageType {
         match value {
             0 => Ok(PageType::Null),
             1 => Ok(PageType::Free),
+            2 => Ok(PageType::Slab),
+            3 => Ok(PageType::Log),
             4 => Ok(PageType::DbMaster),
             5 => Ok(PageType::Overflow),
             6 => Ok(PageType::FreeDir),

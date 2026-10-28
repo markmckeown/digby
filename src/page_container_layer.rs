@@ -198,8 +198,11 @@ impl PageContainerLayer {
 
     // There has been a request for more free pages during a commit - there are
     // no free pages in the system. This will initialise the pages (possibly not
-    // needed and a waste of time) and extend the file with a sync - note, that
-    // if the commit does not complete then these pages will be leaked.
+    // needed and a waste of time) and extend the file with a sync.
+    // Note the master page has a record of the number of blocks in the file that
+    // is updated as part of a commit - so if there is a failure after generating
+    // free pages but before committing then the pages will removed after the
+    // next restart.
     pub fn generate_free_pages(&mut self, no_new_pages: u64, block_cnt_exp: u8) -> Vec<PageNo> {
         // Get the file block offset.
         // Create new page_container with required number of blocks.
