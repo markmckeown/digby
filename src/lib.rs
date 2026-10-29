@@ -67,3 +67,5 @@ pub mod base_free_page_tracker;
 pub use base_free_page_tracker::BaseFreePageTracker;
 pub mod write_manager;
 pub use write_manager::WriteManager;
+pub mod slab_sanity;
+pub use slab_sanity::LogSlabSanity;

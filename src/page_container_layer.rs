@@ -7,6 +7,7 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::page_no::PageNo;
+use crate::slab_sanity::SlabSanityTrait;
 use crate::write_manager::WriteManager;
 use log::error;
 
@@ -74,12 +75,70 @@ impl ReadPageError {
 // The page container layer is also respnsible for generating
 // free pages.
 //
+pub trait PageSanityTrait {
+    fn check_page_sanity_repair(
+        &mut self,
+        page: &mut Page,
+        page_no: PageNo,
+    ) -> Result<(), ReadPageError>;
+}
 
 pub struct PageContainerLayer {
     wrt_mgr: WriteManager,
     db_config: DbConfig,
     block_sanity: BlockSanity,
     key: Vec<u8>, // The encryption key if encryption is being used.
+}
+
+impl PageSanityTrait for PageContainerLayer {
+    // Check the page is OK.
+    //  Is the checksum for the page OK?
+    //  Is the page number in the page correct? This could fail for two reasons:
+    //     - Page has been written at wrong place, block offset is wrong.
+    //     - Page was not writte, the parity is wrong.
+    //  If there is a problem attempt a repair.
+    fn check_page_sanity_repair(
+        &mut self,
+        page: &mut Page,
+        page_no: PageNo,
+    ) -> Result<(), ReadPageError> {
+        // Page checksum is wrong and page is corrupt.
+        if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
+            error!(
+                "Page sanity check failed {}, {:?}",
+                page_no.get_blk_offset(),
+                e
+            );
+            return self.repair_page(page, page_no, e);
+        }
+
+        // Check the page number in the page matches the page number we
+        // used to get it.
+        let page_no_from_page = page.get_page_number();
+        if page_no.to_u64() != page_no_from_page.to_u64() {
+            // Page numbers do not match - two possible reasons dealt with.
+            // TODO should we also have a branch for type mis-match?
+            let mut err: BlockSanityError = BlockSanityError::PageNoMisMatch;
+            if page_no.get_blk_offset() != page_no_from_page.get_blk_offset() {
+                error!(
+                    "Page at wrong offset. Read from offset {}, embedded offset {}",
+                    page_no.get_blk_offset(),
+                    page_no_from_page.get_blk_offset()
+                );
+                err = BlockSanityError::PageNoBlockOffsetError;
+            } else if page_no.get_pg_parity() != page_no_from_page.get_pg_parity() {
+                error!(
+                    "Page parity mismatch at blk pffset{}, expected {} but got {}",
+                    page_no.get_blk_offset(),
+                    page_no.get_pg_parity(),
+                    page_no_from_page.get_pg_parity()
+                );
+                err = BlockSanityError::PageNoParityError;
+            }
+            return self.repair_page(page, page_no, err);
+        }
+        Ok(())
+    }
 }
 
 impl PageContainerLayer {
@@ -130,12 +189,12 @@ impl PageContainerLayer {
         &self.db_config
     }
 
-    pub fn read_slab(&mut self, page_no: PageNo) -> Page {
+    pub fn read_slab<T: SlabSanityTrait>(&mut self, page_no: PageNo, slab_sanity: &T) -> Page {
         assert!(
             page_no.get_pg_type() == PageType::Slab,
             "For Slab read PageNo must be for Slab."
         );
-        match self.try_read_slab(page_no) {
+        match self.try_read_slab(page_no, slab_sanity) {
             Ok(page) => page,
             Err(e) => panic!("{}", e.message(page_no)),
         }
@@ -143,12 +202,21 @@ impl PageContainerLayer {
 
     // TODO - need to inject a check sanity method here to allow
     // repair.
-    fn try_read_slab(&mut self, page_no: PageNo) -> Result<Page, ReadPageError> {
+    fn try_read_slab<T: SlabSanityTrait>(
+        &mut self,
+        page_no: PageNo,
+        slab_sanity_checker: &T,
+    ) -> Result<Page, ReadPageError> {
         let mut page = Page::create_new(&self.db_config, page_no.get_blk_cnt());
         // Will read the page from primary.
         self.wrt_mgr
             .read_page_from_disk(&mut page, &page_no)
             .expect("Failed to read page");
+        // Check the slab sanity - pass self as the
+        // PageSanityTrait implementation that can be
+        // used to check individual pages in the slab
+        // and repair them if necessary and possible.
+        slab_sanity_checker.check_slab_sanity(&mut page, self)?;
         Ok(page)
     }
 
@@ -174,7 +242,7 @@ impl PageContainerLayer {
         // Check the page is OK, if it is not read from mirror if there is one
         // and repair. If not OK, no mirror or mirror is also corrupt then return
         // error.
-        self.check_sanity(&mut page, page_no)?;
+        self.check_page_sanity_repair(&mut page, page_no)?;
         Ok(page)
     }
 
@@ -260,51 +328,6 @@ impl PageContainerLayer {
 
     fn set_sanity(&self, page: &mut Page) {
         self.block_sanity.set_block_sanity(page, &self.key);
-    }
-
-    // Check the page is OK.
-    //  Is the checksum for the page OK?
-    //  Is the page number in the page correct? This could fail for two reasons:
-    //     - Page has been written at wrong place, block offset is wrong.
-    //     - Page was not writte, the parity is wrong.
-    //  If there is a problem attempt a repair.
-    fn check_sanity(&mut self, page: &mut Page, page_no: PageNo) -> Result<(), ReadPageError> {
-        // Page checksum is wrong and page is corrupt.
-        if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
-            error!(
-                "Page sanity check failed {}, {:?}",
-                page_no.get_blk_offset(),
-                e
-            );
-            return self.repair_page(page, page_no, e);
-        }
-
-        // Check the page number in the page matches the page number we
-        // used to get it.
-        let page_no_from_page = page.get_page_number();
-        if page_no.to_u64() != page_no_from_page.to_u64() {
-            // Page numbers do not match - two possible reasons dealt with.
-            // TODO should we also have a branch for type mis-match?
-            let mut err: BlockSanityError = BlockSanityError::PageNoMisMatch;
-            if page_no.get_blk_offset() != page_no_from_page.get_blk_offset() {
-                error!(
-                    "Page at wrong offset. Read from offset {}, embedded offset {}",
-                    page_no.get_blk_offset(),
-                    page_no_from_page.get_blk_offset()
-                );
-                err = BlockSanityError::PageNoBlockOffsetError;
-            } else if page_no.get_pg_parity() != page_no_from_page.get_pg_parity() {
-                error!(
-                    "Page parity mismatch at blk pffset{}, expected {} but got {}",
-                    page_no.get_blk_offset(),
-                    page_no.get_pg_parity(),
-                    page_no_from_page.get_pg_parity()
-                );
-                err = BlockSanityError::PageNoParityError;
-            }
-            return self.repair_page(page, page_no, err);
-        }
-        Ok(())
     }
 
     fn repair_page(

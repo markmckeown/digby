@@ -11,8 +11,6 @@ pub enum PageType {
     Free = 1,
     // Slab of pages.
     Slab = 2,
-    // Log page.
-    Log = 3,
     // There are two DbMaster pages - one is current and one is old.
     // These are flipped when a new version is committed.
     DbMaster = 4,
@@ -34,7 +32,6 @@ impl TryFrom<u8> for PageType {
             0 => Ok(PageType::Null),
             1 => Ok(PageType::Free),
             2 => Ok(PageType::Slab),
-            3 => Ok(PageType::Log),
             4 => Ok(PageType::DbMaster),
             5 => Ok(PageType::Overflow),
             6 => Ok(PageType::FreeDir),
