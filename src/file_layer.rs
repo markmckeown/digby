@@ -1,4 +1,3 @@
-use crate::page::Page;
 use crate::page_no::PageNo;
 
 pub struct FileLayer {
@@ -55,7 +54,7 @@ impl FileLayer {
         self.block_count += pg_blk_count;
     }
 
-    pub fn write_page_to_disk(&mut self, page: &Page, page_no: &PageNo) -> std::io::Result<()> {
+    pub fn write_buffer_to_disk(&mut self, buffer: &[u8], page_no: &PageNo) -> std::io::Result<()> {
         use std::io::{Seek, SeekFrom, Write};
 
         let pg_blk_offset = page_no.get_blk_offset();
@@ -64,7 +63,7 @@ impl FileLayer {
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for write_page_to_disk");
         self.file
-            .write_all(page.get_pg_ctr_bytes())
+            .write_all(buffer)
             .expect("Failed to write for write_page_to_disk");
         Ok(())
     }
@@ -105,6 +104,7 @@ impl FileLayer {
 mod tests {
     use super::*;
     use crate::page::PageType;
+    use crate::page::Page;
     use std::os::unix::fs::FileExt;
     const BLOCK_SIZE: usize = 4096;
     use rand::RngExt;
@@ -128,7 +128,7 @@ mod tests {
 
         // Write the page to disk
         file_layer
-            .write_page_to_disk(&page, &page_no)
+            .write_buffer_to_disk(page.get_pg_ctr_bytes(), &page_no)
             .expect("Failed to write page");
 
         // Read the page back from disk

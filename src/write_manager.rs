@@ -58,9 +58,9 @@ impl WriteManager {
 
     pub fn write_page_to_disk(&mut self, page: &Page, page_no: &PageNo) -> std::io::Result<()> {
         if let Some(mirror) = &mut self.mirror {
-            mirror.write_page_to_disk(page, page_no)?
+            mirror.write_buffer_to_disk(page.get_pg_ctr_bytes(), page_no)?
         }
-        self.primary.write_page_to_disk(page, page_no)
+        self.primary.write_buffer_to_disk(page.get_pg_ctr_bytes(), page_no)
     }
 
     pub fn read_page_from_disk(
@@ -83,7 +83,7 @@ impl WriteManager {
     }
 
     pub fn write_page_to_primary(&mut self, page: &Page, page_no: &PageNo) -> std::io::Result<()> {
-        self.primary.write_page_to_disk(page, page_no)
+        self.primary.write_buffer_to_disk(page.get_pg_ctr_bytes(), page_no)
     }
 
     pub fn sync_primary_data(&mut self) {
