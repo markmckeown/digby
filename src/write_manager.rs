@@ -49,11 +49,11 @@ impl WriteManager {
         self.primary.truncate(block_count);
     }
 
-    pub fn append_new_page(&mut self, page_buffer: &[u8], page_no: &PageNo) {
+    pub fn append_new_buffer(&mut self, page_buffer: &[u8], page_no: &PageNo) {
         if let Some(mirror) = &mut self.mirror {
-            mirror.append_new_page(page_buffer, page_no);
+            mirror.append_new_buffer(page_buffer, page_no);
         }
-        self.primary.append_new_page(page_buffer, page_no);
+        self.primary.append_new_buffer(page_buffer, page_no);
     }
 
     pub fn write_page_to_disk(&mut self, page: &Page, page_no: &PageNo) -> std::io::Result<()> {
@@ -68,7 +68,7 @@ impl WriteManager {
         buffer: &mut [u8],
         page_no: &PageNo,
     ) -> std::io::Result<()> {
-        self.primary.read_page_from_disk(buffer, page_no)
+        self.primary.read_buffer_from_disk(buffer, page_no)
     }
 
     pub fn read_page_from_mirror(
@@ -77,7 +77,7 @@ impl WriteManager {
         page_no: &PageNo,
     ) -> std::io::Result<()> {
         match &mut self.mirror {
-            Some(mirror) => mirror.read_page_from_disk(buffer, page_no),
+            Some(mirror) => mirror.read_buffer_from_disk(buffer, page_no),
             None => panic!("Attempt to read page mirror when there is no mirror"),
         }
     }
@@ -120,7 +120,7 @@ mod tests {
         let primary_file = tempfile().expect("Failed to create temp file");
         let mut wrt_mgr = WriteManager::new(FileLayer::new(primary_file, BLOCK_SIZE));
         let page_no = PageNo::new(PageType::Null, 0, 0);
-        wrt_mgr.append_new_page(Page::new(BLOCK_SIZE, BLOCK_SIZE - 4).get_pg_ctr_bytes(), &page_no);
+        wrt_mgr.append_new_buffer(Page::new(BLOCK_SIZE, BLOCK_SIZE - 4).get_pg_ctr_bytes(), &page_no);
         assert!(!wrt_mgr.has_mirror());
         let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4);
         let _ = wrt_mgr.read_page_from_mirror(page.get_pg_ctr_bytes_mut(), &page_no);
@@ -135,7 +135,7 @@ mod tests {
         let mut wrt_mgr = WriteManager::new_with_mirror(primary_layer, mirror_layer);
         let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4); // Create a new page
         let page_no = PageNo::new(PageType::Null, 0, 0);
-        wrt_mgr.append_new_page(page.get_pg_ctr_bytes(), &page_no);
+        wrt_mgr.append_new_buffer(page.get_pg_ctr_bytes(), &page_no);
         let test_data: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(BLOCK_SIZE)
