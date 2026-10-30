@@ -71,3 +71,5 @@ pub mod slab_sanity;
 pub use slab_sanity::LogSlabSanity;
 pub mod slab;
 pub use slab::Slab;
+pub mod slab_ref;
+pub use slab_ref::SlabRef;
