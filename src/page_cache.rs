@@ -1,9 +1,11 @@
+use crate::Slab;
 use crate::db_config::DbConfig;
 use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::page_container_layer::PageContainerLayer;
 use crate::page_no::PageNo;
+use crate::slab_sanity::SlabSanityTrait;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
@@ -33,6 +35,14 @@ impl PageCache {
     pub fn generate_free_pages(&mut self, no_new_pages: u64, block_cnt_exp: u8) -> Vec<PageNo> {
         self.pg_ctr_layer
             .generate_free_pages(no_new_pages, block_cnt_exp)
+    }
+
+    pub fn get_slab<T: SlabSanityTrait>(&mut self, page_number: PageNo, slab_sanity: &T) -> Slab {
+        assert!(
+            page_number.get_blk_offset() != 0,
+            "Attempt to get root page."
+        );
+        self.pg_ctr_layer.read_slab(page_number, slab_sanity)
     }
 
     // This returns a newly created page at the block layer. So each
@@ -69,6 +79,7 @@ impl PageCache {
 
     // Get a page, returning None rather than panicking if the page is
     // corrupt and cannot be repaired. The page is not cached if corrupt.
+    // Used to get the master pages.
     pub fn try_get_page(&mut self, page_number: PageNo) -> Option<Page> {
         if self.page_map.contains_key(&page_number) {
             return Some(self.get_page(page_number));

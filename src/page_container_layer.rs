@@ -201,8 +201,6 @@ impl PageContainerLayer {
         }
     }
 
-    // TODO - need to inject a check sanity method here to allow
-    // repair.
     fn try_read_slab<T: SlabSanityTrait>(
         &mut self,
         page_no: PageNo,

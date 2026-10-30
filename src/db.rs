@@ -53,9 +53,9 @@ pub enum DigbyError {
 //
 // Compressor to use when compressing large tuples.
 pub struct Db {
-    page_cache: PageCache,
-    compressor: Compressor,
-    db_config: DbConfig,
+    pub page_cache: PageCache,
+    pub compressor: Compressor,
+    pub db_config: DbConfig,
 }
 
 // Initial db layout.
@@ -541,20 +541,20 @@ impl Db {
         );
     }
 
-    /// Commit the transaction. Commit takes ownership of the transaction so
-    /// it cannot be used after it has been committed:
-    ///
-    /// ```compile_fail,E0382
-    /// # use digby::Db;
-    /// # use digby::db_config::DbConfig;
-    /// # let dir = tempfile::TempDir::new().unwrap();
-    /// # let path = dir.path().join("db");
-    /// let mut db = Db::create(path.to_str().unwrap(), None, None, &DbConfig::builder().build()).unwrap();
-    /// let mut tx_ctx = db.new_transaction();
-    /// db.put_txn(b"a", b"1", &mut tx_ctx);
-    /// db.commit(tx_ctx);
-    /// db.put_txn(b"b", b"2", &mut tx_ctx);
-    /// ```
+    // Commit the transaction. Commit takes ownership of the transaction so
+    // it cannot be used after it has been committed:
+    //
+    // ```compile_fail,E0382
+    // # use digby::Db;
+    // # use digby::db_config::DbConfig;
+    // # let dir = tempfile::TempDir::new().unwrap();
+    // # let path = dir.path().join("db");
+    // let mut db = Db::create(path.to_str().unwrap(), None, None, &DbConfig::builder().build()).unwrap();
+    // let mut tx_ctx = db.new_transaction();
+    // db.put_txn(b"a", b"1", &mut tx_ctx);
+    // db.commit(tx_ctx);
+    // db.put_txn(b"b", b"2", &mut tx_ctx);
+    // ```
     pub fn commit(&mut self, mut tx_ctx: TxCtx) {
         self.finalise_db_changes(
             &mut tx_ctx.master_page,
