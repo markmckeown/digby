@@ -283,7 +283,7 @@ impl PageContainerLayer {
 
         self.set_sanity(page);
         self.wrt_mgr
-            .write_page_to_disk(page, &page_no)
+            .write_buffer_to_disk(page.get_pg_ctr_bytes(), &page_no)
             .expect("Failed to write page");
     }
 
@@ -294,7 +294,7 @@ impl PageContainerLayer {
         );
         XxHashSanity::set_checksum(page);
         self.wrt_mgr
-            .write_page_to_disk(page, &page_no)
+            .write_buffer_to_disk(page.get_pg_ctr_bytes(), &page_no)
             .expect("Failed to write root page");
     }
 

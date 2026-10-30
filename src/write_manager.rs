@@ -1,5 +1,4 @@
 use crate::file_layer::FileLayer;
-use crate::page::Page;
 use crate::page_no::PageNo;
 
 pub struct WriteManager {
@@ -56,11 +55,11 @@ impl WriteManager {
         self.primary.append_new_buffer(page_buffer, page_no);
     }
 
-    pub fn write_page_to_disk(&mut self, page: &Page, page_no: &PageNo) -> std::io::Result<()> {
+    pub fn write_buffer_to_disk(&mut self, buffer: &[u8], page_no: &PageNo) -> std::io::Result<()> {
         if let Some(mirror) = &mut self.mirror {
-            mirror.write_buffer_to_disk(page.get_pg_ctr_bytes(), page_no)?
+            mirror.write_buffer_to_disk(buffer, page_no)?
         }
-        self.primary.write_buffer_to_disk(page.get_pg_ctr_bytes(), page_no)
+        self.primary.write_buffer_to_disk(buffer, page_no)
     }
 
     pub fn read_buffer_from_disk(
@@ -109,6 +108,7 @@ impl WriteManager {
 mod tests {
     use super::*;
     use crate::page::PageType;
+    use crate::Page;
     const BLOCK_SIZE: usize = 4096;
     use rand::RngExt;
     use rand::distr::Alphanumeric;
@@ -146,7 +146,7 @@ mod tests {
 
         // Write the page to disk
         wrt_mgr
-            .write_page_to_disk(&page, &page_no)
+            .write_buffer_to_disk(page.get_pg_ctr_bytes(), &page_no)
             .expect("Failed to write page");
 
         // Read the page back from disk
