@@ -380,7 +380,7 @@ impl PageContainerLayer {
             .copy_from_slice(page.get_pg_ctr_bytes());
         self.set_sanity(&mut page_copy);
         self.wrt_mgr
-            .write_page_to_primary(&page_copy, &page_no)
+            .write_buffer_to_primary(page_copy.get_pg_ctr_bytes(), &page_no)
             .expect("Failed to repair primary page");
         // Sync the repair, otherwise a crash could lose it and the page would
         // need to be repaired again, which fails if the mirror copy has since

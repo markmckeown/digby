@@ -82,8 +82,8 @@ impl WriteManager {
         }
     }
 
-    pub fn write_page_to_primary(&mut self, page: &Page, page_no: &PageNo) -> std::io::Result<()> {
-        self.primary.write_buffer_to_disk(page.get_pg_ctr_bytes(), page_no)
+    pub fn write_buffer_to_primary(&mut self, buffer: &[u8], page_no: &PageNo) -> std::io::Result<()> {
+        self.primary.write_buffer_to_disk(buffer, page_no)
     }
 
     pub fn sync_primary_data(&mut self) {
@@ -169,7 +169,7 @@ mod tests {
         // Write just to the primary a blank page
         let primary_page = Page::new(BLOCK_SIZE, BLOCK_SIZE);
         wrt_mgr
-            .write_page_to_primary(&primary_page, &page_no)
+            .write_buffer_to_primary(primary_page.get_pg_ctr_bytes(), &page_no)
             .expect("Failed to write buffer");
         // Read again.
         wrt_mgr
