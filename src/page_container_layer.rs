@@ -212,7 +212,7 @@ impl PageContainerLayer {
         slab.set_page_number(page_no);
         // Will read the page from primary.
         self.wrt_mgr
-            .read_page_from_disk(slab.get_slab_bytes_mut(), &page_no)
+            .read_buffer_from_disk(slab.get_slab_bytes_mut(), &page_no)
             .expect("Failed to read page");
         // Check the slab sanity - pass self as the
         // PageSanityTrait implementation that can be
@@ -239,7 +239,7 @@ impl PageContainerLayer {
         let mut page = Page::create_new(&self.db_config, page_no.get_blk_cnt());
         // Will read the page from primary.
         self.wrt_mgr
-            .read_page_from_disk(page.get_pg_ctr_bytes_mut(), &page_no)
+            .read_buffer_from_disk(page.get_pg_ctr_bytes_mut(), &page_no)
             .expect("Failed to read page");
         // Check the page is OK, if it is not read from mirror if there is one
         // and repair. If not OK, no mirror or mirror is also corrupt then return
@@ -254,7 +254,7 @@ impl PageContainerLayer {
             self.db_config.block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
         );
         self.wrt_mgr
-            .read_page_from_disk(
+            .read_buffer_from_disk(
                 page.get_pg_ctr_bytes_mut(),
                 &PageNo::new(PageType::Null, 0, 0),
             )
@@ -346,8 +346,8 @@ impl PageContainerLayer {
         }
         // Write manager has a mirror, get page from mirror
         self.wrt_mgr
-            .read_page_from_mirror(page.get_pg_ctr_bytes_mut(), &page_no)
-            .expect("Failed to read page from mirror");
+            .read_buffer_from_mirror(page.get_pg_ctr_bytes_mut(), &page_no)
+            .expect("Failed to read buffer from mirror");
         // Is the page from the mirror sane?
         if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {
             return Err(ReadPageError::MirrorCorrupt(e));
