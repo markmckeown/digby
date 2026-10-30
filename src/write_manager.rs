@@ -51,9 +51,9 @@ impl WriteManager {
 
     pub fn append_new_page(&mut self, page: &Page, page_no: &PageNo) {
         if let Some(mirror) = &mut self.mirror {
-            mirror.append_new_page(page, page_no);
+            mirror.append_new_page(page.get_pg_ctr_bytes(), page_no);
         }
-        self.primary.append_new_page(page, page_no);
+        self.primary.append_new_page(page.get_pg_ctr_bytes(), page_no);
     }
 
     pub fn write_page_to_disk(&mut self, page: &Page, page_no: &PageNo) -> std::io::Result<()> {
