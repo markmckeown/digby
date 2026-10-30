@@ -324,7 +324,8 @@ impl PageContainerLayer {
             page.set_page_number(new_page_no);
             self.set_sanity(&mut page);
             created_page_nos.push(new_page_no);
-            self.wrt_mgr.append_new_buffer(page.get_pg_ctr_bytes(), &new_page_no);
+            self.wrt_mgr
+                .append_new_buffer(page.get_pg_ctr_bytes(), &new_page_no);
         }
         // Sync the file and file metadata.
         self.wrt_mgr.sync_all();

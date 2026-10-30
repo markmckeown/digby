@@ -103,8 +103,8 @@ impl FileLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::page::PageType;
     use crate::page::Page;
+    use crate::page::PageType;
     use std::os::unix::fs::FileExt;
     const BLOCK_SIZE: usize = 4096;
     use rand::RngExt;

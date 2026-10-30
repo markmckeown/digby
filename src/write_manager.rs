@@ -81,7 +81,11 @@ impl WriteManager {
         }
     }
 
-    pub fn write_buffer_to_primary(&mut self, buffer: &[u8], page_no: &PageNo) -> std::io::Result<()> {
+    pub fn write_buffer_to_primary(
+        &mut self,
+        buffer: &[u8],
+        page_no: &PageNo,
+    ) -> std::io::Result<()> {
         self.primary.write_buffer_to_disk(buffer, page_no)
     }
 
@@ -107,8 +111,8 @@ impl WriteManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::page::PageType;
     use crate::Page;
+    use crate::page::PageType;
     const BLOCK_SIZE: usize = 4096;
     use rand::RngExt;
     use rand::distr::Alphanumeric;
@@ -120,7 +124,10 @@ mod tests {
         let primary_file = tempfile().expect("Failed to create temp file");
         let mut wrt_mgr = WriteManager::new(FileLayer::new(primary_file, BLOCK_SIZE));
         let page_no = PageNo::new(PageType::Null, 0, 0);
-        wrt_mgr.append_new_buffer(Page::new(BLOCK_SIZE, BLOCK_SIZE - 4).get_pg_ctr_bytes(), &page_no);
+        wrt_mgr.append_new_buffer(
+            Page::new(BLOCK_SIZE, BLOCK_SIZE - 4).get_pg_ctr_bytes(),
+            &page_no,
+        );
         assert!(!wrt_mgr.has_mirror());
         let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4);
         let _ = wrt_mgr.read_buffer_from_mirror(page.get_pg_ctr_bytes_mut(), &page_no);
