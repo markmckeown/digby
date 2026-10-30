@@ -69,3 +69,5 @@ pub mod write_manager;
 pub use write_manager::WriteManager;
 pub mod slab_sanity;
 pub use slab_sanity::LogSlabSanity;
+pub mod slab;
+pub use slab::Slab;

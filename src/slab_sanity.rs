@@ -1,6 +1,6 @@
-use crate::page::Page;
 use crate::page_container_layer::PageSanityTrait;
 use crate::page_container_layer::ReadPageError;
+use crate::slab::Slab;
 
 // A Slab is a continous series of pages. These slabs
 // could be used for different things so checking
@@ -33,7 +33,7 @@ pub trait SlabSanityTrait {
     // pages.
     fn check_slab_sanity(
         &self,
-        slab: &mut Page,
+        slab: &mut Slab,
         page_sanity: &mut dyn PageSanityTrait,
     ) -> Result<(), ReadPageError>;
 }
@@ -43,7 +43,7 @@ pub struct LogSlabSanity {}
 impl SlabSanityTrait for LogSlabSanity {
     fn check_slab_sanity(
         &self,
-        _slab: &mut Page,
+        _slab: &mut Slab,
         _page_sanity: &mut dyn PageSanityTrait,
     ) -> Result<(), ReadPageError> {
         Ok(())

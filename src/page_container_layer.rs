@@ -7,6 +7,7 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::page_no::PageNo;
+use crate::slab::Slab;
 use crate::slab_sanity::SlabSanityTrait;
 use crate::write_manager::WriteManager;
 use log::error;
@@ -189,13 +190,13 @@ impl PageContainerLayer {
         &self.db_config
     }
 
-    pub fn read_slab<T: SlabSanityTrait>(&mut self, page_no: PageNo, slab_sanity: &T) -> Page {
+    pub fn read_slab<T: SlabSanityTrait>(&mut self, page_no: PageNo, slab_sanity: &T) -> Slab {
         assert!(
             page_no.get_pg_type() == PageType::Slab,
             "For Slab read PageNo must be for Slab."
         );
         match self.try_read_slab(page_no, slab_sanity) {
-            Ok(page) => page,
+            Ok(slab) => slab,
             Err(e) => panic!("{}", e.message(page_no)),
         }
     }
@@ -206,18 +207,19 @@ impl PageContainerLayer {
         &mut self,
         page_no: PageNo,
         slab_sanity_checker: &T,
-    ) -> Result<Page, ReadPageError> {
-        let mut page = Page::create_new(&self.db_config, page_no.get_blk_cnt());
+    ) -> Result<Slab, ReadPageError> {
+        let mut slab = Slab::create_new(&self.db_config, page_no.get_blk_cnt());
+        slab.set_page_number(page_no);
         // Will read the page from primary.
         self.wrt_mgr
-            .read_page_from_disk(&mut page, &page_no)
+            .read_page_from_disk(slab.get_slab_bytes_mut(), &page_no)
             .expect("Failed to read page");
         // Check the slab sanity - pass self as the
         // PageSanityTrait implementation that can be
         // used to check individual pages in the slab
         // and repair them if necessary and possible.
-        slab_sanity_checker.check_slab_sanity(&mut page, self)?;
-        Ok(page)
+        slab_sanity_checker.check_slab_sanity(&mut slab, self)?;
+        Ok(slab)
     }
 
     pub fn read_page(&mut self, page_no: PageNo) -> Page {
@@ -237,7 +239,7 @@ impl PageContainerLayer {
         let mut page = Page::create_new(&self.db_config, page_no.get_blk_cnt());
         // Will read the page from primary.
         self.wrt_mgr
-            .read_page_from_disk(&mut page, &page_no)
+            .read_page_from_disk(page.get_pg_ctr_bytes_mut(), &page_no)
             .expect("Failed to read page");
         // Check the page is OK, if it is not read from mirror if there is one
         // and repair. If not OK, no mirror or mirror is also corrupt then return
@@ -252,7 +254,10 @@ impl PageContainerLayer {
             self.db_config.block_size - BlockSanity::get_bytes_used(BlockSanity::XxH32Checksum),
         );
         self.wrt_mgr
-            .read_page_from_disk(&mut page, &PageNo::new(PageType::Null, 0, 0))
+            .read_page_from_disk(
+                page.get_pg_ctr_bytes_mut(),
+                &PageNo::new(PageType::Null, 0, 0),
+            )
             .expect("Failed to read root page");
         XxHashSanity::verify_checksum(&page).expect("Root page checksum mismatch");
         page
@@ -341,7 +346,7 @@ impl PageContainerLayer {
         }
         // Write manager has a mirror, get page from mirror
         self.wrt_mgr
-            .read_page_from_mirror(page, &page_no)
+            .read_page_from_mirror(page.get_pg_ctr_bytes_mut(), &page_no)
             .expect("Failed to read page from mirror");
         // Is the page from the mirror sane?
         if let Err(e) = self.block_sanity.check_block_sanity(page, &self.key) {

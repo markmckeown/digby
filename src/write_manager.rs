@@ -65,19 +65,19 @@ impl WriteManager {
 
     pub fn read_page_from_disk(
         &mut self,
-        page: &mut Page,
+        buffer: &mut [u8],
         page_no: &PageNo,
     ) -> std::io::Result<()> {
-        self.primary.read_page_from_disk(page, page_no)
+        self.primary.read_page_from_disk(buffer, page_no)
     }
 
     pub fn read_page_from_mirror(
         &mut self,
-        page: &mut Page,
+        buffer: &mut [u8],
         page_no: &PageNo,
     ) -> std::io::Result<()> {
         match &mut self.mirror {
-            Some(mirror) => mirror.read_page_from_disk(page, page_no),
+            Some(mirror) => mirror.read_page_from_disk(buffer, page_no),
             None => panic!("Attempt to read page mirror when there is no mirror"),
         }
     }
@@ -123,7 +123,7 @@ mod tests {
         wrt_mgr.append_new_page(&Page::new(BLOCK_SIZE, BLOCK_SIZE - 4), &page_no);
         assert!(!wrt_mgr.has_mirror());
         let mut page = Page::new(BLOCK_SIZE, BLOCK_SIZE - 4);
-        let _ = wrt_mgr.read_page_from_mirror(&mut page, &page_no);
+        let _ = wrt_mgr.read_page_from_mirror(page.get_pg_ctr_bytes_mut(), &page_no);
     }
 
     #[test]
@@ -152,7 +152,7 @@ mod tests {
         // Read the page back from disk
         let mut read_page = Page::new(BLOCK_SIZE, BLOCK_SIZE);
         wrt_mgr
-            .read_page_from_disk(&mut read_page, &page_no)
+            .read_page_from_disk(read_page.get_pg_ctr_bytes_mut(), &page_no)
             .expect("Failed to read page");
 
         // Verify that the read data matches the written data
@@ -160,7 +160,7 @@ mod tests {
 
         let mut mirror_page = Page::new(BLOCK_SIZE, BLOCK_SIZE);
         wrt_mgr
-            .read_page_from_mirror(&mut mirror_page, &page_no)
+            .read_page_from_mirror(mirror_page.get_pg_ctr_bytes_mut(), &page_no)
             .expect("Failed to mirror page");
 
         // Verify that the mirror data matches the written data
@@ -173,14 +173,14 @@ mod tests {
             .expect("Failed to write page");
         // Read again.
         wrt_mgr
-            .read_page_from_disk(&mut read_page, &page_no)
+            .read_page_from_disk(read_page.get_pg_ctr_bytes_mut(), &page_no)
             .expect("Failed to read page");
         assert_eq!(
             read_page.get_pg_ctr_bytes(),
             primary_page.get_pg_ctr_bytes()
         );
         wrt_mgr
-            .read_page_from_mirror(&mut mirror_page, &page_no)
+            .read_page_from_mirror(mirror_page.get_pg_ctr_bytes_mut(), &page_no)
             .expect("Failed to mirror page");
         assert_ne!(read_page.get_pg_ctr_bytes(), mirror_page.get_pg_ctr_bytes());
     }

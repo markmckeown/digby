@@ -71,7 +71,7 @@ impl FileLayer {
 
     pub fn read_page_from_disk(
         &mut self,
-        page: &mut Page,
+        page_buffer: &mut [u8],
         page_no: &PageNo,
     ) -> std::io::Result<()> {
         use std::io::{Read, Seek, SeekFrom};
@@ -88,9 +88,7 @@ impl FileLayer {
         self.file
             .seek(SeekFrom::Start(offset))
             .expect("Failed to seek for read");
-        self.file
-            .read_exact(page.get_pg_ctr_bytes_mut())
-            .expect("Failed to read");
+        self.file.read_exact(page_buffer).expect("Failed to read");
         Ok(())
     }
 
@@ -136,7 +134,7 @@ mod tests {
         // Read the page back from disk
         let mut read_page = Page::new(BLOCK_SIZE, BLOCK_SIZE);
         file_layer
-            .read_page_from_disk(&mut read_page, &page_no)
+            .read_page_from_disk(read_page.get_pg_ctr_bytes_mut(), &page_no)
             .expect("Failed to read page");
 
         // Verify that the read data matches the written data
