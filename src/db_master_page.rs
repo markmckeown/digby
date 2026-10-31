@@ -3,10 +3,11 @@ use crate::page::Page;
 use crate::page::PageTrait;
 use crate::page::PageType;
 use crate::page_no::PageNo;
+use crate::slab_ref::SlabRef;
 
 // 24  | Page No (8 bytes) | VersionHolder (8 bytes) | GlobalTreeRootPage (8 bytes) |
 // 40  | TableDirPage(8 bytes)  | BLK_COUNT_OFFSET (8 bytes) |
-// 72  | Unused (8 bytes) | Unused (8 bytes) | Unused (8 bytes) | Unused (8 bytes) |
+// 72  | FreedPagesLogTreeRoot (8 bytes) | FreedPagesLogTreeOpenSlab (12 bytes) | Unused (10 bytes) |
 // 80  | FreePageDir0 (8 bytes) |
 // 104 | FreePageDir1 (8 bytes) | FreePageDir2 (8 bytes) | FreePageDir3 (8 bytes) |
 // 128 | FreePageDir4 (8 bytes) | FreePageDir5 (8 bytes) | FreePageDir6 (8 bytes) |
@@ -111,6 +112,32 @@ impl DbMasterPage {
         let offset = DbMasterPage::BLK_COUNT_OFFSET;
         self.page.get_page_bytes_mut()[offset..offset + 8]
             .copy_from_slice(&blk_count.to_le_bytes());
+    }
+
+    // FreedPagesLogTreeRoot
+    const FREED_PAGES_LOG_TREE_ROOT: usize = 40;
+    pub fn get_freed_pages_log_tree_root(&self) -> PageNo {
+        self.get_pg_no_offset(DbMasterPage::FREED_PAGES_LOG_TREE_ROOT)
+    }
+
+    pub fn set_freed_pages_log_tree_root(&mut self, page_no: PageNo) {
+        self.set_pg_no_offset(DbMasterPage::FREED_PAGES_LOG_TREE_ROOT, page_no);
+    }
+
+    // FreedPagesLogTreeOpenSlab
+    const FREED_PAGES_LOG_TREE_OPEN_SLAB: usize = 48;
+    pub fn get_freed_pages_log_tree_open_slab(&self) -> SlabRef {
+        SlabRef::from_bytes(
+            &self.page.get_page_bytes()[DbMasterPage::FREED_PAGES_LOG_TREE_OPEN_SLAB
+                ..DbMasterPage::FREED_PAGES_LOG_TREE_OPEN_SLAB + 12],
+        )
+    }
+
+    pub fn set_freed_pages_log_tree_open_slab(&mut self, slab_ref: &SlabRef) {
+        slab_ref.to_bytes(
+            &mut self.page.get_page_bytes_mut()[DbMasterPage::FREED_PAGES_LOG_TREE_OPEN_SLAB
+                ..DbMasterPage::FREED_PAGES_LOG_TREE_OPEN_SLAB + 12],
+        );
     }
 
     // The free page directories
@@ -238,5 +265,77 @@ mod tests {
 
         master_page.flip_page_number();
         assert_eq!(master_page.get_page_number().get_blk_offset(), 1);
+    }
+
+    fn slab_ref_bytes(slab_ref: &SlabRef) -> [u8; 12] {
+        let mut bytes = [0u8; 12];
+        slab_ref.to_bytes(&mut bytes);
+        bytes
+    }
+
+    #[test]
+    fn test_freed_pages_log_tree_root() {
+        let mut master_page =
+            DbMasterPage::create_new(&DB_CONFIG, PageNo::new(PageType::DbMaster, 0, 1), 1);
+        assert_eq!(master_page.get_freed_pages_log_tree_root().to_u64(), 0);
+
+        master_page.set_blk_count(1234);
+        master_page.set_free_page_dir_page_no(0, PageNo::new(PageType::FreeDir, 0, 67));
+        let slab_ref = SlabRef::new(PageNo::new(PageType::Slab, 3, 200));
+        master_page.set_freed_pages_log_tree_open_slab(&slab_ref);
+
+        let mut root = PageNo::new(PageType::LeafPage, 1, 99);
+        root.set_pg_parity(7);
+        master_page.set_freed_pages_log_tree_root(root);
+        assert_eq!(master_page.get_freed_pages_log_tree_root(), root);
+
+        // Neighbouring fields are untouched.
+        assert_eq!(master_page.get_blk_count(), 1234);
+        assert_eq!(
+            slab_ref_bytes(&master_page.get_freed_pages_log_tree_open_slab()),
+            slab_ref_bytes(&slab_ref)
+        );
+        assert_eq!(
+            master_page.get_free_page_dir_page_no(0),
+            PageNo::new(PageType::FreeDir, 0, 67)
+        );
+    }
+
+    #[test]
+    fn test_freed_pages_log_tree_open_slab() {
+        let mut master_page =
+            DbMasterPage::create_new(&DB_CONFIG, PageNo::new(PageType::DbMaster, 0, 1), 1);
+        let empty = master_page.get_freed_pages_log_tree_open_slab();
+        assert_eq!(empty.get_page_no().to_u64(), 0);
+        assert_eq!(empty.get_pages_used(), 0);
+
+        let root = PageNo::new(PageType::LeafPage, 0, 99);
+        master_page.set_freed_pages_log_tree_root(root);
+        master_page.set_free_page_dir_page_no(0, PageNo::new(PageType::FreeDir, 0, 67));
+
+        let mut slab_ref = SlabRef::new(PageNo::new(PageType::Slab, 4, 300));
+        slab_ref.get_next_page_in_slab(PageType::LeafPage);
+        slab_ref.get_next_page_in_slab(PageType::LeafPage);
+        master_page.set_freed_pages_log_tree_open_slab(&slab_ref);
+
+        let read_slab_ref = master_page.get_freed_pages_log_tree_open_slab();
+        assert_eq!(read_slab_ref.get_page_no(), slab_ref.get_page_no());
+        assert_eq!(read_slab_ref.get_pages_used(), 2);
+        assert_eq!(slab_ref_bytes(&read_slab_ref), slab_ref_bytes(&slab_ref));
+
+        // Neighbouring fields are untouched.
+        assert_eq!(master_page.get_freed_pages_log_tree_root(), root);
+        assert_eq!(
+            master_page.get_free_page_dir_page_no(0),
+            PageNo::new(PageType::FreeDir, 0, 67)
+        );
+
+        // Overwriting replaces the previous slab.
+        let new_slab_ref = SlabRef::new(PageNo::new(PageType::Slab, 2, 500));
+        master_page.set_freed_pages_log_tree_open_slab(&new_slab_ref);
+        assert_eq!(
+            slab_ref_bytes(&master_page.get_freed_pages_log_tree_open_slab()),
+            slab_ref_bytes(&new_slab_ref)
+        );
     }
 }
