@@ -1,4 +1,3 @@
-use crate::db_config::DbConfig;
 use crate::page::PageType;
 use crate::page_no::PageNo;
 
@@ -24,10 +23,9 @@ impl SlabRef {
         (self.pages_used as u64) < self.page_no.get_blk_cnt()
     }
 
-    pub fn get_next_page_in_slab(&mut self, page_type: PageType, db_config: &DbConfig) -> PageNo {
+    pub fn get_next_page_in_slab(&mut self, page_type: PageType) -> PageNo {
         assert!((self.pages_used as u64) < self.page_no.get_blk_cnt());
-        let offset =
-            self.page_no.get_blk_offset() + (self.pages_used as u64 * db_config.block_size as u64);
+        let offset = self.page_no.get_blk_offset() + self.pages_used as u64;
         let parity = self.next_parity;
         self.pages_used += 1;
         self.next_parity = self.next_parity.wrapping_add(1);
@@ -83,5 +81,62 @@ mod tests {
         let new_slab_ref = SlabRef::from_bytes(&buffer);
         assert_eq!(slab_ref.get_page_no(), new_slab_ref.get_page_no());
         assert_eq!(slab_ref.get_pages_used(), new_slab_ref.get_pages_used());
+    }
+
+    #[test]
+    fn slab_ref_test_get_next_page_in_slab() {
+        let mut slab_ref = SlabRef::new(PageNo::new(PageType::Slab, 2, 100));
+        let first_parity = slab_ref.first_parity;
+
+        for i in 0..4u64 {
+            assert!(slab_ref.has_free_space());
+            let page_no = slab_ref.get_next_page_in_slab(PageType::LeafPage);
+            assert_eq!(page_no.get_pg_type(), PageType::LeafPage);
+            assert_eq!(page_no.get_blk_cnt(), 1);
+            assert_eq!(page_no.get_blk_offset(), 100 + i);
+            assert_eq!(page_no.get_pg_parity(), first_parity.wrapping_add(i as u8));
+            assert_eq!(slab_ref.get_pages_used() as u64, i + 1);
+        }
+        assert!(!slab_ref.has_free_space());
+        assert_eq!(slab_ref.first_parity, first_parity);
+    }
+
+    #[test]
+    fn slab_ref_test_get_next_page_in_slab_parity_wraps() {
+        let mut buffer = [0u8; 12];
+        SlabRef::new(PageNo::new(PageType::Slab, 1, 8)).to_bytes(&mut buffer);
+        buffer[11] = 255;
+        let mut slab_ref = SlabRef::from_bytes(&buffer);
+
+        let page_no = slab_ref.get_next_page_in_slab(PageType::DirPage);
+        assert_eq!(page_no.get_pg_parity(), 255);
+        let page_no = slab_ref.get_next_page_in_slab(PageType::DirPage);
+        assert_eq!(page_no.get_pg_parity(), 0);
+    }
+
+    #[test]
+    fn slab_ref_test_get_next_page_in_slab_after_serialise() {
+        let mut slab_ref = SlabRef::new(PageNo::new(PageType::Slab, 2, 40));
+        let first = slab_ref.get_next_page_in_slab(PageType::LeafPage);
+
+        let mut buffer = [0u8; 12];
+        slab_ref.to_bytes(&mut buffer);
+        let mut new_slab_ref = SlabRef::from_bytes(&buffer);
+
+        let second = new_slab_ref.get_next_page_in_slab(PageType::LeafPage);
+        assert_eq!(second.get_blk_offset(), first.get_blk_offset() + 1);
+        assert_eq!(
+            second.get_pg_parity(),
+            first.get_pg_parity().wrapping_add(1)
+        );
+        assert_eq!(new_slab_ref.get_pages_used(), 2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn slab_ref_test_get_next_page_in_full_slab() {
+        let mut slab_ref = SlabRef::new(PageNo::new(PageType::Slab, 0, 16));
+        slab_ref.get_next_page_in_slab(PageType::LeafPage);
+        slab_ref.get_next_page_in_slab(PageType::LeafPage);
     }
 }
