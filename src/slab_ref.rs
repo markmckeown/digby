@@ -63,6 +63,7 @@ impl SlabRef {
     }
 
     pub fn set_pages_used(&mut self, pages_used: u16) {
+        assert!((pages_used as u64) <= self.page_no.get_blk_cnt());
         self.pages_used = pages_used;
     }
 }
@@ -75,7 +76,7 @@ mod tests {
     #[test]
     fn slab_ref_test_serialise() {
         let mut slab_ref = SlabRef::new(PageNo::new(PageType::Null, 4, 8));
-        slab_ref.set_pages_used(45);
+        slab_ref.set_pages_used(4);
         let mut buffer = [0u8; 12];
         slab_ref.to_bytes(&mut buffer);
         let new_slab_ref = SlabRef::from_bytes(&buffer);
