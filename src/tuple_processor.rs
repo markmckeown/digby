@@ -27,7 +27,7 @@ impl TupleProcessor {
         free_pg_mgr: &mut FreePageManager,
         version: u64,
         compressor: &Compressor,
-        db_config: &DbConfig,
+        _db_config: &DbConfig,
     ) -> Tuple {
         Self::generate_tuple_with_value_size_limit(
             key,
@@ -36,7 +36,6 @@ impl TupleProcessor {
             free_pg_mgr,
             version,
             compressor,
-            db_config,
             TupleProcessor::MAX_VALUE_SIZE_LIMIT,
         )
     }
@@ -48,7 +47,6 @@ impl TupleProcessor {
         free_pg_mgr: &mut FreePageManager,
         version: u64,
         compressor: &Compressor,
-        _db_config: &DbConfig,
         max_value_size: usize,
     ) -> Tuple {
         if !TupleProcessor::is_oversized_key(key) && value.len() < max_value_size {

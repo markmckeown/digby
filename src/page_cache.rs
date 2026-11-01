@@ -119,6 +119,19 @@ impl PageCache {
         }
     }
 
+    pub fn put_page_no_cache(&mut self, page: &mut Page) {
+        let page_no = page.get_page_number();
+        assert!(
+            page_no.get_pg_type() != PageType::Null,
+            "Attempt to write Null page"
+        );
+        assert!(
+            page_no.get_blk_offset() != 0,
+            "Attempt to overwrite root page."
+        );
+        self.pg_ctr_layer.write_page(page, page_no);
+    }
+
     pub fn put_page(&mut self, page: &mut Page) {
         let page_no = page.get_page_number();
         assert!(
