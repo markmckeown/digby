@@ -18,7 +18,7 @@ pub struct TupleProcessor {}
 // If keys are larger 255 bytes then lexical sorting will break down - another option
 // would be just to store the SHA256 as the comppressed key.
 impl TupleProcessor {
-    const MAX_VALUE_SIZE: usize = 1024;
+    const MAX_VALUE_SIZE_LIMIT: usize = 1024;
 
     pub fn generate_tuple(
         key: &[u8],
@@ -27,9 +27,31 @@ impl TupleProcessor {
         free_pg_mgr: &mut FreePageManager,
         version: u64,
         compressor: &Compressor,
-        _db_config: &DbConfig,
+        db_config: &DbConfig,
     ) -> Tuple {
-        if !TupleProcessor::is_oversized_key(key) && value.len() < TupleProcessor::MAX_VALUE_SIZE {
+        Self::generate_tuple_with_value_size_limit(
+            key,
+            value,
+            page_cache,
+            free_pg_mgr,
+            version,
+            compressor,
+            db_config,
+            TupleProcessor::MAX_VALUE_SIZE_LIMIT,
+        )
+    }
+
+    pub fn generate_tuple_with_value_size_limit(
+        key: &[u8],
+        value: &[u8],
+        page_cache: &mut PageCache,
+        free_pg_mgr: &mut FreePageManager,
+        version: u64,
+        compressor: &Compressor,
+        _db_config: &DbConfig,
+        max_value_size: usize,
+    ) -> Tuple {
+        if !TupleProcessor::is_oversized_key(key) && value.len() < max_value_size {
             return Tuple::new(key, value, version);
         }
         // LZ4 stores the uncompressed length as a u32, a key or value too
@@ -43,9 +65,7 @@ impl TupleProcessor {
         if compress {
             compressed_value = compressor.compress(value);
             // We can store it with the value compressed.
-            if !TupleProcessor::is_oversized_key(key)
-                && compressed_value.len() < TupleProcessor::MAX_VALUE_SIZE
-            {
+            if !TupleProcessor::is_oversized_key(key) && compressed_value.len() < max_value_size {
                 return Tuple::new_with_overflow(
                     key,
                     &compressed_value,
@@ -55,15 +75,14 @@ impl TupleProcessor {
             }
         }
 
-        let overflow_type: Overflow = if TupleProcessor::is_oversized_key(key)
-            && value.len() > TupleProcessor::MAX_VALUE_SIZE
-        {
-            Overflow::KeyValueOverflow
-        } else if key.len() > u8::MAX as usize {
-            Overflow::KeyOverflow
-        } else {
-            Overflow::ValueOverflow
-        };
+        let overflow_type: Overflow =
+            if TupleProcessor::is_oversized_key(key) && value.len() > max_value_size {
+                Overflow::KeyValueOverflow
+            } else if key.len() > u8::MAX as usize {
+                Overflow::KeyOverflow
+            } else {
+                Overflow::ValueOverflow
+            };
 
         let overflow_tuple: OverflowTuple = if compress {
             let overflow_key = compressor.compress(key);
