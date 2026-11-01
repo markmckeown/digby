@@ -206,8 +206,7 @@ impl PageContainerLayer {
         page_no: PageNo,
         slab_sanity_checker: &T,
     ) -> Result<Slab, ReadPageError> {
-        let mut slab = Slab::create_new(&self.db_config, page_no.get_blk_cnt());
-        slab.set_page_number(page_no);
+        let mut slab = Slab::create_new(&self.db_config, page_no);
         // Will read the page from primary.
         self.wrt_mgr
             .read_buffer_from_disk(slab.get_slab_bytes_mut(), &page_no)
