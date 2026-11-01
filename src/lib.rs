@@ -75,3 +75,5 @@ pub mod slab_ref;
 pub use slab_ref::SlabRef;
 pub mod freed_page_log_tree_collector;
 pub use freed_page_log_tree_collector::FreedPageLogTreeCollector;
+pub mod freed_page_slab_writer;
+pub use freed_page_slab_writer::FreedPageSlabWriter;

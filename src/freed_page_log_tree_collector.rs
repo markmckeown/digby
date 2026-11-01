@@ -1,9 +1,3 @@
-use crate::Compressor;
-use crate::FreePageManager;
-use crate::LeafPage;
-use crate::PageCache;
-use crate::TupleProcessor;
-use crate::db_config::DbConfig;
 use crate::page_no::PageNo;
 
 pub struct FreedPageLogTreeCollector {
@@ -25,29 +19,6 @@ impl FreedPageLogTreeCollector {
             buffer.extend_from_slice(&page_no.get_bytes());
         }
         buffer
-    }
-
-    pub fn write_to_leaf_page(
-        &self,
-        db_config: &DbConfig,
-        page_no: PageNo,
-        version: u64,
-        page_cache: &mut PageCache,
-        free_pg_mgr: &mut FreePageManager,
-        compressor: &Compressor,
-    ) -> LeafPage {
-        let tuple = TupleProcessor::generate_tuple(
-            &version.to_le_bytes(),
-            &self.get_pages_buffer()[..],
-            page_cache,
-            free_pg_mgr,
-            version,
-            compressor,
-            db_config,
-        );
-        let mut leaf_page = LeafPage::create_new(db_config, page_no, version);
-        leaf_page.add_tuple(&tuple);
-        leaf_page
     }
 }
 
