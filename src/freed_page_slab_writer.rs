@@ -13,15 +13,13 @@ use crate::slab_ref::SlabRef;
 
 pub struct FreedPageSlabWriter {
     db_config: DbConfig,
-    version: u64,
     slab_ref: SlabRef,
 }
 
 impl FreedPageSlabWriter {
-    pub fn new(db_config: DbConfig, version: u64, slab_ref: SlabRef) -> Self {
+    pub fn new(db_config: DbConfig, slab_ref: SlabRef) -> Self {
         FreedPageSlabWriter {
             db_config,
-            version,
             slab_ref,
         }
     }
@@ -35,10 +33,17 @@ impl FreedPageSlabWriter {
         page_cache: &mut PageCache,
         free_pg_mgr: &mut FreePageManager,
         freed_page_collector: &FreedPageLogTreeCollector,
+        version: u64,
     ) {
         assert!(self.slab_ref.has_free_space());
         let next_page_no = self.slab_ref.get_next_page_in_slab(PageType::LeafPage);
-        self.write_freed_to_page(next_page_no, page_cache, free_pg_mgr, freed_page_collector);
+        self.write_freed_to_page(
+            next_page_no,
+            page_cache,
+            free_pg_mgr,
+            freed_page_collector,
+            version,
+        );
     }
 
     pub fn write_freed_to_page(
@@ -47,12 +52,14 @@ impl FreedPageSlabWriter {
         page_cache: &mut PageCache,
         free_pg_mgr: &mut FreePageManager,
         freed_page_collector: &FreedPageLogTreeCollector,
+        version: u64,
     ) {
         let mut leaf_page = self.write_to_leaf_page(
             page_no,
             page_cache,
             free_pg_mgr,
             freed_page_collector.get_pages_buffer(),
+            version,
         );
         page_cache.put_page_no_cache(leaf_page.get_page());
     }
@@ -63,20 +70,24 @@ impl FreedPageSlabWriter {
         page_cache: &mut PageCache,
         free_pg_mgr: &mut FreePageManager,
         freed_pages: Vec<u8>,
+        version: u64,
     ) -> LeafPage {
         let compressor = Compressor::new(CompressorType::None);
-        // TODO - assuming 100 bytes here for book keeping.
+        // TODO - assuming 100 bytes here for book keeping. Only
+        // one tuple is written to the page before it is written
+        // to disk, no other tuples are added to the page until
+        // it is compacted (if we do compaction).
         let max_value_size = self.db_config.block_size - 100;
         let tuple = TupleProcessor::generate_tuple_with_value_size_limit(
-            &self.version.to_le_bytes(),
+            &version.to_le_bytes(),
             &freed_pages[..],
             page_cache,
             free_pg_mgr,
-            self.version,
+            version,
             &compressor,
             max_value_size,
         );
-        let mut leaf_page = LeafPage::create_new(&self.db_config, page_no, self.version);
+        let mut leaf_page = LeafPage::create_new(&self.db_config, page_no, version);
         leaf_page.add_tuple(&tuple);
         leaf_page
     }

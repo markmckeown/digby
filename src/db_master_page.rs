@@ -5,15 +5,16 @@ use crate::page::PageType;
 use crate::page_no::PageNo;
 use crate::slab_ref::SlabRef;
 
-// 24  | Page No (8 bytes) | VersionHolder (8 bytes) | GlobalTreeRootPage (8 bytes) |
-// 40  | TableDirPage(8 bytes)  | BLK_COUNT_OFFSET (8 bytes) |
-// 72  | FreedPagesLogTreeRoot (8 bytes) | FreedPagesLogTreeOpenSlab (10 bytes) | Unused (14 bytes) |
-// 80  | FreePageDir0 (8 bytes) |
-// 104 | FreePageDir1 (8 bytes) | FreePageDir2 (8 bytes) | FreePageDir3 (8 bytes) |
-// 128 | FreePageDir4 (8 bytes) | FreePageDir5 (8 bytes) | FreePageDir6 (8 bytes) |
-// 152 | FreePageDir7 (8 bytes) | FreePageDir8 (8 bytes) | FreePageDir9 (8 bytes) |
-// 176 | FreePageDir10 (8 bytes) | FreePageDir11 (8 bytes) | FreePageDir12 (8 bytes) |
-// 200 | FreePageDir13 (8 bytes) | FreePageDir14 (8 bytes) | FreePageDir15 (8 bytes) |
+// 0   | Page No (8 bytes) | VersionHolder (8 bytes) | GlobalTreeRootPage (8 bytes) |
+// 24  | TableDirPage(8 bytes)  | BLK_COUNT_OFFSET (8 bytes) |
+// 40  | Last Master (8) | FreedPagesLogTreeRoot (8) | FreedPagesLogTreeOpenSlab (10) | Free (6) |
+// 72  | FreePageDir0 (8 bytes) |
+// 80  | FreePageDir1 (8 bytes) | FreePageDir2 (8 bytes) | FreePageDir3 (8 bytes) |
+// 104 | FreePageDir4 (8 bytes) | FreePageDir5 (8 bytes) | FreePageDir6 (8 bytes) |
+// 128 | FreePageDir7 (8 bytes) | FreePageDir8 (8 bytes) | FreePageDir9 (8 bytes) |
+// 152 | FreePageDir10 (8 bytes) | FreePageDir11 (8 bytes) | FreePageDir12 (8 bytes) |
+// 176 | FreePageDir13 (8 bytes) | FreePageDir14 (8 bytes) | FreePageDir15 (8 bytes) |
+// 200 |
 pub struct DbMasterPage {
     page: Page,
 }
