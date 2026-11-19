@@ -104,7 +104,7 @@ impl FreePageTracker {
         self.returned_pages.push(bumped_pg_no);
     }
 
-    // The commit wants to write back the free_dir_page - no more free page no will be
+    // The commit wants to write back the free_dir_page - no more free page will be
     // required. So we add the returned pages into the free_dir_page. If there are more
     // free page numbers that will fit into the free_dir_page then we need to create
     // new free pages to store them. We do not want to reuse those free page numbers

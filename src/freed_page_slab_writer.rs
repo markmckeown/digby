@@ -78,8 +78,9 @@ impl FreedPageSlabWriter {
         // to disk, no other tuples are added to the page until
         // it is compacted (if we do compaction).
         let max_value_size = self.db_config.block_size - 100;
+        // Note, store version as big endian to make it sortable
         let tuple = TupleProcessor::generate_tuple_with_value_size_limit(
-            &version.to_le_bytes(),
+            &version.to_be_bytes(),
             &freed_pages[..],
             page_cache,
             free_pg_mgr,
